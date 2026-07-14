@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@calc3d/web", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "web-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@calc3d/web", "exec", "vite", "--port", "5180", "--strictPort"],
+      "port": 5180,
+      "autoPort": false,
+      "env": { "VITE_API_URL": "http://localhost:3001/api" }
+    }
+  ]
+}

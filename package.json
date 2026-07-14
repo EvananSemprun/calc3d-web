@@ -1,0 +1,26 @@
+{
+  "name": "calc3d-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frontend Calc3D (React + Vite) — repo independiente",
+  "packageManager": "pnpm@11.6.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "sync:shared": "node scripts/sync-shared.mjs",
+    "postinstall": "pnpm --filter @calc3d/shared build",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "dev": "pnpm --filter @calc3d/web dev",
+    "preview": "pnpm --filter @calc3d/web preview",
+    "test:shared": "pnpm --filter @calc3d/shared test"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2"
+  }
+}

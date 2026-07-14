@@ -1,0 +1,267 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Sistema visual de marca Calc3D — paleta ESTRICTA:
+    #000814 = hsl(216 100% 4%)    navy casi negro (fondo)
+    #001D3D = hsl(211 100% 12%)   navy (superficies/tarjetas)
+    #003566 = hsl(209 100% 20%)   azul de marca (primario/bordes)
+    #FFC300 = hsl(46 100% 50%)    oro (acento principal)
+    #FFD60A = hsl(50 100% 52%)    oro claro (hover/realce)
+  El texto usa blanco/gris claro solo por legibilidad (la paleta no tiene
+  un neutro claro). Rojo/verde se reservan para error/éxito.
+*/
+:root {
+  --background: 210 40% 98%;
+  --foreground: 216 100% 8%;
+  --card: 0 0% 100%;
+  --card-foreground: 216 100% 8%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 216 100% 8%;
+  --primary: 209 100% 20%; /* #003566 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 94%;
+  --secondary-foreground: 216 100% 12%;
+  --muted: 210 40% 95%;
+  --muted-foreground: 211 28% 38%;
+  --accent: 210 40% 93%;
+  --accent-foreground: 216 100% 12%;
+  --destructive: 0 72% 46%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 152 55% 32%; /* oscurecido para pasar AA (4.5:1) como texto sobre blanco */
+  --border: 210 30% 86%;
+  --input: 210 30% 86%;
+  --ring: 209 100% 30%;
+  --radius: 0.75rem;
+
+  --brand-blue: 209 100% 20%; /* #003566 */
+  --brand-blue-bright: 209 100% 20%;
+  --brand-yellow: 46 100% 50%; /* #FFC300 — SOLO para rellenos/acentos (fondo de badge, glow) */
+  --brand-yellow-hover: 50 100% 52%; /* #FFD60A */
+  --brand-yellow-foreground: 216 100% 8%;
+  /* Oro para TEXTO: en claro un oro profundo legible sobre blanco; en oscuro es
+     el oro brillante (idéntico a --brand-yellow), así el modo oscuro no cambia. */
+  --brand-yellow-ink: 40 100% 30%;
+
+  --app-gradient: radial-gradient(
+      1200px 600px at 100% -10%,
+      hsl(209 100% 20% / 0.07),
+      transparent 60%
+    ),
+    radial-gradient(900px 500px at -10% 110%, hsl(46 100% 50% / 0.06), transparent 55%),
+    radial-gradient(700px 700px at 50% 120%, hsl(209 100% 20% / 0.05), transparent 60%);
+  --grid-line: hsl(209 100% 20% / 0.07);
+  --glass-bg: 0 0% 100% / 0.72;
+  --glass-border: 210 30% 86% / 0.9;
+}
+
+.dark {
+  --background: 216 100% 4%; /* #000814 */
+  --foreground: 0 0% 98%;
+  --card: 211 100% 12%; /* #001D3D */
+  --card-foreground: 0 0% 98%;
+  --popover: 211 100% 12%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 209 100% 20%; /* #003566 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 211 100% 12%; /* #001D3D */
+  --secondary-foreground: 0 0% 98%;
+  --muted: 211 100% 12%;
+  --muted-foreground: 210 30% 72%;
+  --accent: 209 100% 20%; /* #003566 (hover/superficie activa) */
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 70% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 152 60% 50%;
+  --border: 209 100% 20%; /* #003566 */
+  --input: 209 100% 20%;
+  --ring: 46 100% 50%; /* #FFC300 */
+
+  --brand-blue: 209 100% 20%; /* #003566 */
+  --brand-blue-bright: 209 100% 20%;
+  --brand-yellow: 46 100% 50%; /* #FFC300 */
+  --brand-yellow-hover: 50 100% 52%; /* #FFD60A */
+  --brand-yellow-foreground: 216 100% 5%; /* texto navy sobre oro */
+  --brand-yellow-ink: 46 100% 50%; /* en oscuro el oro-texto = oro brillante (sin cambios) */
+
+  --app-gradient: radial-gradient(
+      1100px 600px at 100% -15%,
+      hsl(209 100% 20% / 0.6),
+      transparent 55%
+    ),
+    radial-gradient(900px 520px at -10% 110%, hsl(46 100% 50% / 0.09), transparent 55%),
+    radial-gradient(760px 760px at 50% 130%, hsl(211 100% 12% / 0.7), transparent 60%);
+  --grid-line: hsl(209 100% 30% / 0.16);
+  --glass-bg: 211 100% 12% / 0.62;
+  --glass-border: 209 100% 20% / 0.7;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: hsl(var(--background));
+  background-image: var(--app-gradient);
+  background-attachment: fixed;
+  color: hsl(var(--foreground));
+  font-family: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv01', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light dark;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: 'Bricolage Grotesque', 'Hanken Grotesk', sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.font-mono,
+.tabular {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar discreto acorde al tema */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::selection {
+  background-color: hsl(var(--brand-yellow) / 0.85);
+  color: hsl(var(--brand-yellow-foreground));
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-step {
+  animation: fade-in-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Overlays (Dialog / AlertDialog / Tooltip) — entrada y salida.
+   La salida funciona porque Radix Presence espera a que termine la
+   animación de `data-[state=closed]` antes de desmontar. El bloque global
+   de `prefers-reduced-motion` ya las neutraliza. */
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+/* Entrada "premium con leve rebote": el panel sube y crece con un pequeño
+   overshoot (el rebote lo da el easing back-out en la clase de animación). */
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 12px)) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@keyframes dialog-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 6px)) scale(0.96);
+  }
+}
+/* El contenido del modal aparece con un fade-up sutil, un pelo después del
+   panel, para dar sensación de profundidad. */
+@keyframes dialog-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer components {
+  /* Superficie "glass": fondo translúcido + desenfoque + borde con realce
+     superior, sobre la malla del fondo. */
+  .glass {
+    background-color: hsl(var(--glass-bg));
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid hsl(var(--glass-border));
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.06),
+      0 1px 2px hsl(209 60% 6% / 0.04),
+      0 12px 40px -16px hsl(209 60% 6% / 0.28);
+  }
+
+  /* Textura blueprint sutil para encabezados/áreas destacadas. */
+  .surface-grid {
+    background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* Titular con barrido de oro (usar con moderación). */
+  .text-gold-sheen {
+    background-image: theme('backgroundImage.gold-sheen');
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shine 6s linear infinite;
+  }
+}
+
+/* Respetar la preferencia de menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
