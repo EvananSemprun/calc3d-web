@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, Link2, Lock, MessageCircle, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, Lock, MessageCircle, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { OrderLineDto } from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
@@ -139,21 +139,6 @@ export function OrderDetailPage() {
             value={order.deliveryDate ? order.deliveryDate.slice(0, 10) : ''}
             onChange={(e) => patch.mutate({ deliveryDate: e.target.value || null })}
           />
-          <Button
-            variant="outline"
-            onClick={async () => {
-              try {
-                const { data } = await api.post<{ token: string }>(`/orders/${id}/public-link`);
-                const url = `${window.location.origin}/p/orders/${data.token}`;
-                await navigator.clipboard.writeText(url);
-                notify.success('Link público copiado al portapapeles');
-              } catch (e) {
-                notify.error(apiErrorMessage(e));
-              }
-            }}
-          >
-            <Link2 className="h-4 w-4" /> Copiar link
-          </Button>
           <Button variant="outline" onClick={shareWhatsApp} disabled={!order.client.phone} title={order.client.phone ? undefined : 'El cliente no tiene teléfono'}>
             <MessageCircle className="h-4 w-4" /> WhatsApp
           </Button>

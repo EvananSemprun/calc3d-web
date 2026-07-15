@@ -16,7 +16,7 @@ export const clearToken = () => {
 };
 
 /** Rutas públicas donde un 401 NO debe redirigir a /login. */
-const PUBLIC_PREFIXES = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/p/'];
+const PUBLIC_PREFIXES = ['/login', '/forgot-password', '/reset-password'];
 const onPublicPage = () => PUBLIC_PREFIXES.some((p) => location.pathname.startsWith(p));
 
 /** Cliente HTTP centralizado con el access token inyectado en cada request. */
@@ -51,7 +51,7 @@ api.interceptors.response.use(
     const original = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
     const url = original?.url ?? '';
-    const isAuthCall = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh');
+    const isAuthCall = url.includes('/auth/login') || url.includes('/auth/refresh');
 
     // Access token vencido: intenta rotar UNA vez y reintenta la request original.
     if (status === 401 && original && !original._retry && !isAuthCall && getRefreshToken()) {

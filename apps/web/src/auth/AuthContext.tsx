@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { api, clearToken, getToken, getRefreshToken, setTokens } from '@/lib/api';
-import type { AuthTokensResponse, LoginDto, RegisterDto } from '@calc3d/shared';
+import type { AuthTokensResponse, LoginDto } from '@calc3d/shared';
 
 interface AuthUser {
   id: string;
@@ -8,8 +8,6 @@ interface AuthUser {
   name: string;
   organizationId: string;
   role: 'OWNER' | 'COLLABORATOR';
-  emailVerified: boolean;
-  isSuperadmin: boolean;
 }
 
 interface MeResponse {
@@ -18,15 +16,12 @@ interface MeResponse {
   name: string;
   organizationId: string;
   role: 'OWNER' | 'COLLABORATOR';
-  emailVerified: boolean;
-  isSuperadmin: boolean;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (dto: LoginDto) => Promise<void>;
-  register: (dto: RegisterDto) => Promise<void>;
   refresh: () => Promise<void>;
   logout: () => void;
 }
@@ -45,8 +40,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name: res.data.name,
       organizationId: res.data.organizationId,
       role: res.data.role,
-      emailVerified: res.data.emailVerified,
-      isSuperadmin: res.data.isSuperadmin,
     });
   }, []);
 
@@ -60,8 +53,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false));
   }, [fetchMe]);
 
-  const handleAuth = async (path: 'login' | 'register', dto: LoginDto | RegisterDto) => {
-    const res = await api.post<AuthTokensResponse>(`/auth/${path}`, dto);
+  const login = async (dto: LoginDto) => {
+    const res = await api.post<AuthTokensResponse>('/auth/login', dto);
     setTokens(res.data.accessToken, res.data.refreshToken);
     // La respuesta de tokens no trae `name`; /auth/me arma el usuario completo.
     await fetchMe();
@@ -70,8 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextValue = {
     user,
     loading,
-    login: (dto) => handleAuth('login', dto),
-    register: (dto) => handleAuth('register', dto),
+    login,
     refresh: fetchMe,
     logout: () => {
       // Revoca el refresh token en el servidor (best-effort) antes de limpiar.

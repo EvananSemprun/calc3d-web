@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   Calculator,
@@ -18,17 +18,14 @@ import {
   Users,
   Truck,
   MapPin,
-  ShieldCheck,
   Settings as SettingsIcon,
   LogOut,
   Menu,
   ChevronDown,
   X,
 } from 'lucide-react';
-import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/auth/AuthContext';
-import { usePlan } from '@/features/billing/api';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { RateBadge } from '@/components/RateBadge';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
@@ -214,14 +211,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </div>
           );
         })}
-        {user?.isSuperadmin && (
-          <div className="space-y-1 border-t border-border/70 pt-3">
-            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-brand-yellow-ink">
-              Plataforma
-            </p>
-            <NavItem item={{ to: '/admin', label: 'Administración', icon: ShieldCheck, end: false }} onNavigate={onNavigate} />
-          </div>
-        )}
       </nav>
       <div className="border-t border-border/70 p-3">
         <div className="px-2 pb-2 text-xs text-muted-foreground">
@@ -299,9 +288,6 @@ export function AppLayout() {
           </div>
         </header>
 
-        <PlanBanner />
-        <VerifyEmailBanner />
-
         <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8">
           <Outlet />
         </div>
@@ -312,85 +298,6 @@ export function AppLayout() {
         </div>
       </ConfirmProvider>
     </TooltipProvider>
-  );
-}
-
-/** Estado del plan: días de prueba restantes o aviso de vencimiento (solo lectura). */
-function PlanBanner() {
-  const { data } = usePlan();
-  const s = data?.status;
-  if (!s || (!s.isTrial && s.active)) return null; // plan pagado vigente → sin banner
-
-  if (!s.active) {
-    return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-destructive/40 bg-destructive/10 px-4 py-2 text-sm md:px-8">
-        <span className="font-semibold text-destructive">
-          {s.isTrial ? 'Tu prueba terminó.' : 'Tu plan venció.'} Estás en solo lectura.
-        </span>
-        <span className="text-muted-foreground">Puedes ver y exportar tus datos, pero no crear ni editar.</span>
-        <Link to="/settings" className="ml-auto font-semibold text-destructive underline">
-          Renovar / reportar pago
-        </Link>
-      </div>
-    );
-  }
-
-  // Trial vigente
-  const urgent = s.daysLeft <= 3;
-  return (
-    <div
-      className={cn(
-        'flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 text-sm md:px-8',
-        urgent ? 'border-amber-500/40 bg-amber-500/10' : 'border-brand-blue/30 bg-brand-blue/[0.06]',
-      )}
-    >
-      <span className={cn('font-semibold', urgent ? 'text-amber-600 dark:text-amber-400' : 'text-brand-blue-bright')}>
-        Prueba gratis: {s.daysLeft} {s.daysLeft === 1 ? 'día' : 'días'} restantes.
-      </span>
-      <Link to="/settings" className="ml-auto font-semibold text-brand-yellow-ink underline">
-        Ver planes
-      </Link>
-    </div>
-  );
-}
-
-/** Aviso de correo sin verificar: entra igual, pero ciertas acciones se bloquean. */
-function VerifyEmailBanner() {
-  const { user } = useAuth();
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  if (!user || user.emailVerified) return null;
-
-  const resend = async () => {
-    setBusy(true);
-    try {
-      await api.post('/auth/resend-verification');
-      setSent(true);
-    } catch {
-      /* silencioso: no bloquea el uso de la app */
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm md:px-8">
-      <span className="text-amber-600 dark:text-amber-400">
-        Verifica tu correo <strong>{user.email}</strong> para desbloquear acciones como compartir
-        enlaces públicos e invitar a tu equipo.
-      </span>
-      {sent ? (
-        <span className="font-semibold text-success">Correo reenviado ✓</span>
-      ) : (
-        <button
-          onClick={resend}
-          disabled={busy}
-          className="font-semibold text-amber-600 underline hover:text-amber-600 dark:text-amber-400 disabled:opacity-50 dark:text-amber-400"
-        >
-          {busy ? 'Enviando…' : 'Reenviar correo'}
-        </button>
-      )}
-    </div>
   );
 }
 

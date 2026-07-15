@@ -4,10 +4,8 @@ import { useAuth } from '@/auth/AuthContext';
 import { AppLayout } from '@/components/AppLayout';
 import { PageSkeleton } from '@/components/ui';
 import { LoginPage } from '@/pages/Login';
-import { RegisterPage } from '@/pages/Register';
 import { ForgotPasswordPage } from '@/pages/ForgotPassword';
 import { ResetPasswordPage } from '@/pages/ResetPassword';
-import { VerifyEmailPage } from '@/pages/VerifyEmail';
 import { CalculatorPage } from '@/pages/Calculator';
 // El Dashboard carga Recharts (pesado): se separa en su propio chunk bajo demanda.
 const DashboardPage = lazy(() =>
@@ -34,10 +32,8 @@ const ContactDetailPage = lazy(() =>
 const ContactsMapPage = lazy(() =>
   import('@/pages/ContactsMap').then((m) => ({ default: m.ContactsMapPage })),
 );
-import { PublicOrderPage } from '@/pages/PublicOrder';
 import { SettingsPage } from '@/pages/Settings';
 import { CatalogPage } from '@/pages/Catalog';
-import { AdminPage } from '@/pages/Admin';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -55,12 +51,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
-      {/* Público, SIN autenticación: el token del pedido es la credencial. */}
-      <Route path="/p/orders/:token" element={<PublicOrderPage />} />
       <Route
         element={
           <Protected>
@@ -123,7 +115,6 @@ export function App() {
           }
         />
         <Route path="/catalogs/:resource" element={<CatalogPage />} />
-        <Route path="/admin" element={<AdminPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

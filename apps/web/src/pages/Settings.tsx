@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Boxes,
   Building2,
   Check,
   Coins,
-  CreditCard,
   Database,
   Download,
   Pencil,
@@ -15,7 +14,6 @@ import {
   Sprout,
   Trash2,
   User,
-  Users as UsersIcon,
   SlidersHorizontal,
 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
@@ -42,23 +40,12 @@ import {
   Select,
   TableSkeleton,
 } from '@/components/ui';
-import { Dialog, useConfirm, Tooltip } from '@/components/overlays';
+import { useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
-import {
-  usePlan,
-  useReportPayment,
-  PLANS,
-  PAYMENT_INFO,
-  METHOD_LABEL,
-  PLAN_LABEL,
-} from '@/features/billing/api';
-import type { PaymentMethodDto } from '@calc3d/shared';
 
 export function SettingsPage() {
   const sections = [
-    { key: 'plan', label: 'Mi plan', icon: CreditCard, Comp: PlanSettings },
     { key: 'cuenta', label: 'Cuenta', icon: User, Comp: MyAccount },
-    { key: 'equipo', label: 'Equipo', icon: UsersIcon, Comp: Users },
     { key: 'calculo', label: 'Cálculo', icon: SlidersHorizontal, Comp: GeneralSettings },
     { key: 'moneda', label: 'Moneda', icon: Coins, Comp: CurrencySettings },
     { key: 'fijos', label: 'Costos fijos', icon: PiggyBank, Comp: FixedCostsSettings },
@@ -76,7 +63,7 @@ export function SettingsPage() {
         <div>
           <h1 className="font-display text-2xl font-bold">Configuración</h1>
           <p className="text-sm text-muted-foreground">
-            Tu cuenta, el equipo y los valores por defecto del cálculo.
+            Tu cuenta y los valores por defecto del cálculo.
           </p>
         </div>
       </div>
@@ -109,190 +96,6 @@ export function SettingsPage() {
           <Active />
         </div>
       </div>
-    </div>
-  );
-}
-
-// ---------------- Mi plan (SaaS) ----------------
-
-function PlanSettings() {
-  const { data, isLoading } = usePlan();
-  const report = useReportPayment();
-  const [form, setForm] = useState({
-    plan: 'TALLER' as 'TALLER' | 'PRO',
-    months: 1 as 1 | 12,
-    method: 'PAGO_MOVIL' as PaymentMethodDto,
-    reference: '',
-    amount: 0,
-    note: '',
-  });
-
-  const s = data?.status;
-  const chosen = PLANS.find((p) => p.tier === form.plan)!;
-  const suggested = form.months === 12 ? chosen.yearly : chosen.monthly;
-
-  const submit = () => {
-    if (!form.reference.trim() || form.amount <= 0) {
-      notify.error('Pon la referencia del pago y el monto.');
-      return;
-    }
-    report.mutate(
-      { ...form, currency: 'USD', reference: form.reference.trim(), note: form.note || null },
-      {
-        onSuccess: () => {
-          notify.success('Pago reportado. Lo revisamos y activamos tu plan.');
-          setForm((f) => ({ ...f, reference: '', amount: 0, note: '' }));
-        },
-        onError: (e) => notify.error(apiErrorMessage(e)),
-      },
-    );
-  };
-
-  if (isLoading) return <TableSkeleton rows={3} />;
-
-  return (
-    <div className="space-y-5">
-      {/* Estado */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tu plan</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {s ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge variant={s.active ? 'success' : 'default'}>
-                {PLAN_LABEL[s.tier]} {s.active ? '· activo' : '· vencido'}
-              </Badge>
-              {s.isTrial && s.active && <span className="text-sm">Te quedan {s.daysLeft} días de prueba.</span>}
-              {!s.isTrial && s.deadline && (
-                <span className="text-sm text-muted-foreground">
-                  Vence el {new Date(s.deadline).toLocaleDateString('es-VE')}
-                </span>
-              )}
-              {!s.active && (
-                <span className="text-sm text-destructive">Estás en solo lectura: renueva para editar.</span>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Sin información de plan.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Planes */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {PLANS.map((p) => (
-          <Card key={p.tier} className={cn(form.plan === p.tier && 'border-brand-yellow/50')}>
-            <CardContent className="space-y-2 p-4">
-              <div className="flex items-baseline justify-between">
-                <span className="font-display text-lg font-bold">{p.name}</span>
-                <span className="tabular">
-                  <span className="font-display text-xl font-bold text-brand-yellow-ink">${p.monthly}</span>
-                  <span className="text-xs text-muted-foreground">/mes</span>
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">{p.blurb}</p>
-              <p className="text-xs text-muted-foreground">Anual: ${p.yearly} (2 meses gratis)</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Reportar pago */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Reportar un pago</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Paga por Pago Móvil o Zelle a los datos de abajo y repórtalo aquí. Lo revisamos y activamos tu
-            plan (normalmente el mismo día).
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-            {PAYMENT_INFO.map((line) => (
-              <div key={line} className="tabular">
-                {line}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Plan">
-              <Select value={form.plan} onChange={(e) => setForm((f) => ({ ...f, plan: e.target.value as 'TALLER' | 'PRO' }))}>
-                {PLANS.map((p) => (
-                  <option key={p.tier} value={p.tier}>
-                    {p.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Período">
-              <Select
-                value={String(form.months)}
-                onChange={(e) => setForm((f) => ({ ...f, months: Number(e.target.value) as 1 | 12 }))}
-              >
-                <option value="1">Mensual (${chosen.monthly})</option>
-                <option value="12">Anual (${chosen.yearly})</option>
-              </Select>
-            </Field>
-            <Field label="Método">
-              <Select value={form.method} onChange={(e) => setForm((f) => ({ ...f, method: e.target.value as PaymentMethodDto }))}>
-                {Object.entries(METHOD_LABEL).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Monto pagado (USD)">
-              <NumberInput value={form.amount || suggested} onChange={(amount) => setForm((f) => ({ ...f, amount }))} step="0.01" />
-            </Field>
-            <Field label="Referencia del pago">
-              <Input
-                value={form.reference}
-                placeholder="Últimos dígitos / n.° de referencia"
-                onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))}
-              />
-            </Field>
-            <Field label="Nota (opcional)">
-              <Input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} />
-            </Field>
-          </div>
-          <div className="flex justify-end">
-            <Button variant="accent" onClick={submit} disabled={report.isPending}>
-              {report.isPending ? 'Enviando…' : 'Reportar pago'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Historial */}
-      {data && data.reports.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Mis reportes de pago</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {data.reports.map((r) => (
-              <div key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border p-3 text-sm">
-                <span className="font-semibold">
-                  {PLAN_LABEL[r.plan]} · {r.months === 12 ? 'anual' : 'mensual'}
-                </span>
-                <span className="text-muted-foreground">
-                  {METHOD_LABEL[r.method]} · ref {r.reference} · ${r.amount}
-                </span>
-                <Badge
-                  variant={r.status === 'APPROVED' ? 'success' : r.status === 'REJECTED' ? 'default' : 'warning'}
-                  className="ml-auto"
-                >
-                  {r.status === 'APPROVED' ? 'aprobado' : r.status === 'REJECTED' ? 'rechazado' : 'pendiente'}
-                </Badge>
-                {r.reviewNote && <span className="w-full text-xs text-muted-foreground">Nota: {r.reviewNote}</span>}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
@@ -350,210 +153,6 @@ function MyAccount() {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-// ---------------- Usuarios ----------------
-
-interface UserRow {
-  id: string;
-  email: string;
-  name: string;
-  role: 'OWNER' | 'COLLABORATOR';
-}
-
-function Users() {
-  const { user } = useAuth();
-  const qc = useQueryClient();
-  const isOwner = user?.role === 'OWNER';
-  const [editing, setEditing] = useState<UserRow | null>(null);
-  const [open, setOpen] = useState(false);
-  const confirm = useConfirm();
-
-  const { data: users = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: async () => (await api.get<UserRow[]>('/users')).data,
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: string) => api.delete(`/users/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['users'] });
-      notify.success('Colaborador eliminado');
-    },
-    onError: (error) => notify.error(apiErrorMessage(error)),
-  });
-
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle>Usuarios</CardTitle>
-        {isOwner && (
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" /> Nuevo usuario
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {users.map((u) => (
-          <div
-            key={u.id}
-            className="flex items-center justify-between rounded-lg border border-border/70 bg-background/30 px-3 py-2 text-sm transition-colors hover:border-brand-blue/40"
-          >
-            <div>
-              <span className="font-medium">{u.name}</span>
-              <span className="text-muted-foreground"> · {u.email}</span>
-              {u.id === user?.id && <span className="text-muted-foreground"> (tú)</span>}
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={u.role === 'OWNER' ? 'default' : 'outline'}>
-                {u.role === 'OWNER' ? 'Dueño' : 'Colaborador'}
-              </Badge>
-              {isOwner && (
-                <>
-                  <Tooltip label="Editar">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setEditing(u);
-                        setOpen(true);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </Tooltip>
-                  {u.id !== user?.id && (
-                    <Tooltip label="Eliminar colaborador">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={async () => {
-                          if (
-                            await confirm({
-                              title: `¿Eliminar a ${u.name}?`,
-                              description: 'Esta acción no se puede deshacer.',
-                              confirmLabel: 'Eliminar',
-                              tone: 'destructive',
-                            })
-                          ) {
-                            remove.mutate(u.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </Tooltip>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        ))}
-        {!isOwner && (
-          <p className="text-xs text-muted-foreground">Solo el dueño puede crear o editar usuarios.</p>
-        )}
-      </CardContent>
-
-      {open && (
-        <UserModal
-          editing={editing}
-          onClose={() => setOpen(false)}
-          onSaved={() => {
-            setOpen(false);
-            qc.invalidateQueries({ queryKey: ['users'] });
-          }}
-        />
-      )}
-    </Card>
-  );
-}
-
-function UserModal({
-  editing,
-  onClose,
-  onSaved,
-}: {
-  editing: UserRow | null;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [form, setForm] = useState({
-    name: editing?.name ?? '',
-    email: editing?.email ?? '',
-    password: '',
-    role: editing?.role ?? 'COLLABORATOR',
-  });
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      if (editing) {
-        const payload: Record<string, string> = { name: form.name, email: form.email, role: form.role };
-        if (form.password) payload.password = form.password;
-        await api.patch(`/users/${editing.id}`, payload);
-      } else {
-        await api.post('/users', form);
-      }
-      onSaved();
-    } catch (e) {
-      notify.error(apiErrorMessage(e));
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      title={editing ? 'Editar usuario' : 'Nuevo usuario'}
-    >
-      <div className="space-y-3">
-        <Field label="Nombre">
-          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        </Field>
-        <Field label="Correo">
-          <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        </Field>
-        <Field
-          label={editing ? 'Nueva contraseña' : 'Contraseña'}
-          hint={editing ? 'Déjalo vacío para no cambiarla' : 'Mínimo 8 caracteres'}
-        >
-          <Input
-            type="password"
-            autoComplete="new-password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-          />
-        </Field>
-        <Field label="Rol">
-          <Select
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as 'OWNER' | 'COLLABORATOR' })}
-          >
-            <option value="COLLABORATOR">Colaborador</option>
-            <option value="OWNER">Dueño</option>
-          </Select>
-        </Field>
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button variant="accent" onClick={save} disabled={saving || !form.name || !form.email}>
-            {saving ? 'Guardando…' : 'Guardar'}
-          </Button>
-        </div>
-      </div>
-    </Dialog>
   );
 }
 

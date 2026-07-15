@@ -70,12 +70,6 @@ export function LoginPage() {
           ¿Olvidaste tu contraseña?
         </Link>
       </p>
-      <p className="mt-5 text-center text-sm text-muted-foreground">
-        ¿No tienes cuenta?{' '}
-        <Link to="/register" className="font-semibold text-brand-yellow-ink hover:underline">
-          Crea tu negocio
-        </Link>
-      </p>
     </AuthShell>
   );
 }

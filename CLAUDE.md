@@ -16,7 +16,9 @@ Vite importa.
 
 ## Estructura
 - `apps/web` — React + Vite + TS. Tailwind + primitivas propias (`components/ui.tsx`),
-  TanStack Query, React Hook Form + Zod, axios con interceptor JWT.
+  TanStack Query, React Hook Form + Zod, axios con interceptor JWT. **App de un solo
+  dueño**: hay login (sin registro público), pero **sin planes/billing/panel admin,
+  sin verificación de email ni gestión de equipo** (todo eso se quitó con la capa SaaS).
   - **Sistema visual de marca** — paleta ESTRICTA de 5 colores (tokens en
     `index.css`, claro/oscuro; `brand.*` en `tailwind.config.js`):
     `#000814` (fondo), `#001D3D` (tarjetas), `#003566` (azul primario/bordes),
@@ -147,8 +149,7 @@ Vite importa.
   (`features/settings/useExchangeRates.ts`) extrae la tasa congelada de un documento;
   `CurrencyPicker` (features/settings) en los modales de crear presupuesto/pedido/
   producto; Config → Moneda administra las tasas con nombre; `RateBadge` muestra la
-  default; `OrderDetail`/`QuoteDetail`/`PublicOrder` usan la tasa CONGELADA del
-  documento (no la ambiental).
+  default; `OrderDetail`/`QuoteDetail` usan la tasa CONGELADA del documento (no la ambiental).
 - **Cobro protegido** (`features/calculator/ChargeEquivalentsCard.tsx` en
   `ResultPanel`): **en vivo** (consulta tasas con `useExchangeRates({enabled:true})`
   — NO depende de `defaultRateLabel`) y **solo en cálculo vivo** (gate
@@ -213,20 +214,13 @@ Vite importa.
   `downloadFile()`. **Alerta proactiva** `CampaignAlert` en el Dashboard (campañas
   `LOSS`/`AT_RISK` con inversión > 0 → `/campaigns`).
 
-### SaaS (Fase 7A-C, front)
-- `PlanBanner` en `AppLayout` (días de prueba / vencido→solo lectura). El 402 se
-  propaga sin logout (el interceptor solo desloguea en 401). Sección "Mi plan" en
-  Settings; precios/datos de cobro son **PLACEHOLDER** en `features/billing/api.ts`
-  (`PLANS`, `PAYMENT_INFO`) — editarlos. Panel superadmin `pages/Admin.tsx` en
-  `/admin` (nav "Plataforma" solo si superadmin).
-
 ### Auth / seguridad (front)
 - `lib/api.ts`: interceptor que ante 401 llama `/auth/refresh` UNA vez (single-flight
-  con `refreshPromise`) y reintenta; el **402** (plan vencido) se propaga sin logout.
-  `setTokens` guarda access+refresh en localStorage; `AuthContext` hace logout
-  server-side. `VerifyEmailBanner` en `AppLayout` (verificación de email soft).
-- Páginas de auth: `Login` / `Register` / `ForgotPassword` / `ResetPassword` /
-  `VerifyEmail`, todas sobre `components/AuthShell.tsx` (split panel de marca + form glass).
+  con `refreshPromise`) y reintenta; `setTokens` guarda access+refresh en localStorage;
+  `AuthContext` hace logout server-side. **No hay registro público** (`AuthContext` solo
+  expone `login`).
+- Páginas de auth: `Login` / `ForgotPassword` / `ResetPassword`, sobre
+  `components/AuthShell.tsx` (split panel de marca + form glass).
 
 ## Comandos (desde la raíz de este repo)
 - `pnpm install`
