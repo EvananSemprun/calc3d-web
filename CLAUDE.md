@@ -76,8 +76,10 @@ Vite importa.
 - **Buscar / ordenar / recordar filtros / móvil** — `SearchInput` (input con ícono
   + limpiar) y `SortHeader` (cabecera `<th>` ordenable); hooks `lib/useSortable.ts`
   (orden client-side por `keyof T`, texto locale es+numeric) y
-  `lib/usePersistentState.ts` (useState espejado a localStorage;
-  `useDateRange(initial, persistKey?)` recuerda el rango). Patrón **tabla↔tarjetas**:
+  `lib/usePersistentState.ts` (useState espejado a localStorage). El filtro de fechas
+  `useDateRange(initial, persistKey?)` + `DateRangePicker` viven en
+  `features/finance/DateRange.tsx` (usan `usePersistentState` para recordar el rango).
+  Patrón **tabla↔tarjetas**:
   `<div className="hidden md:block">` con la tabla + `<div className="md:hidden
   divide-y">` con tarjetas apiladas. **Detección de duplicados** al crear por nombre.
 - **`CommandPalette`** (`components/CommandPalette.tsx`) — **buscador global
@@ -91,6 +93,10 @@ Vite importa.
   (localStorage `onboarding-hidden`), desaparece solo al completar los 4.
 - **Descarga autenticada** reutilizable: `downloadFile()` en `lib/api.ts` (token en
   header, blob — nunca en URL).
+- **Tema claro/oscuro**: `theme/ThemeProvider.tsx` (estado + clase en `<html>`) +
+  `components/ThemeToggle.tsx` (botón). Los tokens de marca traen valores claro/oscuro.
+- **Toasts**: `components/toast.tsx` monta un `Toaster` sobre **`sonner`**; úsalo para
+  notificaciones de éxito/error (no `alert()` nativo).
 - **Contraste (auditoría AA)**: única falla histórica = `--success` claro sobre
   blanco (4.09:1) → se oscureció a `152 55% 32%` (5.01:1). El resto pasa AA.
 
@@ -114,8 +120,10 @@ Vite importa.
   para coincidir con PDF y ventas. La **merma por riesgo** (Bajo/Medio/Alto
   8/15/30 %) es solo selector de UI sobre `waste.pct`. Los snapshots previos a 2A:
   leerlos SIEMPRE con `?.`/`??`.
-- Origen del producto = calculadora (`SaveProductModal`, botón "Guardar producto"
-  en el `Wizard`, precio prellenado del elegido). `ProductDetail` reusa
+- El `Wizard` se alimenta de los catálogos guardados vía
+  `features/calculator/useCatalogData.ts`. Desde la calculadora se guarda un
+  **presupuesto** (`SaveQuoteModal`) o un **producto** (`SaveProductModal`, botón
+  "Guardar producto", precio prellenado del elegido). `ProductDetail` reusa
   `ResultPanel` para el recosteo en vivo.
 
 ### Dashboard + finanzas (`pages/Dashboard.tsx`, `Sales.tsx`, `Expenses.tsx`; `features/finance/`)
@@ -126,14 +134,17 @@ Vite importa.
   aparte, ~380 KB). Los montos se agregan en el cliente desde las listas filtradas.
 - **Punto de equilibrio (Fase 2B)**: tarjeta "Punto de equilibrio" (ingreso de
   equilibrio MENSUAL vs ventas del periodo; se compara mejor con el rango "Mes").
-  Helpers puros en `shared/calc/breakeven.ts`.
+  Helpers puros en `shared/calc/breakeven.ts`. Los costos fijos y el margen se
+  editan en **Configuración → Costos fijos** (`Settings.fixedCosts` /
+  `breakEvenMarginPct`); NO entran en el precio por pieza.
 - **Alertas proactivas**: `ProfitabilityAlert` (productos por debajo del margen
   mínimo → `/products`) y `CampaignAlert` (campañas `LOSS`/`AT_RISK` con inversión
   > 0 → `/campaigns`).
 
 ### Multi-moneda / Bs (front)
-- `useMoney()` expone `moneyAlt` (tasa default vigente), `moneyAtRate`/`moneyInRate`
-  y `rates`; `frozenFromSnapshot()` extrae la tasa congelada de un documento;
+- `useMoney()` (en `features/settings/useSettings.ts`) expone `moneyAlt` (tasa default
+  vigente), `moneyAtRate`/`moneyInRate` y `rates`; `frozenFromSnapshot()`
+  (`features/settings/useExchangeRates.ts`) extrae la tasa congelada de un documento;
   `CurrencyPicker` (features/settings) en los modales de crear presupuesto/pedido/
   producto; Config → Moneda administra las tasas con nombre; `RateBadge` muestra la
   default; `OrderDetail`/`QuoteDetail`/`PublicOrder` usan la tasa CONGELADA del
@@ -166,6 +177,42 @@ Vite importa.
 - **Respaldo / plantillas**: Configuración → Datos (descarga autenticada vía axios
   `responseType:'blob'`; botones de respaldo y de sembrar plantillas).
 
+### Catálogos + registro de gastos (front)
+- **Catálogos** (`pages/Catalog.tsx`): página CRUD **genérica dirigida por
+  `features/catalogs/config.ts`** (define los campos por catálogo: materiales,
+  impresoras, componentes/insumos, proveedores). Los combobox de marca/tipo/color del
+  filamento se renderizan aquí vía `Controller`. Alta con **detección de duplicados**
+  por nombre.
+- **Registro dinámico de gastos** (`pages/Expenses.tsx`): un modal elige el **tipo**
+  (Filamento/Impresora/Componente/Empaque/Mantenimiento/General/Publicidad) y, si mapea
+  a catálogo, deja **reusar** un item existente o **crearlo inline** (reusa
+  `features/catalogs/config.ts`) → crea catálogo + gasto enlazado en una acción. Check
+  "usar como precio de referencia" → `PATCH` PARCIAL al item. El tipo **Publicidad** con
+  "pagué en bolívares" elige una tasa VES + monto Bs y guarda `amount` en USD base
+  (= Bs ÷ tasa) + `rate`/`currencyCode='VES'` para presentación.
+
+### Presupuestos / cotizaciones (`pages/Quotes.tsx`)
+- Lista con **ciclo de cotización**: conversión (aceptados/decididos), "por seguir"
+  (SENT), "vencido" (DRAFT/SENT > 7 días → recotizar). `QuoteDetail` usa la tasa
+  CONGELADA del documento. El origen del presupuesto es la calculadora
+  (`SaveQuoteModal`); el backend versiona (`GET /quotes/:id/versions`,
+  `POST /quotes/:id/duplicate`).
+
+### Publicidad / ROI (Fase 1, front)
+- **Campañas** (`pages/Campaigns.tsx` + `CampaignDetail.tsx`, `features/campaigns/`):
+  el backend deriva el gasto real de los `Expense` enlazados. La lista tiene **filtros
+  persistentes** (plataforma/estado/búsqueda), **orden por columna** (`useSortable`),
+  **semáforo por fila** (`campaignHealth` → Badge) y **gráficos**
+  `features/campaigns/CampaignCharts.tsx` (Recharts, lazy-load: inversión vs vendido por
+  campaña y por plataforma). `CampaignDetail` muestra **banner de recomendación**
+  (`campaignRecommendation` + `REC_META`), ticket promedio y vista por período.
+- **Atribución**: `features/campaigns/AttributionPicker.tsx` en los modales de crear
+  venta/pedido (canal + campaña; se arrastra al convertir cotización→venta).
+- **Export**: "Exportar CSV" en `Campaigns.tsx` y "PDF" en `CampaignDetail`
+  (`GET /campaigns/export.csv`, `/campaigns/:id/report.pdf`), descarga autenticada vía
+  `downloadFile()`. **Alerta proactiva** `CampaignAlert` en el Dashboard (campañas
+  `LOSS`/`AT_RISK` con inversión > 0 → `/campaigns`).
+
 ### SaaS (Fase 7A-C, front)
 - `PlanBanner` en `AppLayout` (días de prueba / vencido→solo lectura). El 402 se
   propaga sin logout (el interceptor solo desloguea en 401). Sección "Mi plan" en
@@ -175,13 +222,17 @@ Vite importa.
 
 ### Auth / seguridad (front)
 - `lib/api.ts`: interceptor que ante 401 llama `/auth/refresh` UNA vez (single-flight
-  con `refreshPromise`) y reintenta; `setTokens` guarda access+refresh en
-  localStorage; `AuthContext` hace logout server-side. `VerifyEmailBanner` en
-  `AppLayout` (verificación de email soft).
+  con `refreshPromise`) y reintenta; el **402** (plan vencido) se propaga sin logout.
+  `setTokens` guarda access+refresh en localStorage; `AuthContext` hace logout
+  server-side. `VerifyEmailBanner` en `AppLayout` (verificación de email soft).
+- Páginas de auth: `Login` / `Register` / `ForgotPassword` / `ResetPassword` /
+  `VerifyEmail`, todas sobre `components/AuthShell.tsx` (split panel de marca + form glass).
 
 ## Comandos (desde la raíz de este repo)
 - `pnpm install`
-- `pnpm sync:shared` — trae `packages/shared` desde calc3d-api (fuente de verdad).
+- `pnpm sync:shared` — trae `packages/shared/src` desde calc3d-api (fuente de verdad).
+  **Solo copia `src`**: recompilá `shared` después (el `postinstall`/build regenera
+  `dist/esm`, que es lo que importa Vite) y verificá con `pnpm test:shared`.
 - `pnpm test:shared` — tests del motor (tras sincronizar).
 - `pnpm dev` — levanta el front Vite (antes `pnpm dev:web` en el monorepo).
 - `pnpm -r build` / `pnpm -r lint`
