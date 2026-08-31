@@ -19,6 +19,7 @@ import {
 import { api, apiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useSettings } from '@/features/settings/useSettings';
+import { BusinessLogo } from '@/features/settings/BusinessLogo';
 import {
   rateAge,
   useDeleteRate,
@@ -537,11 +538,18 @@ function CurrencySettings() {
 function BusinessSettings() {
   const { data, isLoading } = useSettings();
   const qc = useQueryClient();
-  const [form, setForm] = useState({ businessRif: '', businessPhone: '', businessAddress: '', businessSigner: '' });
+  const [form, setForm] = useState({
+    businessName: '',
+    businessRif: '',
+    businessPhone: '',
+    businessAddress: '',
+    businessSigner: '',
+  });
 
   useEffect(() => {
     if (data) {
       setForm({
+        businessName: data.businessName ?? '',
         businessRif: data.businessRif ?? '',
         businessPhone: data.businessPhone ?? '',
         businessAddress: data.businessAddress ?? '',
@@ -553,6 +561,7 @@ function BusinessSettings() {
   const save = useMutation({
     mutationFn: () =>
       api.patch('/settings', {
+        ...(form.businessName.trim() ? { businessName: form.businessName.trim() } : {}),
         businessRif: form.businessRif || null,
         businessPhone: form.businessPhone || null,
         businessAddress: form.businessAddress || null,
@@ -575,9 +584,13 @@ function BusinessSettings() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Aparecen como emisor en la nota de entrega. El nombre del negocio se toma de tu organización.
+          Aparecen como emisor en la nota de entrega y en la cotización, y encabezan ambos documentos.
         </p>
+        <BusinessLogo />
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Nombre del negocio" hint="Encabeza los documentos y firma la entrega">
+            <Input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} />
+          </Field>
           <Field label="C.I. / RIF">
             <Input value={form.businessRif} onChange={(e) => set('businessRif', e.target.value)} />
           </Field>

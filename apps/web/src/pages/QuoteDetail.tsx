@@ -1,15 +1,18 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Copy, Download, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Copy, Download, FileSpreadsheet, FileText, Store } from 'lucide-react';
 import type { CalcResult, ExchangeRateSnapshot } from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
 import { notify } from '@/components/toast';
 import { ResultPanel } from '@/features/calculator/ResultPanel';
 import { useDocRate } from '@/features/settings/useExchangeRates';
+import { usePublishToStore } from '@/features/store/api';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, PageSkeleton, Select } from '@/components/ui';
 
 interface Quote {
   id: string;
+  /** Correlativo por organización: es el N.º que ve el cliente en el PDF. */
+  code: number | null;
   name: string;
   quantity: number;
   status: 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED';
@@ -66,19 +69,38 @@ export function QuoteDetailPage() {
     },
   });
 
-  const download = async (kind: 'pdf' | 'csv') => {
+  const download = async (path: string, filename: string) => {
     try {
-      const res = await api.get(`/quotes/${id}/${kind}`, { responseType: 'blob' });
+      const res = await api.get(`/quotes/${id}/${path}`, { responseType: 'blob' });
       const url = URL.createObjectURL(res.data as Blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `cotizacion-${id}.${kind}`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
       notify.error(apiErrorMessage(e));
     }
   };
+
+  // Publica un BORRADOR en la tienda con el precio sugerido y el costo por
+  // unidad de este presupuesto. Ambos los lee el backend del snapshot.
+  const publish = usePublishToStore();
+  const publicar = async () => {
+    try {
+      const ficha = await publish.mutateAsync({ quoteId: id });
+      notify.success('Borrador creado en la tienda');
+      navigate(`/store/${ficha.id}`);
+    } catch (e) {
+      notify.error(apiErrorMessage(e));
+    }
+  };
+
+  /** N.º del documento tal como sale en el PDF ("007-2026"). */
+  const docNumber = (q: Quote) =>
+    q.code == null
+      ? `sn-${new Date(q.createdAt).getFullYear()}`
+      : `${String(q.code).padStart(3, '0')}-${new Date(q.createdAt).getFullYear()}`;
 
   // Tasa de presentación en Bs: EN VIVO (tasa de hoy) mientras el presupuesto vive;
   // los presupuestos no se cierran, así que siempre se recalcula al valor actual.
@@ -128,11 +150,24 @@ export function QuoteDetailPage() {
           <Button variant="outline" onClick={() => duplicate.mutate()} disabled={duplicate.isPending}>
             <Copy className="h-4 w-4" /> Duplicar versión
           </Button>
-          <Button variant="outline" onClick={() => download('pdf')}>
-            <Download className="h-4 w-4" /> PDF
+          {/* El documento que SE LE MANDA AL CLIENTE (sin costos ni márgenes). */}
+          <Button onClick={() => download('cotizacion.pdf', `cotizacion-${docNumber(quote)}.pdf`)}>
+            <FileText className="h-4 w-4" /> Cotización
           </Button>
-          <Button variant="outline" onClick={() => download('csv')}>
+          {/* Uso interno: trae costos, márgenes y mayoreo. */}
+          <Button
+            variant="outline"
+            title="Desglose de costos y márgenes — uso interno, no enviar al cliente"
+            onClick={() => download('pdf', `desglose-interno-${docNumber(quote)}.pdf`)}
+          >
+            <Download className="h-4 w-4" /> Desglose interno
+          </Button>
+          <Button variant="outline" onClick={() => download('csv', `cotizacion-${docNumber(quote)}.csv`)}>
             <FileSpreadsheet className="h-4 w-4" /> CSV
+          </Button>
+          <Button variant="outline" onClick={publicar} disabled={publish.isPending}>
+            <Store className="h-4 w-4" />
+            {publish.isPending ? 'Publicando…' : 'Publicar en la tienda'}
           </Button>
         </div>
       </div>

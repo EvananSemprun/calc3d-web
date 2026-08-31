@@ -162,6 +162,70 @@ Vite importa.
   <fecha>"; cada abono muestra su equivalente Bs con su tasa histórica. El botón
   "Emitir nota de entrega" dispara `POST /orders/:id/settle`.
 
+### Documentos del negocio (nota de entrega y cotización)
+- Ambos PDF los arma el backend con **un solo formato** (ver `documents/` en
+  `calc3d-api`); el front solo descarga el blob y le pone nombre de archivo.
+- `QuoteDetail` tiene **dos** descargas de PDF y no hay que confundirlas:
+  **"Cotización"** (`/quotes/:id/cotizacion.pdf`) es el documento que SE LE MANDA AL
+  CLIENTE, y **"Desglose interno"** (`/quotes/:id/pdf`) trae costos, márgenes y
+  mayoreo — es de uso propio. Los nombres de archivo llevan el N.º del documento
+  (`cotizacion-007-2026.pdf` / `desglose-interno-007-2026.pdf`), no el id opaco.
+- **Logo del negocio** (`features/settings/BusinessLogo.tsx`, en Configuración →
+  Negocio): PNG/JPEG hasta 1 MB, se sube como data URL a `PUT /settings/logo`. La
+  vista previa se pide como **blob** (`GET /settings/logo` exige sesión, así que un
+  `<img src>` directo a la API no sirve) y su object URL se revoca al desmontar.
+  `GET /settings` solo trae `hasLogo`, nunca los bytes.
+- **Nombre del negocio**: campo `businessName` del mismo formulario; el backend lo
+  escribe en la organización. Encabeza y firma ambos documentos.
+
+### Tienda (catálogo público, panel)
+- **`pages/Store.tsx` + `pages/StoreProductDetail.tsx`, `features/store/api.ts`.**
+  Es un catálogo APARTE del de Productos: allá vive el costeo, acá lo que ve el
+  cliente (fotos, descripción, opciones, visibilidad, enlace).
+- **Dos formas de cargar**: a mano ("Nuevo producto") o con **"Publicar en la
+  tienda"** desde `ProductDetail` y `QuoteDetail` — eso llama a
+  `POST /store/products/from-source`, que arma el borrador con el precio y el costo
+  leídos por el BACKEND del snapshot. Nace siempre como **borrador**.
+- **Sin stock**: se produce bajo pedido, así que el campo es "días de producción".
+  Las opciones (color/tamaño) van sin combinatoria, con recargo por opción.
+- **Fotos**: subida en dos pasos (`uploadStoreImage` en `features/store/api.ts`) —
+  se pide una URL firmada y el archivo va DIRECTO al bucket con `fetch` a pelo (esa
+  URL no lleva ni debe llevar la sesión), y recién después se confirma contra la
+  API. Si el servidor no tiene credenciales, `GET /store/status` devuelve
+  `storageReady: false` y la UI lo avisa en vez de fallar al subir.
+- **Categorías** (`features/store/StoreCategoriesModal.tsx`): crear, renombrar y
+  borrar, con dos entradas al MISMO gestor — botón "Categorías" en la vitrina y
+  "Gestionar" al lado del selector de la ficha (para no salir del producto que
+  estás editando). Borrar NO borra productos: el aviso dice cuántos quedan sin
+  categoría. El enlace público se deriva del nombre en el backend.
+- **Reordenar** (`features/store/ReorderControls.tsx`): botones de mover, NO arrastrar
+  y soltar — el arrastre nativo de HTML5 no anda en pantallas táctiles y una
+  librería de DnD sería dependencia nueva para algo secundario. Sirve para la
+  vitrina y para las fotos (la primera es la PORTADA, con su insignia y su botón
+  "Usar como portada"). Los controles están **siempre visibles en móvil** y
+  aparecen al pasar el mouse en escritorio: si dependieran del hover serían
+  invisibles justo en el dispositivo por el que se descartó el arrastre. Con
+  búsqueda o filtro activos se ocultan y se explica por qué: "mover antes" sobre
+  una lista filtrada movría respecto a lo que se ve, no a la vitrina real.
+  El backend fija la posición por el ÍNDICE, así que se manda la lista completa.
+- **Margen bajo costo**: si la ficha está enlazada a un costeo y el precio queda
+  por debajo, la tarjeta y la ficha lo marcan en rojo con cuánto se pierde por
+  unidad. Sin enlace de costeo simplemente no hay margen que mostrar.
+
+### Bandeja de la tienda (`pages/StoreRequests.tsx`, `features/store/requests-api.ts`)
+- Los pedidos y consultas que llegan de la tienda pública **NO entran a Pedidos**:
+  caen en `/store/requests`. Cualquiera con la dirección de la tienda puede
+  escribir ahí, así que nada toca la operación ni el CRM hasta que el dueño
+  confirma. **Confirmar** crea el contacto (o lo enlaza por teléfono) y el pedido,
+  y navega a él; **descartar** solo deja constancia de que se vio.
+- Los precios de las líneas los calculó el **servidor** y no son editables desde
+  la bandeja: si algo está mal, se corrige en el pedido ya creado.
+- El menú lleva un **contador de pendientes** (`useStoreRequestsPending`, refetch
+  cada 60 s). La bandeja se llena SOLA —la escribe un visitante, no el dueño—;
+  sin un aviso a la vista un pedido puede quedarse días sin que nadie lo mire.
+- Confirmar invalida también `['orders']` y `['contacts']`: acaba de crear
+  registros en las dos listas.
+
 ### CRM + mapa (Fase 5)
 - **Contactos/CRM** (`pages/Contacts.tsx`+`ContactDetail.tsx`, `features/contacts/api.ts`):
   colores por tipo en `CONTACT_TYPE` (oro/azul/verde/rojo, SOLO para diferenciar

@@ -21,10 +21,14 @@ export interface Settings {
   productAlertMinMarginPct: number;
   defaultRateLabel: string | null;
   protectionRateLabel: string | null;
+  /** Nombre del negocio (vive en la organización; es el emisor de los documentos). */
+  businessName: string;
   businessRif: string | null;
   businessPhone: string | null;
   businessAddress: string | null;
   businessSigner: string | null;
+  /** El backend nunca manda los bytes del logo en este payload, solo si existe. */
+  hasLogo: boolean;
 }
 
 export function useSettings() {

@@ -18,6 +18,8 @@ import {
   Users,
   Truck,
   MapPin,
+  Store,
+  Inbox,
   Settings as SettingsIcon,
   LogOut,
   Menu,
@@ -32,8 +34,9 @@ import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { CommandPalette, CommandPaletteButton } from '@/components/CommandPalette';
 import { Toaster } from '@/components/toast';
 import { ConfirmProvider, TooltipProvider } from '@/components/overlays';
+import { useStoreRequestsPending } from '@/features/store/requests-api';
 
-const navGroups: { heading?: string; items: { to: string; label: string; icon: typeof Calculator; end?: boolean }[] }[] = [
+const navGroups: { heading?: string; items: { to: string; label: string; icon: typeof Calculator; end?: boolean; badge?: string }[] }[] = [
   { items: [{ to: '/', label: 'Calculadora', icon: Calculator, end: true }] },
   {
     heading: 'Finanzas',
@@ -59,6 +62,8 @@ const navGroups: { heading?: string; items: { to: string; label: string; icon: t
     heading: 'Definiciones',
     items: [
       { to: '/products', label: 'Productos', icon: Boxes },
+      { to: '/store', label: 'Tienda', icon: Store },
+      { to: '/store/requests', label: 'Bandeja de tienda', icon: Inbox, badge: 'store-requests' },
       { to: '/catalogs/materials', label: 'Materiales', icon: Box },
       { to: '/catalogs/printers', label: 'Impresoras', icon: Printer },
       { to: '/catalogs/components', label: 'Insumos', icon: Puzzle },
@@ -73,7 +78,7 @@ function NavItem({
   item,
   onNavigate,
 }: {
-  item: { to: string; label: string; icon: typeof Calculator; end: boolean };
+  item: { to: string; label: string; icon: typeof Calculator; end: boolean; badge?: string };
   onNavigate?: () => void;
 }) {
   return (
@@ -113,9 +118,25 @@ function NavItem({
             )}
           />
           <span className="relative">{item.label}</span>
+          {item.badge === 'store-requests' && <PendingStoreBadge />}
         </>
       )}
     </NavLink>
+  );
+}
+
+/**
+ * Contador de solicitudes sin revisar. Va en el menú porque la bandeja se llena
+ * SOLA (la escribe un visitante, no el dueño): sin un aviso a la vista, un
+ * pedido puede quedarse días ahí sin que nadie lo mire.
+ */
+function PendingStoreBadge() {
+  const { data } = useStoreRequestsPending();
+  if (!data?.pending) return null;
+  return (
+    <span className="relative ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-brand-yellow px-1.5 text-[11px] font-bold tabular-nums text-brand-yellow-foreground">
+      {data.pending}
+    </span>
   );
 }
 
@@ -145,7 +166,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const toggle = (heading: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
-      next.has(heading) ? next.delete(heading) : next.add(heading);
+      if (next.has(heading)) next.delete(heading);
+      else next.add(heading);
       localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next]));
       return next;
     });

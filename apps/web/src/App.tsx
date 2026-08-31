@@ -24,6 +24,9 @@ const CampaignsPage = lazy(() => import('@/pages/Campaigns').then((m) => ({ defa
 import { CampaignDetailPage } from '@/pages/CampaignDetail';
 import { ProductsPage } from '@/pages/Products';
 import { ProductDetailPage } from '@/pages/ProductDetail';
+import { StorePage } from '@/pages/Store';
+import { StoreRequestsPage } from '@/pages/StoreRequests';
+import { StoreProductDetailPage } from '@/pages/StoreProductDetail';
 // CRM: cargan Leaflet (pesado) → chunk aparte bajo demanda.
 const ContactsPage = lazy(() => import('@/pages/Contacts').then((m) => ({ default: m.ContactsPage })));
 const ContactDetailPage = lazy(() =>
@@ -90,6 +93,9 @@ export function App() {
         <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/products/:id" element={<ProductDetailPage />} />
+        <Route path="/store" element={<StorePage />} />
+        <Route path="/store/requests" element={<StoreRequestsPage />} />
+        <Route path="/store/:id" element={<StoreProductDetailPage />} />
         <Route
           path="/contacts"
           element={

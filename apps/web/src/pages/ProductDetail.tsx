@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Trash2, AlertTriangle, RefreshCw, Store } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
 import { useProduct } from '@/features/products/api';
+import { usePublishToStore } from '@/features/store/api';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, NumberInput, PageSkeleton, Stat } from '@/components/ui';
 import { useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
@@ -43,6 +44,17 @@ export function ProductDetailPage() {
     onError: (e) => notify.error(apiErrorMessage(e)),
   });
 
+  const publish = usePublishToStore();
+  const publicar = async () => {
+    try {
+      const ficha = await publish.mutateAsync({ productId: id });
+      notify.success('Borrador creado en la tienda');
+      navigate(`/store/${ficha.id}`);
+    } catch (e) {
+      notify.error(apiErrorMessage(e));
+    }
+  };
+
   if (isLoading) {
     return <PageSkeleton />;
   }
@@ -80,14 +92,22 @@ export function ProductDetailPage() {
             </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={async () => {
-            if (await confirm({ title: `¿Eliminar el producto “${product.name}”?` })) remove.mutate();
-          }}
-        >
-          <Trash2 className="h-4 w-4" /> Eliminar
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Crea un BORRADOR en la tienda con el precio y el costo de este
+              producto; el costo lo lee el backend, no viaja desde acá. */}
+          <Button onClick={publicar} disabled={publish.isPending}>
+            <Store className="h-4 w-4" />
+            {publish.isPending ? 'Publicando…' : 'Publicar en la tienda'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              if (await confirm({ title: `¿Eliminar el producto “${product.name}”?` })) remove.mutate();
+            }}
+          >
+            <Trash2 className="h-4 w-4" /> Eliminar
+          </Button>
+        </div>
       </div>
 
       {product.imageUrl && (
