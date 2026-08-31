@@ -96,4 +96,4 @@ Build estático: subir `apps/web/dist` a un CDN, o usar el `Dockerfile` incluido
 |---|---|
 | [calc3d-api](https://github.com/EvananSemprun/calc3d-api) | Backend + motor de cálculo canónico |
 | **calc3d-web** (este) | Panel web (React + Vite) |
-| [calc3d-landing](https://github.com/EvananSemprun/calc3d-landing) | Landing estática |
+| [calc3d-landing](https://github.com/EvananSemprun/calc3d-landing) | Sitio público / tienda de Banano Lab (Vite, sin React). ⚠️ El nombre dice "landing" por historia git |
