@@ -35,6 +35,11 @@ export interface Order {
   exchangeRates?: Record<string, { rate: number; source: string; at: string; label?: string }> | null;
   /** Cerrado en Bs: null = Bs en vivo; fecha = Bs congelados desde ese momento. */
   settledAt?: string | null;
+  /** Medición de la producción: qué máquina, cuántas horas, cuántas fallas. */
+  printerId?: string | null;
+  machineHours?: number | null;
+  /** 0 es un dato (se imprimió sin fallas); null es "no se midió". */
+  reprints?: number | null;
   payments: Payment[];
   createdAt: string;
   updatedAt: string;

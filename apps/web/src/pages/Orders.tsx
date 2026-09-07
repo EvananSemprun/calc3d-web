@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Package, Trash2 } from 'lucide-react';
 import type { OrderLineDto } from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
@@ -12,7 +12,7 @@ import { useSettings } from '@/features/settings/useSettings';
 import { CurrencyPicker } from '@/features/settings/CurrencyPicker';
 import { AttributionPicker, EMPTY_ATTRIBUTION, type Attribution } from '@/features/campaigns/AttributionPicker';
 import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, SearchInput, Select, SortHeader, TableSkeleton } from '@/components/ui';
-import { Dialog, useConfirm } from '@/components/overlays';
+import { Dialog } from '@/components/overlays';
 import { notify } from '@/components/toast';
 
 export function OrdersPage() {
@@ -21,16 +21,6 @@ export function OrdersPage() {
   const navigate = useNavigate();
   const { data: orders = [], isLoading } = useOrders();
   const [open, setOpen] = useState(false);
-  const confirm = useConfirm();
-
-  const remove = useMutation({
-    mutationFn: (id: string) => api.delete(`/orders/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['orders'] });
-      notify.success('Pedido eliminado');
-    },
-    onError: (e) => notify.error(apiErrorMessage(e)),
-  });
 
   const pendiente = orders.reduce((s, o) => s + o.balance, 0);
 
@@ -108,7 +98,6 @@ export function OrdersPage() {
                       <SortHeader<OrderRow> label="Estado" sortKey="status" sort={sort} />
                       <SortHeader<OrderRow> label="Total" sortKey="total" sort={sort} className="text-right" />
                       <SortHeader<OrderRow> label="Saldo" sortKey="balance" sort={sort} className="text-right" />
-                      <th className="px-4 py-2.5" />
                     </tr>
                   </thead>
                   <tbody className="tabular">
@@ -133,17 +122,6 @@ export function OrdersPage() {
                           ) : (
                             <Badge variant="success">saldado</Badge>
                           )}
-                        </td>
-                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={async () => {
-                              if (await confirm({ title: `¿Eliminar el pedido #${o.code}?` })) remove.mutate(o.id);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
                         </td>
                       </tr>
                     ))}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
+  Activity,
   Landmark,
   Target,
   Calculator,
@@ -53,6 +54,7 @@ const navGroups: { heading?: string; items: { to: string; label: string; icon: t
       { to: '/receivables', label: 'Por cobrar', icon: HandCoins },
       { to: '/loans', label: 'Deuda', icon: Landmark },
       { to: '/goals', label: 'Metas', icon: Target },
+      { to: '/production', label: 'Producción', icon: Activity },
       { to: '/campaigns', label: 'Publicidad', icon: Megaphone },
     ],
   },

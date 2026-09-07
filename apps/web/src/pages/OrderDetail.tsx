@@ -10,6 +10,7 @@ import { useOrder, ORDER_STATUS_OPTIONS } from '@/features/orders/api';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, NumberInput, PageSkeleton, Select, Stat } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
+import { ProductionCard } from '@/features/orders/ProductionCard';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -225,7 +226,9 @@ export function OrderDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Abonos */}
+        {/* Lo que pasó al producirlo + abonos */}
+        <div className="space-y-5">
+        <ProductionCard order={order} />
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>Abonos</CardTitle>
@@ -275,6 +278,7 @@ export function OrderDetailPage() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
 
       <div className="flex justify-end">

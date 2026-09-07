@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Users, MapPin } from 'lucide-react';
+import { Plus, Users, MapPin, Pencil } from 'lucide-react';
 import type { ContactTypeDto } from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useContacts, CONTACT_TYPE, CONTACT_TYPE_OPTIONS, type Contact } from '@/features/contacts/api';
@@ -140,6 +140,7 @@ export function ContactsPage() {
                       <SortHeader<Contact> label="Teléfono" sortKey="phone" sort={sort} />
                       <SortHeader<Contact> label="Municipio / Ciudad" sortKey="municipality" sort={sort} />
                       <th className="px-4 py-2.5 text-center font-semibold">Mapa</th>
+                      <th className="w-12 px-4 py-2.5" />
                     </tr>
                   </thead>
                   <tbody>
@@ -167,6 +168,17 @@ export function ContactsPage() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            aria-label={`Editar ${c.name}`}
+                            title="Editar"
+                            className="text-muted-foreground transition-colors hover:text-brand-yellow-ink"
+                            onClick={() => setModal({ contact: c })}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -176,10 +188,10 @@ export function ContactsPage() {
               {/* Móvil: tarjetas apiladas */}
               <div className="divide-y divide-border/70 md:hidden">
                 {sorted.map((c) => (
+                  <div key={c.id} className="flex items-center gap-2 pr-3 hover:bg-accent/40">
                   <Link
-                    key={c.id}
                     to={`/contacts/${c.id}`}
-                    className="flex items-center justify-between gap-3 p-4 hover:bg-accent/40"
+                    className="flex flex-1 items-center justify-between gap-3 p-4"
                   >
                     <div className="min-w-0">
                       <div className="truncate font-medium text-brand-yellow-ink">{c.name}</div>
@@ -197,6 +209,15 @@ export function ContactsPage() {
                     </div>
                     {c.lat != null && c.lng != null && <MapPin className="h-4 w-4 shrink-0 text-success" />}
                   </Link>
+                  <button
+                    type="button"
+                    aria-label={`Editar ${c.name}`}
+                    className="shrink-0 p-2 text-muted-foreground transition-colors hover:text-brand-yellow-ink"
+                    onClick={() => setModal({ contact: c })}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  </div>
                 ))}
               </div>
             </>

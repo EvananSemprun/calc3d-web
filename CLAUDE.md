@@ -211,6 +211,14 @@ Vite importa.
   con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
   préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
   equipo ya está ahí como inversión.
+- **Producción** (`pages/Production.tsx`, `features/equipment/usage.ts`): horas
+  de máquina por equipo con su % de vida útil, tasa real de fallos y
+  mantenimiento gastado vs cobrado. Se **escribe** desde el detalle del pedido
+  (`features/orders/ProductionCard.tsx`).
+  ⚠️ Esa tarjeta usa un input propio y NO `NumberInput`: el valor de
+  `NumberInput` es `number` y el vacío colapsa a 0, pero acá **vacío significa
+  "sin medir" y 0 significa "sin fallas"**. Confundirlos llenaría la tasa real
+  de ceros que nadie midió.
 - **Reposición de equipos** (`features/equipment/api.ts`): tarjeta por máquina
   (repuesto / falta / %), con el reparto en cascada por orden de compra. Lo
   calcula el SERVIDOR sobre toda la historia: **no depende del filtro de
@@ -308,6 +316,13 @@ Vite importa.
   colores por tipo en `CONTACT_TYPE` (oro/azul/verde/rojo, SOLO para diferenciar
   pines — la paleta de marca sigue estricta en el resto). El nav movió "Clientes"
   al grupo **Directorio** como "Contactos".
+- **Editar desde la lista**: cada fila de Contactos tiene su lápiz, que abre el
+  mismo `ContactModal` que el detalle. Antes solo se podía editar entrando al
+  contacto, y desde la lista únicamente crear uno nuevo.
+- ⚠️ **Los pedidos NO se borran desde la lista** (decisión del dueño,
+  2026-09-07): un tacho al lado de cada fila se toca sin querer. El endpoint
+  `DELETE /orders/:id` sigue existiendo y la acción vive solo en el DETALLE del
+  pedido, con confirmación.
 - **Mapa interactivo** (`components/LeafletMap.tsx`, `pages/ContactsMap.tsx`):
   **Leaflet + OSM** (deps `leaflet`+`react-leaflet`). **Sin geocodificación**: la
   ubicación se fija haciendo **click en el mapa** (`LocationPicker`, marcador
