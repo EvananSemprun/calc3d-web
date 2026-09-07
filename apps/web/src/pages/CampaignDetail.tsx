@@ -166,6 +166,42 @@ export function CampaignDetailPage() {
         </Card>
       </div>
 
+      {/* Lo que reporta la plataforma. Es la ÚNICA medida de una campaña que
+          todavía no generó venta atribuida: por ROAS daría cero y no diría nada. */}
+      {(c.reach != null || c.conversations != null || c.profileVisits != null) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Lo que reportó la plataforma</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Alcance y conversaciones no son ventas, pero son lo único que mide una campaña
+              antes de que alguien compre.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Stat label="Alcance" value={c.reach == null ? '—' : c.reach.toLocaleString('es-VE')} />
+              <Stat
+                label="Conversaciones"
+                value={c.conversations == null ? '—' : String(c.conversations)}
+              />
+              <Stat
+                label="Visitas al perfil"
+                value={c.profileVisits == null ? '—' : c.profileVisits.toLocaleString('es-VE')}
+              />
+              <Stat
+                label="Costo por conversación"
+                value={
+                  costPer(s.invested, c.conversations ?? 0) == null
+                    ? '—'
+                    : money(costPer(s.invested, c.conversations ?? 0)!)
+                }
+                accent="yellow"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {c.period && (
         <Card>
           <CardHeader>

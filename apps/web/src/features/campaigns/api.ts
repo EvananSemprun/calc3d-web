@@ -31,6 +31,10 @@ export interface Campaign {
   endDate: string | null;
   budget: number | null;
   notes: string | null;
+  /** Lo que reporta la plataforma de anuncios. */
+  reach: number | null;
+  conversations: number | null;
+  profileVisits: number | null;
   createdAt: string;
   stats: CampaignStats;
   /** Vista por período (solo en el detalle): ventas dentro de la ventana de la campaña. */

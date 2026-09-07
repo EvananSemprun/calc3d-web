@@ -277,6 +277,9 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
     startDate: campaign?.startDate?.slice(0, 10) ?? todayIso(),
     endDate: campaign?.endDate?.slice(0, 10) ?? '',
     budget: campaign?.budget ?? 0,
+    reach: campaign?.reach ?? 0,
+    conversations: campaign?.conversations ?? 0,
+    profileVisits: campaign?.profileVisits ?? 0,
     notes: campaign?.notes ?? '',
   });
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -294,6 +297,9 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
         startDate: form.startDate,
         endDate: form.endDate || null,
         budget: form.budget || null,
+        reach: form.reach || null,
+        conversations: form.conversations || null,
+        profileVisits: form.profileVisits || null,
         notes: form.notes || null,
       },
       {
@@ -340,6 +346,15 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
           </Field>
           <Field label="Presupuesto estimado (USD)">
             <NumberInput step="0.01" value={form.budget} onChange={(v) => set({ budget: v })} />
+          </Field>
+          <Field label="Alcance" hint="Lo que reporta la plataforma">
+            <NumberInput value={form.reach} onChange={(v) => set({ reach: v })} />
+          </Field>
+          <Field label="Conversaciones">
+            <NumberInput value={form.conversations} onChange={(v) => set({ conversations: v })} />
+          </Field>
+          <Field label="Visitas al perfil">
+            <NumberInput value={form.profileVisits} onChange={(v) => set({ profileVisits: v })} />
           </Field>
           <Field label="Estado">
             <Select value={form.status} onChange={(e) => set({ status: e.target.value as typeof form.status })}>

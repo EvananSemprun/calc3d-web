@@ -328,6 +328,10 @@ Vite importa.
   (`campaignRecommendation` + `REC_META`), ticket promedio y vista por período.
 - **Atribución**: `features/campaigns/AttributionPicker.tsx` en los modales de crear
   venta/pedido (canal + campaña; se arrastra al convertir cotización→venta).
+- **Lo que reportó la plataforma** (`CampaignDetail`): alcance, conversaciones y
+  visitas al perfil, con el **costo por conversación** derivado. Se cargan en el
+  formulario de la campaña. Es lo único que mide una campaña que todavía no
+  generó venta atribuida: ahí el ROAS es 0× y no dice nada.
 - **Export**: "Exportar CSV" en `Campaigns.tsx` y "PDF" en `CampaignDetail`
   (`GET /campaigns/export.csv`, `/campaigns/:id/report.pdf`), descarga autenticada vía
   `downloadFile()`. **Alerta proactiva** `CampaignAlert` en el Dashboard (campañas
