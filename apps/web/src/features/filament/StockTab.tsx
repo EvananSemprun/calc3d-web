@@ -77,6 +77,7 @@ export function StockTab() {
                 ? `Falta el conteo de ${etiquetaMes(previousMonth(month))}`
                 : `Se compraron ${resumen.purchased}`
             }
+            tone={resumen.consumption != null && !resumen.complete ? 'warn' : undefined}
           />
           <Metric
             label="Hay que reponer"
@@ -84,6 +85,16 @@ export function StockTab() {
             tone={resumen.restock.length > 0 ? 'warn' : undefined}
           />
         </div>
+      )}
+
+      {resumen && !resumen.complete && resumen.countedMaterials > 0 && (
+        // Un conteo a medias hace que el total del mes sea la suma de lo poco
+        // contado, y el consumo salga disparatado. Mejor decirlo que dejar que
+        // se lea como un dato firme.
+        <p className="rounded-xl border border-brand-yellow/40 bg-brand-yellow/[0.06] px-4 py-3 text-sm text-brand-yellow-ink">
+          Llevás <strong>{resumen.countedMaterials} de {resumen.totalMaterials}</strong> fichas
+          contadas este mes. Hasta terminar el conteo, el total y el consumo no son de fiar.
+        </p>
       )}
 
       {resumen && resumen.restock.length > 0 && (

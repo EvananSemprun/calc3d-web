@@ -18,6 +18,10 @@ export interface FilamentSummary {
   purchased: number;
   restock: { materialId: string; name: string; status: RestockStatus }[];
   pendingBrandCheck: number;
+  countedMaterials: number;
+  totalMaterials: number;
+  /** false si el mes se contó a medias: el total y el consumo no son de fiar */
+  complete: boolean;
 }
 
 const params = (r: Pick<DateRange, 'from' | 'to'>) => ({
