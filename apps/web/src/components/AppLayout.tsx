@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   Calculator,
+  Disc3,
   LayoutDashboard,
   TrendingUp,
   Receipt,
@@ -64,6 +65,7 @@ const navGroups: { heading?: string; items: { to: string; label: string; icon: t
       { to: '/products', label: 'Productos', icon: Boxes },
       { to: '/store', label: 'Tienda', icon: Store },
       { to: '/store/requests', label: 'Bandeja de tienda', icon: Inbox, badge: 'store-requests' },
+      { to: '/filament', label: 'Filamento', icon: Disc3 },
       { to: '/catalogs/materials', label: 'Materiales', icon: Box },
       { to: '/catalogs/printers', label: 'Impresoras', icon: Printer },
       { to: '/catalogs/components', label: 'Insumos', icon: Puzzle },

@@ -149,6 +149,40 @@ Vite importa.
   o un **producto** (`SaveProductModal`, precio prellenado con `price.final`).
   `ProductDetail` reusa `ResultPanel` para el recosteo en vivo.
 
+### Control de filamento (`pages/Filament.tsx`, `features/filament/`)
+
+> Los dos controles que el dueño llevaba en su Excel: la hoja "Inventario"
+> (compras) y "Stock mensual" (conteo físico). Spec:
+> `calc3d-api/docs/superpowers/specs/2026-09-07-control-de-filamento-design.md`.
+
+- Página propia en **Definiciones → Filamento** (`/filament`), con pestañas. Vive
+  aparte de Catálogos (que es el alta de fichas) y de Gastos (que es dinero que
+  sale): acá se responde "cuánto me cuesta el filamento y cuánto me queda".
+- **Compras** (`PurchasesTab`): los `Expense` con `materialId`, con **costo por
+  rollo y por gramo derivados por el SERVIDOR** (`GET /filament/purchases`). El
+  costo por gramo se muestra con **4 decimales**: son centavos, y con 2 todo se
+  vería como "$0.02". Filtro por fechas (`useDateRange`, preset `ALL`), búsqueda
+  sin acentos y KPIs que se recalculan sobre lo FILTRADO.
+- El alta de una compra sigue estando en **Gastos** (tipo "Filamento"): esta
+  pantalla es de lectura y análisis. Al registrarla, el backend actualiza solo el
+  `rollPrice` del material — "la última compra manda".
+- **Stock del mes** (`StockTab`): conteo MANUAL al cierre de mes. Filas agrupadas
+  por **tipo + color** (como la hoja), con una fila por MARCA dentro de cada grupo.
+  Tres casillas (Sin abrir / En uso / Por acabarse) y el total derivado.
+- **El guardado es al SALIR del campo (`onBlur`)**, con un borrador local: con 39
+  materiales × 3 casillas, guardar en cada tecla sería un bombardeo de requests.
+- ⚠️ **"No contado" ≠ "cero rollos".** `counted` distingue los dos casos: el total
+  solo se pinta en rojo si SE contó y dio cero. Sin conteo va en gris, el consumo
+  dice "Sin dato" y la reposición no incluye ese material. Es la misma distinción
+  en las tres partes de la pantalla; romperla en una sola la vuelve mentirosa.
+- La **lista de reposición** usa los colores de la hoja: rojo = sin rollos, ámbar =
+  por acabarse. Los descontinuados nunca entran.
+- Los **rollos por identificar** (`needsBrandCheck`, los que vinieron del Excel sin
+  marca) se listan aparte; contarlos a mano apaga el aviso.
+- ⚠️ `capitalize` de Tailwind pone mayúscula en CADA palabra ("Septiembre De
+  2026"): para un mes en español va `first-letter:uppercase`.
+- Las pestañas solo se dibujan si hay más de una (`TABS.length > 1`).
+
 ### Dashboard + finanzas (`pages/Dashboard.tsx`, `Sales.tsx`, `Expenses.tsx`; `features/finance/`)
 - KPIs (ventas, gastos, **utilidad**, ticket), recuperación de inversión y 4
   gráficos **Recharts** tematizados a la marca. Filtro de fechas reutilizable

@@ -37,6 +37,7 @@ const ContactsMapPage = lazy(() =>
 );
 import { SettingsPage } from '@/pages/Settings';
 import { CatalogPage } from '@/pages/Catalog';
+import { FilamentPage } from '@/pages/Filament';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -120,6 +121,7 @@ export function App() {
             </Suspense>
           }
         />
+        <Route path="/filament" element={<FilamentPage />} />
         <Route path="/catalogs/:resource" element={<CatalogPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
