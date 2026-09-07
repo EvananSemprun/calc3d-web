@@ -22,6 +22,7 @@ import {
   campaignHealth,
 } from '@calc3d/shared';
 import { useLoans } from '@/features/loans/api';
+import { useGoalForMonth } from '@/features/goals/api';
 import { Card, CardContent, CardHeader, CardTitle, Stat, TableSkeleton } from '@/components/ui';
 import { NumberTicker } from '@/components/effects';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
@@ -154,6 +155,11 @@ export function DashboardPage() {
   });
   const breakEven = niveles.survive;
 
+  // La meta del mes EN CURSO: el filtro de fechas del Dashboard puede estar en
+  // cualquier rango, pero una meta mensual solo significa algo contra su mes.
+  const mesEnCurso = new Date().toISOString().slice(0, 7);
+  const { data: meta } = useGoalForMonth(mesEnCurso);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -278,6 +284,42 @@ export function DashboardPage() {
                   Con {Math.round((settings?.breakEvenMarginPct ?? 0) * 100)} % de margen de
                   contribución. Compará con el rango “Mes”: los tres números son mensuales.
                 </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {meta && (
+            <Card>
+              <CardHeader className="flex-row items-center justify-between space-y-0">
+                <CardTitle>Meta de este mes</CardTitle>
+                <Link to="/goals" className="text-sm text-brand-yellow-ink hover:underline">
+                  Ver todas
+                </Link>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-3">
+                {[
+                  { t: 'Ventas', real: money(meta.sales), meta: money(meta.salesTarget), p: meta.salesProgress },
+                  { t: 'Encargos', real: String(meta.orders), meta: String(meta.ordersTarget), p: meta.ordersProgress },
+                  { t: 'Clientes nuevos', real: String(meta.newClients), meta: String(meta.newClientsTarget), p: meta.newClientsProgress },
+                ].map((r) => (
+                  <div key={r.t}>
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2 text-sm">
+                      <span className="font-medium">{r.t}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {r.real} de {r.meta}
+                        {r.p != null && ` · ${(r.p * 100).toFixed(0)} %`}
+                      </span>
+                    </div>
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
+                      <div
+                        className={`h-full rounded-full shadow-glow-sm transition-all ${
+                          r.p != null && r.p >= 1 ? 'bg-success' : 'bg-brand-yellow'
+                        }`}
+                        style={{ width: `${Math.min(1, r.p ?? 0) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           )}

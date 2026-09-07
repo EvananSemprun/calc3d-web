@@ -201,6 +201,12 @@ Vite importa.
   aplica (sin préstamos no hay nivel 2). Los costos fijos, el margen de
   contribución y la reserva se editan en **Configuración → Costos fijos**; la
   **cuota NO se edita ahí**: sale sola de los préstamos abiertos.
+- **Metas** (`pages/Goals.tsx`, `features/goals/api.ts`, en Finanzas): metas
+  mensuales de ventas, encargos y clientes nuevos. **Solo se cargan las metas**;
+  el cumplimiento lo deriva el servidor. El Dashboard muestra la del **mes en
+  curso** (no la del rango del filtro: una meta mensual solo significa algo
+  contra su mes). La barra se recorta al 100 % pero el número no: pasarse de la
+  meta es información.
 - **Deuda** (`pages/Loans.tsx`, `features/loans/api.ts`, en Finanzas): préstamos
   con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
   préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
