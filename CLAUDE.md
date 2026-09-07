@@ -194,11 +194,17 @@ Vite importa.
   `useDateRange`/`DateRangePicker` con presets (Hoy, Ayer, Semana, Mes, Año, Rango,
   Día, Todo). El Dashboard se **lazy-loadea** en `App.tsx` (Recharts en chunk
   aparte, ~380 KB). Los montos se agregan en el cliente desde las listas filtradas.
-- **Punto de equilibrio (Fase 2B)**: tarjeta "Punto de equilibrio" (ingreso de
-  equilibrio MENSUAL vs ventas del periodo; se compara mejor con el rango "Mes").
-  Helpers puros en `shared/calc/breakeven.ts`. Los costos fijos y el margen se
-  editan en **Configuración → Costos fijos** (`Settings.fixedCosts` /
-  `breakEvenMarginPct`); NO entran en el precio por pieza.
+- **Punto de equilibrio en TRES niveles** (2026-09-07): la tarjeta muestra "no
+  perder" / "además pagar la cuota" / "además reservar para equipos", con el
+  avance del periodo contra cada uno (`breakEvenLevels` de shared). Son
+  MENSUALES: se comparan con el rango "Mes". Un nivel **se oculta** si no
+  aplica (sin préstamos no hay nivel 2). Los costos fijos, el margen de
+  contribución y la reserva se editan en **Configuración → Costos fijos**; la
+  **cuota NO se edita ahí**: sale sola de los préstamos abiertos.
+- **Deuda** (`pages/Loans.tsx`, `features/loans/api.ts`, en Finanzas): préstamos
+  con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
+  préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
+  equipo ya está ahí como inversión.
 - **Alertas proactivas**: `ProfitabilityAlert` (productos por debajo del margen
   mínimo → `/products`) y `CampaignAlert` (campañas `LOSS`/`AT_RISK` con inversión
   > 0 → `/campaigns`).

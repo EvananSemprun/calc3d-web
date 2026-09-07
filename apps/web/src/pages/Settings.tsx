@@ -782,11 +782,13 @@ function FixedCostsSettings() {
   const qc = useQueryClient();
   const [rows, setRows] = useState<FixedCostRow[]>([]);
   const [marginPct, setMarginPct] = useState(40); // en % para la UI
+  const [reserve, setReserve] = useState(0);
 
   useEffect(() => {
     if (data) {
       setRows(data.fixedCosts ?? []);
       setMarginPct(Math.round((data.breakEvenMarginPct ?? 0.4) * 100));
+      setReserve(data.equipmentReserve ?? 0);
     }
   }, [data]);
 
@@ -797,6 +799,7 @@ function FixedCostsSettings() {
           .map((r) => ({ concept: r.concept.trim(), monthlyAmount: Number(r.monthlyAmount) || 0 }))
           .filter((r) => r.concept.length > 0),
         breakEvenMarginPct: Math.min(1, Math.max(0, marginPct / 100)),
+        equipmentReserve: Math.max(0, reserve),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] });
@@ -863,7 +866,7 @@ function FixedCostsSettings() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Margen de contribución"
-            hint="Tu ganancia promedio, en %. Equilibrio = fijos ÷ margen"
+            hint={`De cada $100 que vendés, lo que queda después del material: ${marginPct} % (o sea, ${100 - marginPct} % de costo variable)`}
           >
             <div className="relative w-28">
               <NumberInput className="pr-7" value={marginPct} onChange={setMarginPct} />
@@ -884,6 +887,15 @@ function FixedCostsSettings() {
             </p>
           </div>
         </div>
+
+        <Field
+          label="Reserva mensual para equipos"
+          hint="Lo que querés apartar cada mes para reponer las impresoras. Es el tercer nivel del punto de equilibrio; la cuota del préstamo NO va acá, sale sola de Deuda."
+        >
+          <div className="w-36">
+            <NumberInput step="0.01" value={reserve} onChange={setReserve} />
+          </div>
+        </Field>
 
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? 'Guardando…' : 'Guardar costos fijos'}

@@ -14,7 +14,14 @@ import {
 } from 'recharts';
 import { Link } from 'react-router-dom';
 import { LineChart as LineIcon, AlertTriangle, Megaphone } from 'lucide-react';
-import { breakEvenProgress, breakEvenRevenue, fixedCostsTotal, campaignHealth } from '@calc3d/shared';
+import {
+  breakEvenLevels,
+  breakEvenProgress,
+  fixedCostsTotal,
+  monthlyLoanPayments,
+  campaignHealth,
+} from '@calc3d/shared';
+import { useLoans } from '@/features/loans/api';
 import { Card, CardContent, CardHeader, CardTitle, Stat, TableSkeleton } from '@/components/ui';
 import { NumberTicker } from '@/components/effects';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
@@ -136,8 +143,16 @@ export function DashboardPage() {
   // Punto de equilibrio: cuánto hay que vender al mes para cubrir los costos
   // fijos, dado el margen de contribución declarado (Configuración → Costos fijos).
   const fijosMensuales = fixedCostsTotal(settings?.fixedCosts ?? []);
-  const breakEven = breakEvenRevenue(fijosMensuales, settings?.breakEvenMarginPct ?? 0);
-  const breakEvenPct = breakEvenProgress(agg.ventas, breakEven);
+  // La cuota se DERIVA de los préstamos abiertos: no se escribe en Configuración,
+  // o el mismo número en dos lugares termina diciendo dos cosas.
+  const { data: loans = [] } = useLoans();
+  const niveles = breakEvenLevels({
+    fixedMonthly: fijosMensuales,
+    marginPct: settings?.breakEvenMarginPct ?? 0,
+    loanPayment: monthlyLoanPayments(loans),
+    equipmentReserve: settings?.equipmentReserve ?? 0,
+  });
+  const breakEven = niveles.survive;
 
   return (
     <div className="space-y-5">
@@ -209,25 +224,59 @@ export function DashboardPage() {
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle>Punto de equilibrio</CardTitle>
                 <span className="text-sm text-muted-foreground">
-                  {money(agg.ventas)} de {money(breakEven)}
-                  {breakEvenPct != null && ` · ${(breakEvenPct * 100).toFixed(0)}%`}
+                  Vendiste {money(agg.ventas)} este periodo
                 </span>
               </CardHeader>
-              <CardContent>
-                <div className="h-3 w-full overflow-hidden rounded-full bg-muted/60">
-                  <div
-                    className={`h-full rounded-full shadow-glow-sm transition-all ${
-                      agg.ventas >= breakEven ? 'bg-success' : 'bg-brand-yellow'
-                    }`}
-                    style={{ width: `${(breakEvenPct ?? 0) * 100}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Para cubrir {money(fijosMensuales)} de costos fijos al mes con un{' '}
-                  {Math.round((settings?.breakEvenMarginPct ?? 0) * 100)}% de margen necesitas vender{' '}
-                  {money(breakEven)} <strong>al mes</strong>.{' '}
-                  {agg.ventas >= breakEven ? '¡Ya lo superaste este periodo!' : 'Aún no llegas este periodo.'}{' '}
-                  Compáralo con el rango “Mes” para que cuadre con el equilibrio mensual.
+              <CardContent className="space-y-4">
+                {[
+                  {
+                    titulo: 'No perder dinero',
+                    meta: niveles.survive,
+                    detalle: `Cubre ${money(fijosMensuales)} de costos fijos al mes.`,
+                  },
+                  {
+                    titulo: 'Además pagar la cuota',
+                    meta: niveles.withDebt,
+                    detalle: `Suma ${money(monthlyLoanPayments(loans))} de préstamos al mes.`,
+                    oculto: monthlyLoanPayments(loans) <= 0,
+                  },
+                  {
+                    titulo: 'Además reservar para equipos',
+                    meta: niveles.withReserve,
+                    detalle: `Aparta ${money(settings?.equipmentReserve ?? 0)} al mes para reponerlos.`,
+                    oculto: (settings?.equipmentReserve ?? 0) <= 0,
+                  },
+                ]
+                  .filter((n) => !n.oculto && n.meta != null)
+                  .map((n, i) => {
+                    const pct = breakEvenProgress(agg.ventas, n.meta) ?? 0;
+                    const logrado = agg.ventas >= n.meta!;
+                    return (
+                      <div key={n.titulo}>
+                        <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                          <span className="font-medium">
+                            <span className="mr-1.5 text-muted-foreground">{i + 1}.</span>
+                            {n.titulo}
+                          </span>
+                          <span className="tabular-nums text-muted-foreground">
+                            {money(n.meta!)} al mes · {(pct * 100).toFixed(0)} %
+                          </span>
+                        </div>
+                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
+                          <div
+                            className={`h-full rounded-full shadow-glow-sm transition-all ${
+                              logrado ? 'bg-success' : 'bg-brand-yellow'
+                            }`}
+                            style={{ width: `${pct * 100}%` }}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">{n.detalle}</p>
+                      </div>
+                    );
+                  })}
+                <p className="text-xs text-muted-foreground">
+                  Con {Math.round((settings?.breakEvenMarginPct ?? 0) * 100)} % de margen de
+                  contribución. Compará con el rango “Mes”: los tres números son mensuales.
                 </p>
               </CardContent>
             </Card>

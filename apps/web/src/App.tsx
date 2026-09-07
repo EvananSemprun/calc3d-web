@@ -19,6 +19,7 @@ import { OrdersPage } from '@/pages/Orders';
 import { OrderDetailPage } from '@/pages/OrderDetail';
 import { CalendarPage } from '@/pages/Calendar';
 import { ReceivablesPage } from '@/pages/Receivables';
+import { LoansPage } from '@/pages/Loans';
 // La lista de Publicidad carga Recharts (gráficos) → chunk aparte bajo demanda.
 const CampaignsPage = lazy(() => import('@/pages/Campaigns').then((m) => ({ default: m.CampaignsPage })));
 import { CampaignDetailPage } from '@/pages/CampaignDetail';
@@ -83,6 +84,7 @@ export function App() {
         <Route path="/orders/:id" element={<OrderDetailPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/receivables" element={<ReceivablesPage />} />
+        <Route path="/loans" element={<LoansPage />} />
         <Route
           path="/campaigns"
           element={

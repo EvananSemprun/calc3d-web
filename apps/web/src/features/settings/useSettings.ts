@@ -18,6 +18,8 @@ export interface Settings {
   taxPercent: number | null;
   fixedCosts: { concept: string; monthlyAmount: number }[];
   breakEvenMarginPct: number;
+  /** Nivel 3 del equilibrio: lo que se aparta al mes para reponer equipos. */
+  equipmentReserve: number;
   productAlertMinMarginPct: number;
   defaultRateLabel: string | null;
   protectionRateLabel: string | null;
