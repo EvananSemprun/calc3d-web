@@ -211,6 +211,11 @@ Vite importa.
   con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
   préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
   equipo ya está ahí como inversión.
+- **Reposición de equipos** (`features/equipment/api.ts`): tarjeta por máquina
+  (repuesto / falta / %), con el reparto en cascada por orden de compra. Lo
+  calcula el SERVIDOR sobre toda la historia: **no depende del filtro de
+  fechas**. Reemplazó a la tarjeta "Recuperación de la inversión", que sí
+  dependía del rango y por eso mostraba un negocio distinto según lo elegido.
 - **Alertas proactivas**: `ProfitabilityAlert` (productos por debajo del margen
   mínimo → `/products`) y `CampaignAlert` (campañas `LOSS`/`AT_RISK` con inversión
   > 0 → `/campaigns`).

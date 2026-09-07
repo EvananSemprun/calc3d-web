@@ -23,6 +23,7 @@ import {
 } from '@calc3d/shared';
 import { useLoans } from '@/features/loans/api';
 import { useGoalForMonth } from '@/features/goals/api';
+import { useEquipmentRecovery } from '@/features/equipment/api';
 import { Card, CardContent, CardHeader, CardTitle, Stat, TableSkeleton } from '@/components/ui';
 import { NumberTicker } from '@/components/effects';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
@@ -139,7 +140,7 @@ export function DashboardPage() {
   }, [saleRows, expenseRows, paymentRows]);
 
   const hasData = saleRows.length > 0 || expenseRows.length > 0 || paymentRows.length > 0;
-  const recovery = agg.inversion > 0 ? Math.max(0, Math.min(100, (agg.utilidad / agg.inversion) * 100)) : null;
+  const { data: recovery } = useEquipmentRecovery();
 
   // Punto de equilibrio: cuánto hay que vender al mes para cubrir los costos
   // fijos, dado el margen de contribución declarado (Configuración → Costos fijos).
@@ -324,23 +325,44 @@ export function DashboardPage() {
             </Card>
           )}
 
-          {recovery != null && (
+          {recovery && recovery.rows.length > 0 && (
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Recuperación de la inversión</CardTitle>
+                <CardTitle>Reposición de los equipos</CardTitle>
                 <span className="text-sm text-muted-foreground">
-                  {money(agg.utilidad)} de {money(agg.inversion)} · {recovery.toFixed(0)}%
+                  {money(recovery.totalRecovered)} de {money(recovery.totalCost)}
                 </span>
               </CardHeader>
-              <CardContent>
-                <div className="h-3 w-full overflow-hidden rounded-full bg-muted/60">
-                  <div
-                    className="h-full rounded-full bg-brand-yellow shadow-glow-sm transition-all"
-                    style={{ width: `${recovery}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Según el periodo elegido. Para ver la recuperación total, usa el rango “Todo”.
+              <CardContent className="space-y-4">
+                {recovery.rows.map((e) => (
+                  <div key={e.name}>
+                    <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                      <span className="font-medium">{e.name}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {money(e.recovered)} de {money(e.cost)} · faltan {money(e.missing)}
+                      </span>
+                    </div>
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
+                      <div
+                        className={`h-full rounded-full shadow-glow-sm transition-all ${
+                          e.progress >= 1 ? 'bg-success' : 'bg-brand-yellow'
+                        }`}
+                        style={{ width: `${e.progress * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  Las impresoras no son gasto: son inversión que el negocio devuelve con su
+                  ganancia. Acumulado de toda la historia ({money(recovery.income)} de ingresos
+                  menos {money(recovery.operatingExpenses)} de gastos operativos), sin contar la
+                  compra de los equipos ni los pagos del préstamo.{' '}
+                  {recovery.accumulatedProfit < 0 && (
+                    <strong className="text-destructive">
+                      Hoy la ganancia acumulada es {money(recovery.accumulatedProfit)}: hasta que
+                      no sea positiva, no hay con qué reponer.
+                    </strong>
+                  )}
                 </p>
               </CardContent>
             </Card>
