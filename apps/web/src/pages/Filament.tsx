@@ -1,6 +1,7 @@
 import { Disc3 } from 'lucide-react';
 import { usePersistentState } from '@/lib/usePersistentState';
 import { cn } from '@/lib/utils';
+import { AnalysisTab } from '@/features/filament/AnalysisTab';
 import { PurchasesTab } from '@/features/filament/PurchasesTab';
 import { StockTab } from '@/features/filament/StockTab';
 
@@ -15,6 +16,7 @@ import { StockTab } from '@/features/filament/StockTab';
 const TABS = [
   { id: 'stock', label: 'Stock del mes', Component: StockTab },
   { id: 'compras', label: 'Compras', Component: PurchasesTab },
+  { id: 'analisis', label: 'Análisis', Component: AnalysisTab },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];

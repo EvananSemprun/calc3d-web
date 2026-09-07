@@ -179,6 +179,11 @@ Vite importa.
   por acabarse. Los descontinuados nunca entran.
 - Los **rollos por identificar** (`needsBrandCheck`, los que vinieron del Excel sin
   marca) se listan aparte; contarlos a mano apaga el aviso.
+- **Análisis** (`AnalysisTab`): la parte de la hoja "Resumen" que mira las
+  compras — rollos e inversión **por marca** (con costo promedio por rollo y
+  participación), **colores más comprados** y reparto por material. Usa el helper
+  puro `groupPurchases` de shared sobre las MISMAS compras que la pestaña de al
+  lado; no hay endpoint propio, para que los totales no puedan discrepar.
 - ⚠️ `capitalize` de Tailwind pone mayúscula en CADA palabra ("Septiembre De
   2026"): para un mes en español va `first-letter:uppercase`.
 - Las pestañas solo se dibujan si hay más de una (`TABS.length > 1`).
