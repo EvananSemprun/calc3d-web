@@ -198,7 +198,7 @@ export function ProductDetailPage() {
             <h2 className="font-display text-lg font-bold">Recosteo con precios de hoy</h2>
             <Badge variant="outline">en vivo</Badge>
           </div>
-          <ResultPanel result={recost.result} selectedRate={null} />
+          <ResultPanel result={recost.result} />
         </div>
       )}
     </div>

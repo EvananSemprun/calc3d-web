@@ -1,10 +1,10 @@
 import { CalculatorProvider } from '@/features/calculator/CalculatorProvider';
-import { Wizard } from '@/features/calculator/Wizard';
+import { CalculatorScreen } from '@/features/calculator/CalculatorScreen';
 
 export function CalculatorPage() {
   return (
     <CalculatorProvider>
-      <Wizard />
+      <CalculatorScreen />
     </CalculatorProvider>
   );
 }

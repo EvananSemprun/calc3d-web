@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { priceFinalPerUnit, priceJobTotal } from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
 import { Button, Field, Input, NumberInput } from '@/components/ui';
 import { Dialog } from '@/components/overlays';
@@ -12,25 +11,17 @@ import { CurrencyPicker } from '@/features/settings/CurrencyPicker';
 
 /**
  * Guarda el cálculo actual como PRODUCTO reutilizable (Fase 4). Prellena el
- * precio de venta con el precio elegido (con extras) para que el dueño solo
+ * precio de venta con el precio final de la calculadora para que el dueño solo
  * confirme; el costo lo recalcula el servidor.
  */
 export function SaveProductModal({ onClose }: { onClose: () => void }) {
   const c = useCalculator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { result, selectedRate } = c;
+  const { result } = c;
 
-  // Precio elegido por unidad (mismo criterio que el ResultPanel).
-  const middle = result?.prices[Math.min(1, Math.max(0, (result?.prices.length ?? 1) - 1))];
-  const chosen =
-    (selectedRate != null && result?.prices.find((p) => p.marginPct === selectedRate)) || middle;
-  const suggested =
-    chosen && result
-      ? chosen.hitMinimum
-        ? priceJobTotal(chosen, result.quantity) / result.quantity
-        : priceFinalPerUnit(chosen)
-      : 0;
+  // El precio final de la calculadora: el mismo que se ve en el panel.
+  const suggested = result?.price.final ?? 0;
 
   const { data: settings } = useSettings();
   const [name, setName] = useState(c.quoteName);

@@ -171,11 +171,10 @@ function GeneralSettings() {
         locale: data.locale,
         kwhPrice: Number(data.kwhPrice),
         defaultWastePct: data.defaultWastePct,
-        marginMode: data.marginMode,
-        componentProrationMode: data.componentProrationMode,
         roundingMode: data.roundingMode,
         roundingIncrement: data.roundingIncrement,
-        defaultMargins: data.defaultMargins.join(', '),
+        defaultMarkup: data.defaultMarkup,
+        minMarginPct: data.minMarginPct,
       });
     }
   }, [data]);
@@ -187,10 +186,8 @@ function GeneralSettings() {
         kwhPrice: Number(form.kwhPrice),
         defaultWastePct: Number(form.defaultWastePct),
         roundingIncrement: Number(form.roundingIncrement),
-        defaultMargins: String(form.defaultMargins)
-          .split(',')
-          .map((s) => Number(s.trim()))
-          .filter((n) => !Number.isNaN(n)),
+        defaultMarkup: Number(form.defaultMarkup),
+        minMarginPct: Number(form.minMarginPct),
       };
       return api.patch('/settings', payload);
     },
@@ -228,20 +225,25 @@ function GeneralSettings() {
               onChange={(v) => set('defaultWastePct', v)}
             />
           </Field>
-          <Field label="Márgenes por defecto" hint="Fracciones separadas por coma: 0.3, 0.5, 1.0">
-            <Input
-              value={String(form.defaultMargins ?? '')}
-              onChange={(e) => set('defaultMargins', e.target.value)}
+          <Field
+            label="Margen objetivo por defecto"
+            hint="Fracción sobre el costo: 1.0 = 100 % (el doble del costo)"
+          >
+            <NumberInput
+              step="0.05"
+              value={Number(form.defaultMarkup ?? 1)}
+              onChange={(v) => set('defaultMarkup', v)}
             />
           </Field>
-          <Field label="Prorrateo de componentes">
-            <Select
-              value={String(form.componentProrationMode ?? 'FULL_PACKAGE')}
-              onChange={(e) => set('componentProrationMode', e.target.value)}
-            >
-              <option value="FULL_PACKAGE">Paquete completo</option>
-              <option value="USED">Solo unidades usadas</option>
-            </Select>
+          <Field
+            label="Piso de margen"
+            hint="Bajo este margen real la calculadora avisa en rojo. 0.6 = 60 %"
+          >
+            <NumberInput
+              step="0.05"
+              value={Number(form.minMarginPct ?? 0.6)}
+              onChange={(v) => set('minMarginPct', v)}
+            />
           </Field>
           <Field label="Redondeo de precios">
             <Select value={String(form.roundingMode ?? 'NONE')} onChange={(e) => set('roundingMode', e.target.value)}>

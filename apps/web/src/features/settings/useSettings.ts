@@ -9,10 +9,10 @@ export interface Settings {
   secondaryCurrency: string | null;
   kwhPrice: string;
   defaultWastePct: number;
-  wasteAppliesTo: string[];
-  defaultMargins: number[];
-  marginMode: 'MARKUP' | 'MARGIN';
-  componentProrationMode: 'USED' | 'FULL_PACKAGE';
+  /** Margen objetivo por defecto (markup sobre el costo, fracción: 1.0 = 100 %). */
+  defaultMarkup: number;
+  /** Piso de margen real: por debajo, la calculadora avisa en rojo. */
+  minMarginPct: number;
   roundingMode: 'NONE' | 'NEAREST' | 'UP' | 'DOWN';
   roundingIncrement: number;
   taxPercent: number | null;

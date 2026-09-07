@@ -102,31 +102,52 @@ Vite importa.
 - **Contraste (auditoría AA)**: única falla histórica = `--success` claro sobre
   blanco (4.09:1) → se oscureció a `152 55% 32%` (5.01:1). El resto pasa AA.
 
-### La calculadora (wizard de 5 pasos, `features/calculator/`)
-- `CalculatorProvider` (estado + cálculo en vivo `POST /calc`), `Wizard` +
-  `Stepper`, `steps/Step*.tsx` y `ResultPanel` (KPIs). Barra-resumen en vivo.
-- **Los 3 datos OBLIGATORIOS del trabajo** (vienen del slicer, NO se guardan en
-  catálogos, se llenan cada vez): **cantidad de piezas** (paso 1), **gramos
-  totales del lote** (paso 2, por material) y **horas de impresión** (paso 3).
-  Van marcados con `RequiredTag` + `REQUIRED_INPUT` (resalte amarillo) y el
-  `Wizard` **bloquea Siguiente/Guardar** hasta que tengan valor (> 0; horas solo
-  si la impresora está incluida). Lo demás sale de los catálogos guardados.
-- **Ganancia/mayoreo en lenguaje claro**: la UI usa **porcentajes** (30/50/100)
-  y el provider los guarda como **fracción** (`profitRates`); el cálculo siempre
-  es **MARKUP** ("ganancia sobre el costo"), sin exponer markup/margen.
-  `selectedRate` = ganancia elegida para vender (define las KPIs de utilidad).
-  Tramos de mayoreo etiquetados Detal / Mayorista básico / medio / alto.
-- **Motor pro (Fase 2A)**: `ResultPanel` deriva la UTILIDAD real (con extras) como
-  `finalUnit − costoUnitario`; usa helpers de `shared/calc/select.ts`
-  (`pickSuggestedPrice`, `priceFinalPerUnit`, `priceJobTotal`, `priceHasSurcharges`)
-  para coincidir con PDF y ventas. La **merma por riesgo** (Bajo/Medio/Alto
-  8/15/30 %) es solo selector de UI sobre `waste.pct`. Los snapshots previos a 2A:
-  leerlos SIEMPRE con `?.`/`??`.
-- El `Wizard` se alimenta de los catálogos guardados vía
-  `features/calculator/useCatalogData.ts`. Desde la calculadora se guarda un
-  **presupuesto** (`SaveQuoteModal`) o un **producto** (`SaveProductModal`, botón
-  "Guardar producto", precio prellenado del elegido). `ProductDetail` reusa
-  `ResultPanel` para el recosteo en vivo.
+### La calculadora (UNA pantalla, `features/calculator/`)
+
+> Reescrita el **2026-09-06** (shared **0.7.0**) siguiendo la hoja "Costeo" del
+> Excel de Banano Lab. Antes era un wizard de 5 pasos; ya no existe.
+> Spec: `calc3d-api/docs/superpowers/specs/2026-09-06-calculadora-una-pantalla-design.md`.
+
+- **Archivos**: `CalculatorProvider` (estado + cálculo en vivo `POST /calc`),
+  `CalculatorScreen` (layout), `sections.tsx` (las 7 secciones de entrada, en el
+  orden del Excel), `ResultPanel` (el precio y su semáforo), `analysis.tsx`
+  (comparador de redondeos, mayoreo, producción), `parts.tsx` (bloques
+  reutilizables). **`Wizard.tsx` y `steps/` fueron eliminados.**
+- **Layout**: formulario a la izquierda, panel de precio **pegajoso** a la
+  derecha; en móvil se apila con el precio ARRIBA. Debajo, a lo ancho: redondeos,
+  mayoreo y producción.
+- **Datos OBLIGATORIOS del trabajo** (los da el laminador, no los catálogos):
+  unidades, **gramos de la tanda**, precio del rollo y horas de impresión. Van con
+  `RequiredTag` + `REQUIRED_INPUT`, y `missing` (del provider) bloquea guardar.
+- **Un solo margen objetivo** y **un solo precio final**, editable a mano. El
+  semáforo (`price.status` → `PRICE_STATUS_LABEL`, ambos de shared) marca
+  PIERDES DINERO / Margen bajo / Por debajo de tu objetivo / OK. **No
+  re-implementar esos umbrales en la UI**: vienen del motor.
+- **Mayoreo por DESCUENTO** (`discountPct`), no por margen. Cada tramo muestra el
+  margen real que deja.
+- **El panel juzga el precio COBRADO, no el de lista**: el semáforo usa
+  `order.status`/`order.marginReal`, y cuando `order.fromTier` es true muestra el
+  precio de lista tachado → el del tramo. Es el mismo número que sale en la
+  cotización del cliente; esa coherencia es el punto.
+- **Bajo el piso de margen (`LOW`) va en ROJO**, no en ámbar, con un aviso al
+  lado. No bloquea la venta: bajar el precio sin darse cuenta es el error que más
+  caro sale, y un aviso tibio es justo lo que un panel bonito esconde. El piso se
+  edita en Configuración (`minMarginPct`).
+- **La UI usa porcentajes y el provider guarda fracciones** (margen, merma,
+  descuentos): la conversión `/100` vive en `sections.tsx` y `analysis.tsx`.
+- ⚠️ **Un documento guardado antes de 0.7.0 no tiene `result.price`.**
+  `ResultPanel` lo detecta y muestra un aviso; sin ese guard, `QuoteDetail` se
+  cae con pantalla en blanco. No se recalcula el snapshot: es el precio que se le
+  cotizó al cliente ese día.
+- ⚠️ **Los breakpoints de Tailwind miran el VIEWPORT, no el contenedor.** El panel
+  mide 22rem: un `sm:grid-cols-2` adentro se activa igual y trunca las etiquetas.
+  Dentro del panel, una sola columna.
+- El formulario se alimenta de los catálogos guardados vía
+  `features/calculator/useCatalogData.ts`. Al elegir un insumo del catálogo, el
+  costo unitario es `packagePrice / unitsPerPackage` (el catálogo guarda el
+  PAQUETE). Desde la calculadora se guarda un **presupuesto** (`SaveQuoteModal`)
+  o un **producto** (`SaveProductModal`, precio prellenado con `price.final`).
+  `ProductDetail` reusa `ResultPanel` para el recosteo en vivo.
 
 ### Dashboard + finanzas (`pages/Dashboard.tsx`, `Sales.tsx`, `Expenses.tsx`; `features/finance/`)
 - KPIs (ventas, gastos, **utilidad**, ticket), recuperación de inversión y 4
