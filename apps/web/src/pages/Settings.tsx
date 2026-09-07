@@ -667,6 +667,33 @@ function DataSettings() {
     <div className="space-y-5">
       <Card>
         <CardHeader>
+          <CardTitle>Reporte en Excel</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            El libro completo del negocio, con las mismas hojas de siempre: Resumen, Ventas,
+            Encargos, Gastos, Inventario, Stock, Clientes, Publicidad, Deuda, Metas y Producción.
+            <strong> Sale de la app, así que no hay dos sistemas que puedan discrepar</strong> —
+            se descarga cuando haga falta y siempre dice lo mismo que las pantallas.
+          </p>
+          <Button
+            variant="accent"
+            onClick={() =>
+              download(
+                '/reports/excel.xlsx',
+                `banano-lab-${new Date().toISOString().slice(0, 10)}.xlsx`,
+              )
+            }
+            disabled={busy === '/reports/excel.xlsx'}
+          >
+            <Download className="h-4 w-4" />
+            {busy === '/reports/excel.xlsx' ? 'Armando el libro…' : 'Descargar reporte en Excel'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Respaldar mis datos</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">

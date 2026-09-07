@@ -331,6 +331,10 @@ Vite importa.
   íconos rotos con bundlers). Las 3 páginas del CRM se **lazy-loadean** (Leaflet
   ~157 KB en chunk aparte). A11y: `role=application`+`aria-label` en contenedores,
   `title`/`alt` en pines.
+- **Reporte en Excel**: Configuración → Datos → "Descargar reporte en Excel"
+  (`GET /reports/excel.xlsx`, descarga autenticada). Es el libro que reemplazó
+  al `bananolab.xlsx` que el dueño llevaba a mano: los datos se cargan en la
+  app y el Excel es su salida.
 - **Respaldo / plantillas**: Configuración → Datos (descarga autenticada vía axios
   `responseType:'blob'`; botones de respaldo y de sembrar plantillas).
 
