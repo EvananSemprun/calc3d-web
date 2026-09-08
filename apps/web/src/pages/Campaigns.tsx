@@ -36,8 +36,9 @@ import { Dialog, useConfirm, Tooltip } from '@/components/overlays';
 import { usePersistentState } from '@/lib/usePersistentState';
 import { useSortable } from '@/lib/useSortable';
 import { notify } from '@/components/toast';
+import { todayKey } from '@/lib/today';
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => todayKey();
 
 /** ROAS como "3.2x" o "—" si no hay inversión. */
 function roasLabel(revenue: number, invested: number): string {

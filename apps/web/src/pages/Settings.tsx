@@ -43,6 +43,7 @@ import {
 } from '@/components/ui';
 import { useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
+import { todayKey } from '@/lib/today';
 
 export function SettingsPage() {
   const sections = [
@@ -681,7 +682,7 @@ function DataSettings() {
             onClick={() =>
               download(
                 '/reports/excel.xlsx',
-                `banano-lab-${new Date().toISOString().slice(0, 10)}.xlsx`,
+                `banano-lab-${todayKey()}.xlsx`,
               )
             }
             disabled={busy === '/reports/excel.xlsx'}

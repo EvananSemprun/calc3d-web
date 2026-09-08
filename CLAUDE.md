@@ -49,6 +49,24 @@ Vite importa.
   - **UI / navegación** — sidebar con grupos COLAPSABLES (`AppLayout`, estado en
     localStorage `nav-collapsed`).
 
+### Fechas: guardar en UTC, preguntar "qué día es hoy" en LOCAL
+
+Las dos cosas conviven en el proyecto y confundirlas ya rompió dos pantallas.
+
+- **Guardar y formatear** una fecha ya guardada (entrega, conteo del mes) va en
+  **UTC**: se almacenan a medianoche UTC, y formatearlas en la zona local
+  imprimía el día ANTERIOR (`documents/document-format.ts` en la API).
+- **Preguntar qué día es hoy** va en la zona **LOCAL**, con
+  `todayKey()` / `currentMonthKey()` de `lib/today.ts`.
+
+⚠️ **`new Date().toISOString().slice(0, 10)` NO es "hoy"**: es hoy en UTC. En
+Venezuela (UTC−4) eso significa que **desde las 20:00 la app cree que ya es
+mañana**. Se detectó el 2026-09-07 en el calendario, que marcaba el 8 siendo las
+20:45 del 7, y estaba en SIETE lugares: el calendario, la fecha por defecto de
+un abono y de un pago de préstamo (quedaban fechados al día siguiente), el mes
+en curso del Dashboard y de Metas (el último día del mes saltaban al siguiente),
+la fecha de una campaña nueva y el nombre del archivo del reporte.
+
 ### Regla de overlays (IMPORTANTE)
 - **NO usar `AnimatePresence` para overlays con hijo condicional; renderizar
   condicional directo.** Un hijo directo SIN `key` NO se desmonta al cerrar (el

@@ -24,6 +24,7 @@ import {
 import { useLoans } from '@/features/loans/api';
 import { useGoalForMonth } from '@/features/goals/api';
 import { useEquipmentRecovery } from '@/features/equipment/api';
+import { currentMonthKey } from '@/lib/today';
 import { Card, CardContent, CardHeader, CardTitle, Stat, TableSkeleton } from '@/components/ui';
 import { NumberTicker } from '@/components/effects';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
@@ -158,7 +159,7 @@ export function DashboardPage() {
 
   // La meta del mes EN CURSO: el filtro de fechas del Dashboard puede estar en
   // cualquier rango, pero una meta mensual solo significa algo contra su mes.
-  const mesEnCurso = new Date().toISOString().slice(0, 7);
+  const mesEnCurso = currentMonthKey();
   const { data: meta } = useGoalForMonth(mesEnCurso);
 
   return (

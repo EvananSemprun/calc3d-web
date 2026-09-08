@@ -11,8 +11,9 @@ import {
   PageSkeleton,
   Stat,
 } from '@/components/ui';
-import { Dialog } from '@/components/overlays';
+import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
+import { currentMonthKey } from '@/lib/today';
 import { useMoney } from '@/features/settings/useSettings';
 import {
   type GoalMonth,
@@ -178,13 +179,14 @@ function Renglon({
 
 function BorrarMeta({ meta }: { meta: GoalMonth }) {
   const borrar = useDeleteGoal();
+  const confirm = useConfirm();
   return (
     <Button
       size="sm"
       variant="ghost"
       aria-label={`Borrar la meta de ${nombreDeMes(meta.month)}`}
-      onClick={() => {
-        if (confirm(`¿Borrar la meta de ${nombreDeMes(meta.month)}?`)) {
+      onClick={async () => {
+        if (await confirm({ title: `¿Borrar la meta de ${nombreDeMes(meta.month)}?` })) {
           borrar.mutate(meta.id, { onSuccess: () => notify.success('Meta borrada') });
         }
       }}
@@ -194,7 +196,7 @@ function BorrarMeta({ meta }: { meta: GoalMonth }) {
   );
 }
 
-const mesActual = () => new Date().toISOString().slice(0, 7);
+const mesActual = () => currentMonthKey();
 
 function GoalDialog({ meta, onClose }: { meta: GoalMonth | null; onClose: () => void }) {
   const [month, setMonth] = useState(meta?.month ?? mesActual());

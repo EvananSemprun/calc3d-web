@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { todayKey } from '@/lib/today';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { useOrders, ORDER_STATUS } from '@/features/orders/api';
@@ -54,7 +55,8 @@ export function CalendarPage() {
     });
   };
 
-  const todayKey = dayKey(new Date().toISOString());
+  // En la zona del USUARIO: en UTC, de noche, marcaba el día siguiente.
+  const hoy = todayKey();
 
   return (
     <div className="space-y-5">
@@ -92,7 +94,7 @@ export function CalendarPage() {
             {cells.map((cell, i) => {
               if (!cell) return <div key={i} className="min-h-[84px] rounded-lg" />;
               const dayOrders = byDay.get(cell.key) ?? [];
-              const isToday = cell.key === todayKey;
+              const isToday = cell.key === hoy;
               return (
                 <div
                   key={i}

@@ -13,9 +13,10 @@ import {
   PageSkeleton,
   Stat,
 } from '@/components/ui';
-import { Dialog } from '@/components/overlays';
+import { Dialog, useConfirm } from '@/components/overlays';
 import { useMoney } from '@/features/settings/useSettings';
 import { notify } from '@/components/toast';
+import { todayKey } from '@/lib/today';
 import {
   type Loan,
   useAddLoanPayment,
@@ -93,6 +94,7 @@ export function LoansPage() {
 
 function LoanCard({ loan }: { loan: Loan }) {
   const { money } = useMoney();
+  const confirm = useConfirm();
   const [pagando, setPagando] = useState(false);
   const borrarPago = useDeleteLoanPayment();
   const borrar = useDeleteLoan();
@@ -123,8 +125,13 @@ function LoanCard({ loan }: { loan: Loan }) {
               size="sm"
               variant="ghost"
               aria-label={`Borrar ${loan.name}`}
-              onClick={() => {
-                if (confirm(`¿Borrar "${loan.name}" y sus ${loan.payments.length} pagos?`)) {
+              onClick={async () => {
+                if (
+                  await confirm({
+                    title: `¿Borrar “${loan.name}”?`,
+                    description: `Se van con él sus ${loan.payments.length} pagos registrados.`,
+                  })
+                ) {
                   borrar.mutate(loan.id, { onSuccess: () => notify.success('Préstamo borrado') });
                 }
               }}
@@ -213,7 +220,7 @@ function LoanCard({ loan }: { loan: Loan }) {
   );
 }
 
-const hoy = () => new Date().toISOString().slice(0, 10);
+const hoy = () => todayKey();
 
 function PaymentDialog({
   loan,

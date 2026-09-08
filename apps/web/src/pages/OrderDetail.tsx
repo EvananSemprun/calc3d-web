@@ -10,9 +10,10 @@ import { useOrder, ORDER_STATUS_OPTIONS } from '@/features/orders/api';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, NumberInput, PageSkeleton, Select, Stat } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
+import { todayKey } from '@/lib/today';
 import { ProductionCard } from '@/features/orders/ProductionCard';
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => todayKey();
 
 export function OrderDetailPage() {
   const { id = '' } = useParams();
