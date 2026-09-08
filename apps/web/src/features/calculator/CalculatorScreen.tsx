@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Save, Package } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { Button, Card, CardContent } from '@/components/ui';
 import { useCalculator } from '@/features/calculator/CalculatorProvider';
 import { CalculatorForm } from '@/features/calculator/sections';
 import { ResultPanel } from '@/features/calculator/ResultPanel';
 import { ProductionCard, RoundingComparator, WholesaleTable } from '@/features/calculator/analysis';
-import { SaveQuoteModal } from '@/features/calculator/SaveQuoteModal';
 import { SaveProductModal } from '@/features/calculator/SaveProductModal';
 
 /**
@@ -16,7 +15,6 @@ import { SaveProductModal } from '@/features/calculator/SaveProductModal';
  */
 export function CalculatorScreen() {
   const c = useCalculator();
-  const [saveOpen, setSaveOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
   const listo = c.missing.length === 0 && !!c.result;
 
@@ -31,20 +29,12 @@ export function CalculatorScreen() {
         </div>
         <div className="flex gap-2">
           <Button
-            variant="outline"
+            variant="accent"
             onClick={() => setProductOpen(true)}
             disabled={!listo}
-            title={c.missing.length ? `Falta: ${c.missing.join(', ')}` : 'Guardar como producto'}
+            title={c.missing.length ? `Falta: ${c.missing.join(', ')}` : 'Guardar en el catálogo'}
           >
             <Package className="h-4 w-4" /> Guardar producto
-          </Button>
-          <Button
-            variant="accent"
-            onClick={() => setSaveOpen(true)}
-            disabled={!listo}
-            title={c.missing.length ? `Falta: ${c.missing.join(', ')}` : undefined}
-          >
-            <Save className="h-4 w-4" /> Guardar presupuesto
           </Button>
         </div>
       </header>
@@ -91,7 +81,6 @@ export function CalculatorScreen() {
         </div>
       )}
 
-      {saveOpen && <SaveQuoteModal onClose={() => setSaveOpen(false)} />}
       {productOpen && <SaveProductModal onClose={() => setProductOpen(false)} />}
     </div>
   );

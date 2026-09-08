@@ -6,13 +6,17 @@ import { Button, Field, Input, NumberInput } from '@/components/ui';
 import { Dialog } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { useCalculator } from '@/features/calculator/CalculatorProvider';
-import { useSettings } from '@/features/settings/useSettings';
-import { CurrencyPicker } from '@/features/settings/CurrencyPicker';
 
 /**
- * Guarda el cálculo actual como PRODUCTO reutilizable (Fase 4). Prellena el
- * precio de venta con el precio final de la calculadora para que el dueño solo
- * confirme; el costo lo recalcula el servidor.
+ * Guarda el cálculo actual como **ficha de la tienda**, que desde 2026-09-07 es
+ * el catálogo único: el producto interno y lo que ve el cliente son la misma
+ * cosa (spec `2026-09-07-catalogo-unico-design.md`).
+ *
+ * Se manda el `CalcInput` completo y **el costo lo calcula el servidor** con él;
+ * el precio se prellena con el final de la calculadora para solo confirmarlo.
+ *
+ * Nace **oculta**: registrar una pieza no es publicarla. Se muestra en la
+ * vitrina recién cuando el dueño lo decide, con sus fotos y su descripción.
  */
 export function SaveProductModal({ onClose }: { onClose: () => void }) {
   const c = useCalculator();
@@ -23,26 +27,23 @@ export function SaveProductModal({ onClose }: { onClose: () => void }) {
   // El precio final de la calculadora: el mismo que se ve en el panel.
   const suggested = result?.price.final ?? 0;
 
-  const { data: settings } = useSettings();
   const [name, setName] = useState(c.quoteName);
-  const [imageUrl, setImageUrl] = useState('');
-  const [priceSet, setPriceSet] = useState(Number(suggested.toFixed(4)));
-  const [currencyLabel, setCurrencyLabel] = useState<string | null>(settings?.defaultRateLabel ?? null);
+  const [priceUsd, setPriceUsd] = useState(Number(suggested.toFixed(4)));
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
     setSaving(true);
     try {
-      const res = await api.post<{ id: string }>('/products', {
+      const res = await api.post<{ id: string }>('/store/products', {
         name,
-        imageUrl: imageUrl.trim() || null,
+        priceUsd,
         input: c.input,
-        priceSet,
-        currencyLabel,
+        // Oculta hasta que se le cargue foto y descripción.
+        visible: false,
       });
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
-      notify.success('Producto guardado');
-      navigate(`/products/${res.data.id}`);
+      await queryClient.invalidateQueries({ queryKey: ['store-products'] });
+      notify.success('Producto guardado en el catálogo');
+      navigate(`/store/${res.data.id}`);
     } catch (e) {
       notify.error(apiErrorMessage(e));
       setSaving(false);
@@ -56,30 +57,24 @@ export function SaveProductModal({ onClose }: { onClose: () => void }) {
         if (!next) onClose();
       }}
       title="Guardar como producto"
+      description="Queda en el catálogo con su costeo, oculto hasta que lo publiques."
     >
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Guarda esta pieza costeada para reusarla y vigilar su rentabilidad cuando cambien
-          los precios o la tasa.
+          Se guarda con el cálculo adentro, así que después la app puede recostearlo con los
+          precios de hoy y avisarte si el margen se cayó.
         </p>
         <Field label="Nombre">
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Ej. Llavero mundial"
+            autoFocus
           />
         </Field>
-        <Field label="Precio de venta · unidad">
-          <NumberInput value={priceSet} onChange={setPriceSet} min={0} step={0.01} />
+        <Field label="Precio de venta · unidad" hint="Viene del panel; podés ajustarlo">
+          <NumberInput value={priceUsd} onChange={setPriceUsd} min={0} step={0.01} />
         </Field>
-        <Field label="Imagen (URL, opcional)">
-          <Input
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="https://…"
-          />
-        </Field>
-        <CurrencyPicker value={currencyLabel} onChange={setCurrencyLabel} />
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="outline" onClick={onClose}>
             Cancelar
