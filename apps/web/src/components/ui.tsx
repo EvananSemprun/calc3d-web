@@ -437,6 +437,48 @@ export function Badge({
 }
 
 /** Tarjeta KPI. `accent` resalta el valor (amarillo = héroe, blue, success). */
+/**
+ * Barra de avance.
+ *
+ * ⚠️ El riel lleva **borde**, no solo fondo. Con `bg-muted` a secas queda del
+ * mismo color que la tarjeta en el tema oscuro (los dos son navy), así que una
+ * barra en 0 % no se ve NADA: la fila parece rota en vez de "todavía en cero".
+ * Pasaba en las tres impresoras sin reponer y en los meses futuros de Metas.
+ *
+ * `value` es una fracción 0..1. Se recorta para dibujar: superar la meta se
+ * cuenta con el número al lado, no estirando la barra fuera de su caja.
+ */
+export function ProgressBar({
+  value,
+  tone = 'gold',
+  className,
+}: {
+  value: number;
+  tone?: 'gold' | 'success' | 'danger';
+  className?: string;
+}) {
+  const pct = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)) * 100;
+  const color = {
+    gold: 'bg-brand-yellow',
+    success: 'bg-success',
+    danger: 'bg-destructive',
+  }[tone];
+
+  return (
+    <div
+      className={cn(
+        'h-2.5 w-full overflow-hidden rounded-full border border-brand-blue/60 bg-brand-blue/20',
+        className,
+      )}
+    >
+      <div
+        className={cn('h-full rounded-full shadow-glow-sm transition-all', color)}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
 export function Stat({
   label,
   value,

@@ -88,6 +88,12 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   **filamento** lo usan; las opciones viven en una lista administrada aparte
   (backend `catalog-options`). En `config.ts` el campo es `type:'combobox'` +
   `optionsKind`. A11y: navegación por flechas + `aria-activedescendant` + roles.
+- **`ProgressBar`** — la barra de avance del proyecto (`value` 0..1, `tone`
+  gold/success/danger). ⚠️ Su riel lleva **borde**, no solo fondo: con
+  `bg-muted` queda del mismo color que la tarjeta en oscuro (los dos son navy)
+  y una barra en **0 % no se ve nada**, con lo que la fila parece rota en vez de
+  "todavía en cero". Pasaba en las impresoras sin reponer y en los meses futuros
+  de Metas. Usarla siempre en vez de escribir el div a mano.
 - **Skeletons** — `Skeleton`/`TableSkeleton`/`PageSkeleton` (ya NO queda texto
   "Cargando…") y `EmptyState` (ícono + descripción + acción/CTA). Úsalos en listas.
 - **Dialog** — limita el alto a `100dvh` y scrollea el cuerpo (los modales no se
@@ -242,6 +248,11 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   calcula el SERVIDOR sobre toda la historia: **no depende del filtro de
   fechas**. Reemplazó a la tarjeta "Recuperación de la inversión", que sí
   dependía del rango y por eso mostraba un negocio distinto según lo elegido.
+- ⚠️ **El punto de equilibrio se compara contra los INGRESOS** (`agg.ingresos`
+  = ventas + abonos de pedidos), no contra `agg.ventas`. Con solo las ventas de
+  mostrador, la tarjeta decía "vendiste $5,00 · 3 %" mientras la de Metas, justo
+  debajo, decía "$68,50 · 27 %": dos números distintos para lo mismo en la misma
+  pantalla.
 - **Alertas proactivas**: `ProfitabilityAlert` (productos por debajo del margen
   mínimo → `/products`) y `CampaignAlert` (campañas `LOSS`/`AT_RISK` con inversión
   > 0 → `/campaigns`).

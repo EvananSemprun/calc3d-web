@@ -1,18 +1,7 @@
 import { useState } from 'react';
 import { HandCoins, Plus, Trash2 } from 'lucide-react';
 import { monthlyLoanPayments } from '@calc3d/shared';
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  EmptyState,
-  Field,
-  Input,
-  NumberInput,
-  PageSkeleton,
-  Stat,
-} from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, ProgressBar, Stat } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { useMoney } from '@/features/settings/useSettings';
 import { notify } from '@/components/toast';
@@ -153,14 +142,7 @@ function LoanCard({ loan }: { loan: Loan }) {
               )}
             </span>
           </div>
-          <div className="h-3 w-full overflow-hidden rounded-full bg-muted/60">
-            <div
-              className={`h-full rounded-full shadow-glow-sm transition-all ${
-                pagado ? 'bg-success' : 'bg-brand-yellow'
-              }`}
-              style={{ width: `${loan.progress * 100}%` }}
-            />
-          </div>
+          <ProgressBar value={loan.progress} tone={pagado ? 'success' : 'gold'} className="h-3" />
           {loan.monthsLeft == null && !pagado && (
             <p className="mt-2 text-xs text-muted-foreground">
               Sin cuota mensual no se puede saber cuándo termina. Cargala para que entre en el

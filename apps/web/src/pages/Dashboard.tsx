@@ -25,7 +25,7 @@ import { useLoans } from '@/features/loans/api';
 import { useGoalForMonth } from '@/features/goals/api';
 import { useEquipmentRecovery } from '@/features/equipment/api';
 import { currentMonthKey } from '@/lib/today';
-import { Card, CardContent, CardHeader, CardTitle, Stat, TableSkeleton } from '@/components/ui';
+import { Card, CardContent, CardHeader, CardTitle, ProgressBar, Stat, TableSkeleton } from '@/components/ui';
 import { NumberTicker } from '@/components/effects';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
 import { useOrderPayments } from '@/features/orders/api';
@@ -232,7 +232,7 @@ export function DashboardPage() {
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle>Punto de equilibrio</CardTitle>
                 <span className="text-sm text-muted-foreground">
-                  Vendiste {money(agg.ventas)} este periodo
+                  Vendiste {money(agg.ingresos)} este periodo
                 </span>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -257,8 +257,12 @@ export function DashboardPage() {
                 ]
                   .filter((n) => !n.oculto && n.meta != null)
                   .map((n, i) => {
-                    const pct = breakEvenProgress(agg.ventas, n.meta) ?? 0;
-                    const logrado = agg.ventas >= n.meta!;
+                    // INGRESOS, no solo las ventas de mostrador: los abonos de
+                    // pedidos también pagan los costos fijos, y la tarjeta de Metas
+                    // de acá abajo ya los cuenta. Con `ventas` las dos se
+                    // contradecían en la misma pantalla ($5,00 contra $68,50).
+                    const pct = breakEvenProgress(agg.ingresos, n.meta) ?? 0;
+                    const logrado = agg.ingresos >= n.meta!;
                     return (
                       <div key={n.titulo}>
                         <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2 text-sm">
@@ -270,14 +274,7 @@ export function DashboardPage() {
                             {money(n.meta!)} al mes · {(pct * 100).toFixed(0)} %
                           </span>
                         </div>
-                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
-                          <div
-                            className={`h-full rounded-full shadow-glow-sm transition-all ${
-                              logrado ? 'bg-success' : 'bg-brand-yellow'
-                            }`}
-                            style={{ width: `${pct * 100}%` }}
-                          />
-                        </div>
+                        <ProgressBar value={pct} tone={logrado ? 'success' : 'gold'} />
                         <p className="mt-1 text-xs text-muted-foreground">{n.detalle}</p>
                       </div>
                     );
@@ -312,14 +309,7 @@ export function DashboardPage() {
                         {r.p != null && ` · ${(r.p * 100).toFixed(0)} %`}
                       </span>
                     </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
-                      <div
-                        className={`h-full rounded-full shadow-glow-sm transition-all ${
-                          r.p != null && r.p >= 1 ? 'bg-success' : 'bg-brand-yellow'
-                        }`}
-                        style={{ width: `${Math.min(1, r.p ?? 0) * 100}%` }}
-                      />
-                    </div>
+                    <ProgressBar value={r.p ?? 0} tone={r.p != null && r.p >= 1 ? 'success' : 'gold'} />
                   </div>
                 ))}
               </CardContent>
@@ -343,14 +333,7 @@ export function DashboardPage() {
                         {money(e.recovered)} de {money(e.cost)} · faltan {money(e.missing)}
                       </span>
                     </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
-                      <div
-                        className={`h-full rounded-full shadow-glow-sm transition-all ${
-                          e.progress >= 1 ? 'bg-success' : 'bg-brand-yellow'
-                        }`}
-                        style={{ width: `${e.progress * 100}%` }}
-                      />
-                    </div>
+                    <ProgressBar value={e.progress} tone={e.progress >= 1 ? 'success' : 'gold'} />
                   </div>
                 ))}
                 <p className="text-xs text-muted-foreground">

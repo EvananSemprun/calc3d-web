@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { type FilamentGroup, groupPurchases } from '@calc3d/shared';
-import { Card, CardContent, EmptyState, PageSkeleton, Stat } from '@/components/ui';
+import { Card, CardContent, EmptyState, PageSkeleton, ProgressBar, Stat } from '@/components/ui';
 import { useMoney } from '@/features/settings/useSettings';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { useFilamentPurchases } from '@/features/filament/api';
@@ -87,7 +87,7 @@ export function AnalysisTab() {
                         {money(m.rolls > 0 ? m.invested / m.rolls : 0)}
                       </td>
                       <td className="p-3">
-                        <ShareBar share={m.share} />
+                        <ProgressBar value={m.share} className="h-1.5" />
                       </td>
                     </tr>
                   ))}
@@ -140,7 +140,7 @@ function RankCard({
                   {g.rolls} {g.rolls === 1 ? 'rollo' : 'rollos'} · {money(g.invested)}
                 </span>
               </div>
-              <ShareBar share={mayor > 0 ? g.rolls / mayor : 0} />
+              <ProgressBar value={mayor > 0 ? g.rolls / mayor : 0} className="h-1.5" />
             </li>
           ))}
         </ul>
@@ -151,17 +151,5 @@ function RankCard({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-/** Barra proporcional. Decorativa: el número siempre está al lado. */
-function ShareBar({ share }: { share: number }) {
-  return (
-    <div aria-hidden className="h-1.5 w-full overflow-hidden rounded-full bg-brand-blue/25">
-      <div
-        className="h-full rounded-full bg-brand-yellow"
-        style={{ width: `${Math.max(2, Math.round(share * 100))}%` }}
-      />
-    </div>
   );
 }

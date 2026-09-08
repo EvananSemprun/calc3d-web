@@ -1,5 +1,5 @@
 import { Activity } from 'lucide-react';
-import { Card, CardContent, EmptyState, PageSkeleton, Stat } from '@/components/ui';
+import { Card, CardContent, EmptyState, PageSkeleton, ProgressBar, Stat } from '@/components/ui';
 import { useMoney } from '@/features/settings/useSettings';
 import { usePrinterUsage } from '@/features/equipment/usage';
 
@@ -102,14 +102,10 @@ export function ProductionPage() {
                       {p.lifeUsed != null && ` · ${(p.lifeUsed * 100).toFixed(1)} %`}
                     </span>
                   </div>
-                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
-                    <div
-                      className={`h-full rounded-full shadow-glow-sm transition-all ${
-                        (p.lifeUsed ?? 0) >= 1 ? 'bg-destructive' : 'bg-brand-yellow'
-                      }`}
-                      style={{ width: `${Math.min(1, p.lifeUsed ?? 0) * 100}%` }}
-                    />
-                  </div>
+                  <ProgressBar
+                    value={p.lifeUsed ?? 0}
+                    tone={(p.lifeUsed ?? 0) >= 1 ? 'danger' : 'gold'}
+                  />
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -127,7 +123,11 @@ export function ProductionPage() {
                     titulo="Diferencia"
                     valor={money(p.maintenance.difference)}
                     detalle={
-                      p.maintenance.difference < 0 ? 'Gastaste más de lo que cobraste' : 'Cubierto'
+                      p.maintenance.spent === 0 && p.maintenance.charged === 0
+                        ? 'Todavía sin movimientos'
+                        : p.maintenance.difference < 0
+                          ? 'Gastaste más de lo que cobraste'
+                          : 'Cubierto'
                     }
                     rojo={p.maintenance.difference < 0}
                   />

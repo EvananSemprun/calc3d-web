@@ -1,16 +1,6 @@
 import { useState } from 'react';
 import { Plus, Target, Trash2 } from 'lucide-react';
-import {
-  Button,
-  Card,
-  CardContent,
-  EmptyState,
-  Field,
-  Input,
-  NumberInput,
-  PageSkeleton,
-  Stat,
-} from '@/components/ui';
+import { Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, ProgressBar, Stat } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { currentMonthKey } from '@/lib/today';
@@ -70,10 +60,12 @@ export function GoalsPage() {
         <>
           {t && (
             <div className="grid gap-4 sm:grid-cols-3">
+              {/* La meta va en el `sub` y no dentro del valor: dos montos
+                  completos en la misma línea parten el número en dos. */}
               <Stat
                 label="Ventas"
-                value={`${money(t.sales)} de ${money(t.salesTarget)}`}
-                sub={pct(t.salesProgress)}
+                value={money(t.sales)}
+                sub={`de ${money(t.salesTarget)} · ${pct(t.salesProgress)}`}
                 accent="yellow"
               />
               <Stat
@@ -163,16 +155,9 @@ function Renglon({
           {progreso != null && ` · ${(progreso * 100).toFixed(0)} %`}
         </span>
       </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
-        <div
-          className={`h-full rounded-full shadow-glow-sm transition-all ${
-            logrado ? 'bg-success' : 'bg-brand-yellow'
-          }`}
-          // El avance no se recorta en el motor, pero la barra sí: no puede
-          // pasarse del ancho. El número al lado sigue diciendo el 180 %.
-          style={{ width: `${Math.min(1, progreso ?? 0) * 100}%` }}
-        />
-      </div>
+      {/* El avance no se recorta en el motor, pero la barra sí (lo hace
+          `ProgressBar`): el número al lado sigue diciendo el 180 %. */}
+      <ProgressBar value={progreso ?? 0} tone={logrado ? 'success' : 'gold'} />
     </div>
   );
 }
