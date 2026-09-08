@@ -2,6 +2,7 @@ import { Activity } from 'lucide-react';
 import { Card, CardContent, EmptyState, PageSkeleton, ProgressBar, Stat } from '@/components/ui';
 import { useMoney } from '@/features/settings/useSettings';
 import { usePrinterUsage } from '@/features/equipment/usage';
+import { ReadingsCard } from '@/features/equipment/ReadingsCard';
 
 /**
  * MEDICIÓN DE LA PRODUCCIÓN (punto 9 del backlog).
@@ -39,20 +40,29 @@ export function ProductionPage() {
         </div>
       </div>
 
-      {t && t.jobs > 0 && t.unmeasuredJobs === t.jobs && (
+      {/* Solo cuando NO hay nada de nada: con una sola lectura cargada, decir
+          "todavía no hay nada medido" es falso y desalienta. */}
+      {t && t.printersWithoutReading === printers.length && t.unmeasuredJobs === t.jobs && (
         <div className="rounded-xl border border-brand-blue/40 bg-brand-blue/[0.06] p-4 text-sm">
-          <strong>Todavía no hay nada medido.</strong> Estos números se llenan solos a medida que,
-          en cada pedido, anotes qué máquina lo imprimió, cuántas horas tardó y cuántas piezas
-          hubo que repetir. Con dos meses de pedidos anotados, la merma deja de ser un supuesto.
+          <strong>Todavía no hay nada medido.</strong> Son dos cosas distintas y se cargan en dos
+          lugares: las <strong>horas</strong>, una vez por mes acá abajo con lo que marca cada
+          máquina; los <strong>fallos</strong>, en cada pedido, anotando cuántas piezas hubo que
+          repetir. Con dos meses cargados, la merma del 8 % deja de ser un supuesto.
         </div>
       )}
+
+      <ReadingsCard />
 
       {t && (
         <div className="grid gap-4 sm:grid-cols-3">
           <Stat
             label="Horas de máquina"
-            value={horas(t.hours)}
-            sub={`${t.jobs - t.unmeasuredJobs} de ${t.jobs} pedidos anotados`}
+            value={t.printersWithoutReading === printers.length ? 'Sin leer' : horas(t.hours)}
+            sub={
+              t.printersWithoutReading > 0
+                ? `${t.printersWithoutReading} de ${printers.length} máquinas sin lectura`
+                : 'Según el contador de cada máquina'
+            }
           />
           <Stat
             label="Tasa real de fallos"
@@ -65,8 +75,8 @@ export function ProductionPage() {
             accent={t.failureRate != null && t.failureRate > MERMA_ASUMIDA ? 'yellow' : 'plain'}
           />
           <Stat
-            label="Trabajos medidos"
-            value={String(t.measuredJobs)}
+            label="Pedidos con fallos anotados"
+            value={`${t.measuredJobs} de ${t.jobs}`}
             sub={
               t.measuredJobs < 5
                 ? 'Con tan pocos, la tasa todavía no significa nada'
@@ -90,7 +100,8 @@ export function ProductionPage() {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="font-display text-lg font-bold">{p.name}</h2>
                   <span className="text-sm text-muted-foreground">
-                    {p.jobs} {p.jobs === 1 ? 'trabajo' : 'trabajos'} asignados
+                    {p.hoursThisMonth != null && `${p.hoursThisMonth} h este mes · `}
+                    {p.jobs} {p.jobs === 1 ? 'pedido' : 'pedidos'} asignados
                   </span>
                 </div>
 
@@ -98,7 +109,9 @@ export function ProductionPage() {
                   <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2 text-sm">
                     <span className="font-medium">Vida útil consumida</span>
                     <span className="tabular-nums text-muted-foreground">
-                      {horas(p.hours)} de {p.lifetimeHours.toLocaleString('es-VE')} h
+                      {p.lastReading
+                        ? `${horas(p.hours)} de ${p.lifetimeHours.toLocaleString('es-VE')} h`
+                        : `Sin lectura · vida útil ${p.lifetimeHours.toLocaleString('es-VE')} h`}
                       {p.lifeUsed != null && ` · ${(p.lifeUsed * 100).toFixed(1)} %`}
                     </span>
                   </div>

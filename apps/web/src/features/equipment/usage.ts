@@ -9,7 +9,11 @@ export interface PrinterUsage {
   maintPerHour: number;
   /** Pedidos asignados a esta máquina. */
   jobs: number;
+  /** Horas del CONTADOR (última lectura). 0 si nunca se leyó. */
   hours: number;
+  lastReading: { month: string; hours: number } | null;
+  /** Horas impresas en el mes en curso; null si falta alguna lectura. */
+  hoursThisMonth: number | null;
   /** Cuántos de esos trabajos tienen los fallos anotados. */
   measuredJobs: number;
   pieces: number;
@@ -22,8 +26,12 @@ export interface PrinterUsage {
 
 export interface UsageResponse {
   printers: PrinterUsage[];
+  /** Mes en curso, `AAAA-MM`. */
+  month: string;
   total: {
     hours: number;
+    /** Máquinas sin ninguna lectura del contador. */
+    printersWithoutReading: number;
     measuredJobs: number;
     pieces: number;
     reprints: number;

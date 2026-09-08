@@ -22,32 +22,29 @@ export function ProductionCard({ order }: { order: Order }) {
   const { printers: printersQuery } = useCatalogData();
   const printers = printersQuery.data ?? [];
   const [printerId, setPrinterId] = useState(order.printerId ?? '');
-  const [hours, setHours] = useState<string>(order.machineHours?.toString() ?? '');
   const [reprints, setReprints] = useState<string>(order.reprints?.toString() ?? '');
 
   useEffect(() => {
     setPrinterId(order.printerId ?? '');
-    setHours(order.machineHours?.toString() ?? '');
     setReprints(order.reprints?.toString() ?? '');
-  }, [order.id, order.printerId, order.machineHours, order.reprints]);
+  }, [order.id, order.printerId, order.reprints]);
 
   const guardar = useMutation({
     mutationFn: () =>
       api.patch(`/orders/${order.id}`, {
         printerId: printerId || null,
         // Vacío se manda como null: "sin medir", no "cero".
-        machineHours: hours.trim() === '' ? null : Number(hours),
         reprints: reprints.trim() === '' ? null : Number(reprints),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['order', order.id] });
       qc.invalidateQueries({ queryKey: ['printer-usage'] });
-      notify.success('Producción guardada');
+      notify.success('Guardado');
     },
     onError: (e) => notify.error(apiErrorMessage(e)),
   });
 
-  const sinMedir = order.machineHours == null && order.reprints == null;
+  const sinMedir = order.reprints == null;
 
   return (
     <Card>
@@ -55,8 +52,10 @@ export function ProductionCard({ order }: { order: Order }) {
         <CardTitle>Qué pasó al imprimirlo</CardTitle>
         <p className="text-xs text-muted-foreground">
           {sinMedir
-            ? 'Sin anotar. Mientras esté vacío, este trabajo no cuenta para la tasa de fallos ni para las horas de máquina.'
-            : 'Alimenta las horas de la máquina y la tasa real de fallos.'}
+            ? 'Sin anotar. Mientras esté vacío, este trabajo no cuenta para la tasa real de fallos.'
+            : 'Alimenta la tasa real de fallos.'}
+          {' '}Las horas de máquina no van acá: se anotan una vez por mes en Producción, porque
+          también se imprime fuera de los pedidos.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -69,9 +68,6 @@ export function ProductionCard({ order }: { order: Order }) {
               </option>
             ))}
           </Select>
-        </Field>
-        <Field label="Horas de máquina" hint="Lo que tardó en imprimirse, en horas">
-          <NumberInputVacio value={hours} onChange={setHours} step="0.1" />
         </Field>
         <Field
           label="Piezas reimpresas por fallo"

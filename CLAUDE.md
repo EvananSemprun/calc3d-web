@@ -235,14 +235,19 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
   préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
   equipo ya está ahí como inversión.
-- **Producción** (`pages/Production.tsx`, `features/equipment/usage.ts`): horas
-  de máquina por equipo con su % de vida útil, tasa real de fallos y
-  mantenimiento gastado vs cobrado. Se **escribe** desde el detalle del pedido
-  (`features/orders/ProductionCard.tsx`).
+- **Producción** (`pages/Production.tsx`): dos mediciones que se cargan en dos
+  lugares, y no da lo mismo:
+  - **Horas** → `ReadingsCard` en esa misma pantalla: una lectura por mes con
+    lo que MARCA el contador de cada máquina, igual que el conteo de rollos.
+    NO se suman las horas de los pedidos, porque también se imprime fuera del
+    negocio y eso gasta vida útil. Guarda al salir del campo (`onBlur`) y avisa
+    en rojo si el número es MENOR que el del mes anterior (un contador no baja).
+  - **Fallos** → `features/orders/ProductionCard.tsx`, en el detalle del pedido.
   ⚠️ Esa tarjeta usa un input propio y NO `NumberInput`: el valor de
   `NumberInput` es `number` y el vacío colapsa a 0, pero acá **vacío significa
   "sin medir" y 0 significa "sin fallas"**. Confundirlos llenaría la tasa real
-  de ceros que nadie midió.
+  de ceros que nadie midió. Lo mismo vale para la lectura: sin lectura,
+  `lifeUsed` es **null**, no 0 %.
 - **Reposición de equipos** (`features/equipment/api.ts`): tarjeta por máquina
   (repuesto / falta / %), con el reparto en cascada por orden de compra. Lo
   calcula el SERVIDOR sobre toda la historia: **no depende del filtro de
