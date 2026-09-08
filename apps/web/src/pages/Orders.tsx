@@ -7,7 +7,7 @@ import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
 import { useOrders, ORDER_STATUS, type Order } from '@/features/orders/api';
 import { useSortable } from '@/lib/useSortable';
-import { useProducts } from '@/features/products/api';
+import { useStoreProducts } from '@/features/store/api';
 import { useSettings } from '@/features/settings/useSettings';
 import { CurrencyPicker } from '@/features/settings/CurrencyPicker';
 import { AttributionPicker, EMPTY_ATTRIBUTION, type Attribution } from '@/features/campaigns/AttributionPicker';
@@ -188,7 +188,7 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
     queryKey: ['clients'],
     queryFn: async () => (await api.get<{ id: string; name: string }[]>('/clients')).data,
   });
-  const { data: products = [] } = useProducts();
+  const { data: products = [] } = useStoreProducts();
   const { data: settings } = useSettings();
   const { money } = useMoney();
   const [clientId, setClientId] = useState('');
@@ -207,7 +207,7 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
   const addFromProduct = (id: string) => {
     const p = products.find((x) => x.id === id);
     if (!p) return;
-    const line: OrderLineDto = { description: p.name, quantity: 1, unit: 'u', unitPrice: p.recost.priceSet };
+    const line: OrderLineDto = { description: p.name, quantity: 1, unit: 'u', unitPrice: Number(p.priceUsd) };
     setLines((ls) => {
       // Si la única línea está vacía, reemplázala en vez de dejar una en blanco.
       if (ls.length === 1 && !ls[0].description.trim()) return [line];
@@ -272,7 +272,7 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
                   <option value="">+ Desde productos…</option>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} · {money(p.recost.priceSet)}
+                      {p.name} · {money(Number(p.priceUsd))}
                     </option>
                   ))}
                 </Select>

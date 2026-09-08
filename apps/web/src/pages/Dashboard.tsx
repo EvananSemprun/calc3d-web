@@ -29,10 +29,10 @@ import { Card, CardContent, CardHeader, CardTitle, ProgressBar, Stat, TableSkele
 import { NumberTicker } from '@/components/effects';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
 import { useOrderPayments } from '@/features/orders/api';
-import { useProducts, productsBelowMargin } from '@/features/products/api';
 import { useCampaigns } from '@/features/campaigns/api';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
+import { storeProductsBelowMargin, useStoreProducts } from '@/features/store/api';
 import {
   LINK_KIND_LABELS,
   SALE_KIND_LABELS,
@@ -403,12 +403,12 @@ export function DashboardPage() {
 
 /** Aviso proactivo: productos cuyo margen cayó por debajo del mínimo (devaluación). */
 function ProfitabilityAlert() {
-  const { data: products } = useProducts();
-  const alerts = productsBelowMargin(products);
+  const { data: products } = useStoreProducts();
+  const alerts = storeProductsBelowMargin(products);
   if (alerts.length === 0) return null;
   return (
     <Link
-      to="/products"
+      to="/store"
       className="flex items-center gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 transition-colors hover:bg-amber-500/15"
     >
       <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />

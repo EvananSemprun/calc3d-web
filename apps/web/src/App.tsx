@@ -25,8 +25,6 @@ import { ProductionPage } from '@/pages/Production';
 // La lista de Publicidad carga Recharts (gráficos) → chunk aparte bajo demanda.
 const CampaignsPage = lazy(() => import('@/pages/Campaigns').then((m) => ({ default: m.CampaignsPage })));
 import { CampaignDetailPage } from '@/pages/CampaignDetail';
-import { ProductsPage } from '@/pages/Products';
-import { ProductDetailPage } from '@/pages/ProductDetail';
 import { StorePage } from '@/pages/Store';
 import { StoreRequestsPage } from '@/pages/StoreRequests';
 import { StoreProductDetailPage } from '@/pages/StoreProductDetail';
@@ -98,8 +96,6 @@ export function App() {
           }
         />
         <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
-        <Route path="/products" element={<ProductsPage />} />
-        <Route path="/products/:id" element={<ProductDetailPage />} />
         <Route path="/store" element={<StorePage />} />
         <Route path="/store/requests" element={<StoreRequestsPage />} />
         <Route path="/store/:id" element={<StoreProductDetailPage />} />

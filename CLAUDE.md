@@ -299,12 +299,13 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 
 ### Tienda (catálogo público, panel)
 - **`pages/Store.tsx` + `pages/StoreProductDetail.tsx`, `features/store/api.ts`.**
-  Es un catálogo APARTE del de Productos: allá vive el costeo, acá lo que ve el
-  cliente (fotos, descripción, opciones, visibilidad, enlace).
-- **Dos formas de cargar**: a mano ("Nuevo producto") o con **"Publicar en la
-  tienda"** desde `ProductDetail` y `QuoteDetail` — eso llama a
-  `POST /store/products/from-source`, que arma el borrador con el precio y el costo
-  leídos por el BACKEND del snapshot. Nace siempre como **borrador**.
+  Es el catálogo ÚNICO desde 2026-09-07: la ficha guarda lo que ve el cliente
+  (fotos, descripción, opciones, visibilidad, enlace) **y** su costeo. La
+  pantalla "Productos" y su modelo se eliminaron; la calculadora guarda acá.
+- **Dos formas de cargar**: desde la **calculadora** ("Guardar producto", que
+  manda el `CalcInput` y el backend calcula el costo) o a mano ("Nuevo
+  producto", sin costeo — para un servicio o algo que no se imprime). Nace
+  siempre **oculta**: registrar no es publicar.
 - **Sin stock**: se produce bajo pedido, así que el campo es "días de producción".
   Las opciones (color/tamaño) van sin combinatoria, con recargo por opción.
 - **Fotos**: subida en dos pasos (`uploadStoreImage` en `features/store/api.ts`) —

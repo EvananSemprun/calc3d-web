@@ -16,7 +16,6 @@ import {
   HandCoins,
   Megaphone,
   Box,
-  Boxes,
   Printer,
   Puzzle,
   Users,
@@ -68,7 +67,6 @@ const navGroups: { heading?: string; items: { to: string; label: string; icon: t
   {
     heading: 'Definiciones',
     items: [
-      { to: '/products', label: 'Productos', icon: Boxes },
       { to: '/store', label: 'Tienda', icon: Store },
       { to: '/store/requests', label: 'Bandeja de tienda', icon: Inbox, badge: 'store-requests' },
       { to: '/filament', label: 'Filamento', icon: Disc3 },

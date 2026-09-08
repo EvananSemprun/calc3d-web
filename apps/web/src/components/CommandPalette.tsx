@@ -49,7 +49,7 @@ const PAGES: Cmd[] = [
   { key: 'p-camp', group: 'Ir a', label: 'Publicidad', to: '/campaigns', icon: Megaphone },
   { key: 'p-contacts', group: 'Ir a', label: 'Contactos', to: '/contacts', icon: Users },
   { key: 'p-map', group: 'Ir a', label: 'Mapa', to: '/map', icon: MapPin },
-  { key: 'p-products', group: 'Ir a', label: 'Productos', to: '/products', icon: Boxes },
+  { key: 'p-store', group: 'Ir a', label: 'Tienda', to: '/store', icon: Boxes },
   { key: 'p-mat', group: 'Ir a', label: 'Materiales', to: '/catalogs/materials', icon: Box },
   { key: 'p-print', group: 'Ir a', label: 'Impresoras', to: '/catalogs/printers', icon: Printer },
   { key: 'p-comp', group: 'Ir a', label: 'Insumos', to: '/catalogs/components', icon: Puzzle },
@@ -112,9 +112,10 @@ export function CommandPalette() {
     queryFn: async () => (await api.get('/quotes')).data,
     enabled: opened,
   });
+  // El catálogo es la ficha de tienda desde 2026-09-07.
   const products = useQuery<{ id: string; name: string }[]>({
-    queryKey: ['products'],
-    queryFn: async () => (await api.get('/products')).data,
+    queryKey: ['store-products'],
+    queryFn: async () => (await api.get('/store/products')).data,
     enabled: opened,
   });
   const campaigns = useQuery<{ id: string; name: string }[]>({
@@ -133,7 +134,7 @@ export function CommandPalette() {
     for (const q of quotes.data ?? [])
       items.push({ key: `q-${q.id}`, group: 'Presupuestos', label: q.name, sub: q.client?.name ?? undefined, to: `/quotes/${q.id}`, icon: FileText });
     for (const p of products.data ?? [])
-      items.push({ key: `pr-${p.id}`, group: 'Productos', label: p.name, to: `/products/${p.id}`, icon: Boxes });
+      items.push({ key: `pr-${p.id}`, group: 'Productos', label: p.name, to: `/store/${p.id}`, icon: Boxes });
     for (const c of campaigns.data ?? [])
       items.push({ key: `cm-${c.id}`, group: 'Publicidad', label: c.name, to: `/campaigns/${c.id}`, icon: Megaphone });
     return items;

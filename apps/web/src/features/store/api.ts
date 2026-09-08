@@ -73,6 +73,17 @@ export interface StoreProduct {
   optionGroups: StoreOptionGroup[];
   createdAt: string;
   updatedAt: string;
+  /**
+   * Recosteo con los precios de HOY. **null en las fichas sin costeo** (un
+   * servicio, o algo cargado a mano): no es un error, es la mitad del catálogo.
+   */
+  recost: {
+    price: number;
+    costAtPublish: number;
+    costNow: number;
+    status: { markupNow: number; markupAtSave: number; costDelta: number; belowMin: boolean };
+    unmatched: string[];
+  } | null;
 }
 
 const KEY = ['store', 'products'];
@@ -255,4 +266,12 @@ function imageSize(file: File): Promise<{ width?: number; height?: number }> {
     };
     img.src = url;
   });
+}
+
+/**
+ * Fichas cuyo margen cayó por debajo del mínimo, para la alerta del Dashboard.
+ * Las que no tienen costeo quedan fuera: sin costo no hay margen que vigilar.
+ */
+export function storeProductsBelowMargin(products: StoreProduct[] | undefined): StoreProduct[] {
+  return (products ?? []).filter((p) => p.recost?.status.belowMin);
 }
