@@ -111,8 +111,10 @@ Con la API corriendo (`pnpm dev` en `calc3d-api`, puerto 3001) ya está todo.
 > (`WEB_ORIGIN`). Por eso va con `strictPort`, para fallar en vez de saltar a
 > otro puerto donde el login se rompería sin explicación.
 >
-> Si necesitás apuntar a otra API, copiá `apps/web/.env.example` a
-> `apps/web/.env.local` y cambiá `VITE_API_URL`.
+> El panel le habla a la API por **`/api` relativo**: Vite reenvía al 3001 por
+> dentro, así que el navegador solo trata con un origen y no hay CORS. Si
+> necesitás apuntar a otra API, copiá `apps/web/.env.example` a
+> `apps/web/.env.local` y poné ahí su URL completa.
 
 > ⚠️ **Abrilo como `localhost:5180`, no como `127.0.0.1:5180`.** Vite escucha en
 > `[::1]` y el CORS de la API está atado al origen `http://localhost:5180`: por

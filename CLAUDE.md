@@ -435,14 +435,21 @@ cliente**, publica la ganancia del negocio.
 
 ## A qué API le habla el panel
 
-`VITE_API_URL` decide contra qué backend corre el panel. Hay **tres caminos** y
-los tres apuntan al **3001**, a propósito, para que no vuelva a pasar lo del
-2026-09-09:
+`VITE_API_URL` decide contra qué backend corre el panel.
 
-1. `apps/web/.env.local` (no se versiona) — Vite lo lee siempre, arranques como
-   arranques. Es la salida recomendada.
-2. El **fallback** de `lib/api.ts`, por si no hay variable.
-3. El **proxy** de `vite.config.ts` para las rutas `/api` relativas.
+**En desarrollo va RELATIVO: `/api`** (en `apps/web/.env.local`, que no se
+versiona). Con eso el navegador solo habla con el origen del panel y **Vite
+reenvía al 3001 por dentro** (el `proxy` de `vite.config.ts`). Dos problemas
+desaparecen de una:
+
+- **No hay CORS**: es el mismo origen.
+- **El navegador no necesita alcanzar un segundo puerto.** Los navegadores
+  embebidos —el del chat de Claude, por ejemplo— cargan el 5180 pero pueden no
+  llegar al 3001, y ahí el login falla con *"no se pudo conectar con el
+  servidor"* **con el backend perfectamente levantado**.
+
+En producción sí va la URL completa del backend. El **fallback** de `lib/api.ts`
+(`http://localhost:3001/api`) queda de red de seguridad si no hay variable.
 
 ⚠️ **Siempre `localhost:5180`, nunca `127.0.0.1:5180`.** Vite escucha en `[::1]`
 y el `WEB_ORIGIN` de la API es el origen `http://localhost:5180`; por IP la
