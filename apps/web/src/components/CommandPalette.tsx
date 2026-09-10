@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   TrendingUp,
   Receipt,
-  FileText,
   Package,
   CalendarDays,
   HandCoins,
@@ -42,7 +41,6 @@ const PAGES: Cmd[] = [
   { key: 'p-dash', group: 'Ir a', label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
   { key: 'p-sales', group: 'Ir a', label: 'Ventas', to: '/sales', icon: TrendingUp },
   { key: 'p-exp', group: 'Ir a', label: 'Gastos', to: '/expenses', icon: Receipt },
-  { key: 'p-quotes', group: 'Ir a', label: 'Presupuestos', to: '/quotes', icon: FileText },
   { key: 'p-orders', group: 'Ir a', label: 'Pedidos', to: '/orders', icon: Package },
   { key: 'p-cal', group: 'Ir a', label: 'Calendario', to: '/calendar', icon: CalendarDays },
   { key: 'p-recv', group: 'Ir a', label: 'Por cobrar', to: '/receivables', icon: HandCoins },
@@ -107,11 +105,6 @@ export function CommandPalette() {
     queryFn: async () => (await api.get('/orders')).data,
     enabled: opened,
   });
-  const quotes = useQuery<{ id: string; name: string; client?: { name: string } | null }[]>({
-    queryKey: ['quotes'],
-    queryFn: async () => (await api.get('/quotes')).data,
-    enabled: opened,
-  });
   // El catálogo es la ficha de tienda desde 2026-09-07.
   const products = useQuery<{ id: string; name: string }[]>({
     queryKey: ['store-products'],
@@ -131,14 +124,12 @@ export function CommandPalette() {
       items.push({ key: `c-${c.id}`, group: 'Contactos', label: c.name, sub: c.phone ?? undefined, to: `/contacts/${c.id}`, icon: Users });
     for (const o of orders.data ?? [])
       items.push({ key: `o-${o.id}`, group: 'Pedidos', label: `#${o.code} · ${o.client?.name ?? 'Sin cliente'}`, sub: o.status, to: `/orders/${o.id}`, icon: Package });
-    for (const q of quotes.data ?? [])
-      items.push({ key: `q-${q.id}`, group: 'Presupuestos', label: q.name, sub: q.client?.name ?? undefined, to: `/quotes/${q.id}`, icon: FileText });
     for (const p of products.data ?? [])
       items.push({ key: `pr-${p.id}`, group: 'Productos', label: p.name, to: `/store/${p.id}`, icon: Boxes });
     for (const c of campaigns.data ?? [])
       items.push({ key: `cm-${c.id}`, group: 'Publicidad', label: c.name, to: `/campaigns/${c.id}`, icon: Megaphone });
     return items;
-  }, [clients.data, orders.data, quotes.data, products.data, campaigns.data]);
+  }, [clients.data, orders.data, products.data, campaigns.data]);
 
   // Resultado filtrado, agrupado y con tope por grupo.
   const results = useMemo<Cmd[]>(() => {

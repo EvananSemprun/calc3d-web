@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ImagePlus, Plus, Tags, Trash2, X } from 'lucide-react';
+import { Download, ArrowLeft, ImagePlus, Plus, Tags, Trash2, X } from 'lucide-react';
 import {
   STORE_IMAGE_MAX_BYTES,
   STORE_IMAGE_MAX_COUNT,
@@ -9,7 +9,7 @@ import {
   slugify,
   type StoreProductKind,
 } from '@calc3d/shared';
-import { apiErrorMessage } from '@/lib/api';
+import { api, apiErrorMessage } from '@/lib/api';
 import { notify } from '@/components/toast';
 import { useConfirm } from '@/components/overlays';
 import { useMoney } from '@/features/settings/useSettings';
@@ -167,6 +167,21 @@ export function StoreProductDetailPage() {
     }
   };
 
+  /** Desglose de costos para uso propio. NUNCA se le manda al cliente. */
+  const descargarDesglose = async () => {
+    try {
+      const res = await api.get(`/store/products/${id}/desglose.pdf`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `desglose-interno-${product?.name ?? id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      notify.error(apiErrorMessage(e));
+    }
+  };
+
   const borrar = async () => {
     const ok = await confirm({
       title: `Borrar "${product.name}"`,
@@ -250,6 +265,17 @@ export function StoreProductDetailPage() {
           <Button onClick={guardar} disabled={update.isPending}>
             {update.isPending ? 'Guardando…' : 'Guardar'}
           </Button>
+          {/* ⚠️ Documento INTERNO: lleva costos y márgenes. Solo aparece si la
+              ficha tiene costeo; sin él no hay desglose que mostrar. */}
+          {product?.recost && (
+            <Button
+              variant="outline"
+              onClick={() => descargarDesglose()}
+              title="Costos y márgenes. No se le manda al cliente."
+            >
+              <Download className="h-4 w-4" /> Desglose interno
+            </Button>
+          )}
           <Button variant="outline" onClick={borrar} disabled={remove.isPending}>
             <Trash2 className="h-4 w-4" /> Borrar
           </Button>

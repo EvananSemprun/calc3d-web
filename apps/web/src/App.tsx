@@ -13,8 +13,6 @@ const DashboardPage = lazy(() =>
 );
 import { SalesPage } from '@/pages/Sales';
 import { ExpensesPage } from '@/pages/Expenses';
-import { QuotesPage } from '@/pages/Quotes';
-import { QuoteDetailPage } from '@/pages/QuoteDetail';
 import { OrdersPage } from '@/pages/Orders';
 import { OrderDetailPage } from '@/pages/OrderDetail';
 import { CalendarPage } from '@/pages/Calendar';
@@ -78,8 +76,6 @@ export function App() {
         />
         <Route path="/sales" element={<SalesPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
-        <Route path="/quotes" element={<QuotesPage />} />
-        <Route path="/quotes/:id" element={<QuoteDetailPage />} />
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/orders/:id" element={<OrderDetailPage />} />
         <Route path="/calendar" element={<CalendarPage />} />

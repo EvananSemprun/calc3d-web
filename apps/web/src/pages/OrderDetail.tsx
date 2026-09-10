@@ -80,6 +80,26 @@ export function OrderDetailPage() {
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * La COTIZACIÓN para el cliente. Desde 2026-09-07 cotizar es el primer estado
+   * del pedido: no hay una entidad "presupuesto" aparte, así que este documento
+   * sale de acá con las líneas ya acordadas.
+   */
+  const downloadQuotePdf = async () => {
+    if (!order) return;
+    try {
+      const res = await api.get(`/orders/${id}/cotizacion.pdf`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cotizacion-${order.code}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      notify.error(apiErrorMessage(e));
+    }
+  };
+
   // Emitir la nota CONGELA los Bs (con confirmación) la primera vez; luego solo descarga.
   const emitDeliveryNote = async () => {
     if (!order) return;
@@ -143,6 +163,18 @@ export function OrderDetailPage() {
           />
           <Button variant="outline" onClick={shareWhatsApp} disabled={!order.client.phone} title={order.client.phone ? undefined : 'El cliente no tiene teléfono'}>
             <MessageCircle className="h-4 w-4" /> WhatsApp
+          </Button>
+          <Button
+            variant="outline"
+            onClick={downloadQuotePdf}
+            disabled={order.lines.length === 0}
+            title={
+              order.lines.length === 0
+                ? 'Agregá artículos para poder cotizar'
+                : 'Lo que se le manda al cliente: sin costos ni márgenes'
+            }
+          >
+            <Download className="h-4 w-4" /> Cotización
           </Button>
           <Button variant="outline" onClick={emitDeliveryNote} disabled={settle.isPending}>
             <Download className="h-4 w-4" />

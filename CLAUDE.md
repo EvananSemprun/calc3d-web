@@ -284,11 +284,10 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 ### Documentos del negocio (nota de entrega y cotización)
 - Ambos PDF los arma el backend con **un solo formato** (ver `documents/` en
   `calc3d-api`); el front solo descarga el blob y le pone nombre de archivo.
-- `QuoteDetail` tiene **dos** descargas de PDF y no hay que confundirlas:
-  **"Cotización"** (`/quotes/:id/cotizacion.pdf`) es el documento que SE LE MANDA AL
-  CLIENTE, y **"Desglose interno"** (`/quotes/:id/pdf`) trae costos, márgenes y
-  mayoreo — es de uso propio. Los nombres de archivo llevan el N.º del documento
-  (`cotizacion-007-2026.pdf` / `desglose-interno-007-2026.pdf`), no el id opaco.
+- Los dos PDF viven en pantallas distintas y no hay que confundirlos:
+  **"Cotización"** en el detalle del PEDIDO es lo que SE LE MANDA AL CLIENTE, y
+  **"Desglose interno"** en la ficha del catálogo trae costos, márgenes y
+  mayoreo — es de uso propio.
 - **Logo del negocio** (`features/settings/BusinessLogo.tsx`, en Configuración →
   Negocio): PNG/JPEG hasta 1 MB, se sube como data URL a `PUT /settings/logo`. La
   vista previa se pide como **blob** (`GET /settings/logo` exige sesión, así que un
@@ -387,13 +386,16 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   "pagué en bolívares" elige una tasa VES + monto Bs y guarda `amount` en USD base
   (= Bs ÷ tasa) + `rate`/`currencyCode='VES'` para presentación.
 
-### Presupuestos / cotizaciones (`pages/Quotes.tsx`)
-- Lista con **ciclo de cotización**: conversión (aceptados/decididos), "por seguir"
-  (SENT), "vencido" (DRAFT/SENT > 7 días → recotizar). `QuoteDetail` usa la tasa
-  CONGELADA del documento. El origen del presupuesto es la calculadora
-  (`SaveQuoteModal`); el backend versiona (`GET /quotes/:id/versions`,
-  `POST /quotes/:id/duplicate`).
+### Cotizar a un cliente (ya NO hay Presupuestos)
 
+La pantalla de Presupuestos se eliminó el 2026-09-07: **cotizar es el primer
+estado de un pedido**. Se crea el pedido en estado "Cotizado" y desde su detalle
+se baja el botón **"Cotización"** (`GET /orders/:id/cotizacion.pdf`) — el
+documento con logo, precios y SIN costos que se le manda al cliente.
+
+El **desglose interno** (costos, márgenes, mayoreo) vive ahora en la ficha del
+catálogo, y solo aparece si tiene costeo: ⚠️ **ese PDF no se le manda al
+cliente**, publica la ganancia del negocio.
 ### Publicidad / ROI (Fase 1, front)
 - **Campañas** (`pages/Campaigns.tsx` + `CampaignDetail.tsx`, `features/campaigns/`):
   el backend deriva el gasto real de los `Expense` enlazados. La lista tiene **filtros
