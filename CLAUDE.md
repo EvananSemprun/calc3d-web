@@ -429,8 +429,26 @@ cliente**, publica la ganancia del negocio.
   **Solo copia `src`**: recompilá `shared` después (el `postinstall`/build regenera
   `dist/esm`, que es lo que importa Vite) y verificá con `pnpm test:shared`.
 - `pnpm test:shared` — tests del motor (tras sincronizar).
-- `pnpm dev` — levanta el front Vite (antes `pnpm dev:web` en el monorepo).
+- `pnpm dev` — levanta el panel en **5180** (fijado en `vite.config.ts` con
+  `strictPort`). Un solo puerto para la web: el 5173 se retiró el 2026-09-09.
 - `pnpm -r build` / `pnpm -r lint`
+
+## A qué API le habla el panel
+
+`VITE_API_URL` decide contra qué backend corre el panel. Hay **tres caminos** y
+los tres apuntan al **3001**, a propósito, para que no vuelva a pasar lo del
+2026-09-09:
+
+1. `apps/web/.env.local` (no se versiona) — Vite lo lee siempre, arranques como
+   arranques. Es la salida recomendada.
+2. El **fallback** de `lib/api.ts`, por si no hay variable.
+3. El **proxy** de `vite.config.ts` para las rutas `/api` relativas.
+
+⚠️ **Hasta el 2026-09-09 los tres decían `3000`** —el puerto viejo de la API— y
+el `.env.example` también. Arrancar el panel sin `VITE_API_URL` daba *"no se
+pudo conectar con el servidor"* en el login **con el backend perfectamente
+levantado**, que es el peor tipo de error: el mensaje apunta al lugar
+equivocado.
 
 ## Entorno
 - Windows / PowerShell: usar su sintaxis (`$env:VAR` no `$VAR`, `$null` no

@@ -10,9 +10,15 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // UN solo puerto para el panel. Es el 5180 y no otro porque es el que la
+    // API acepta por CORS (`WEB_ORIGIN`): levantarlo en 5173 hacía que el
+    // navegador bloqueara el login sin decir por qué.
+    port: 5180,
+    // Si el puerto está ocupado, fallar en vez de saltar a otro: un panel en
+    // 5181 se ve igual y no puede hablar con la API.
+    strictPort: true,
     proxy: {
-      '/api': 'http://localhost:3000',
+      '/api': 'http://localhost:3001',
     },
   },
 });

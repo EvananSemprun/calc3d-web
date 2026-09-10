@@ -101,19 +101,15 @@ Build estático: subir `apps/web/dist` a un CDN, o usar el `Dockerfile` incluido
 ## Levantar el panel en local
 
 ```bash
-pnpm dev                      # dev server en 5173
+pnpm dev
 ```
 
-Para probarlo **contra la API** (que corre en el **3001**), en el puerto 5180 que
-espera el CORS del backend:
+Queda en **http://localhost:5180** — un solo puerto, fijado en `vite.config.ts`.
+Con la API corriendo (`pnpm dev` en `calc3d-api`, puerto 3001) ya está todo.
 
-```bash
-VITE_API_URL="http://localhost:3001/api" pnpm --filter @calc3d/web exec vite --port 5180 --strictPort
-```
-
-> ⚠️ **La variable no es opcional.** Sin `VITE_API_URL`, el front cae a su valor
-> por defecto (`http://localhost:3000/api`, puerto **3000**) y el login falla con
-> *"no se pudo conectar con el servidor"* aunque la API esté perfecta.
+> ⚠️ **El 5180 no es caprichoso**: es el que la API acepta por CORS
+> (`WEB_ORIGIN`). Por eso va con `strictPort`, para fallar en vez de saltar a
+> otro puerto donde el login se rompería sin explicación.
 >
-> Para no depender de cómo se arranque, poné la variable en un
-> `apps/web/.env.local` (no se versiona): Vite la lee siempre.
+> Si necesitás apuntar a otra API, copiá `apps/web/.env.example` a
+> `apps/web/.env.local` y cambiá `VITE_API_URL`.

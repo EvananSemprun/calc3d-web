@@ -21,7 +21,10 @@ const onPublicPage = () => PUBLIC_PREFIXES.some((p) => location.pathname.startsW
 
 /** Cliente HTTP centralizado con el access token inyectado en cada request. */
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api',
+  // El puerto de la API es el 3001. Este valor por defecto decía 3000 y hacía
+  // que, sin VITE_API_URL, el login fallara con "no se pudo conectar con el
+  // servidor" aunque el backend estuviera perfecto.
+  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api',
 });
 
 api.interceptors.request.use((config) => {
