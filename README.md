@@ -113,3 +113,7 @@ Con la API corriendo (`pnpm dev` en `calc3d-api`, puerto 3001) ya está todo.
 >
 > Si necesitás apuntar a otra API, copiá `apps/web/.env.example` a
 > `apps/web/.env.local` y cambiá `VITE_API_URL`.
+
+> ⚠️ **Abrilo como `localhost:5180`, no como `127.0.0.1:5180`.** Vite escucha en
+> `[::1]` y el CORS de la API está atado al origen `http://localhost:5180`: por
+> IP la página no carga, y si cargara el login fallaría igual.

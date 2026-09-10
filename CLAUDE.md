@@ -444,6 +444,10 @@ los tres apuntan al **3001**, a propósito, para que no vuelva a pasar lo del
 2. El **fallback** de `lib/api.ts`, por si no hay variable.
 3. El **proxy** de `vite.config.ts` para las rutas `/api` relativas.
 
+⚠️ **Siempre `localhost:5180`, nunca `127.0.0.1:5180`.** Vite escucha en `[::1]`
+y el `WEB_ORIGIN` de la API es el origen `http://localhost:5180`; por IP la
+página no carga y, si cargara, el login moriría en CORS.
+
 ⚠️ **Hasta el 2026-09-09 los tres decían `3000`** —el puerto viejo de la API— y
 el `.env.example` también. Arrancar el panel sin `VITE_API_URL` daba *"no se
 pudo conectar con el servidor"* en el login **con el backend perfectamente
