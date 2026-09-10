@@ -97,3 +97,23 @@ Build estático: subir `apps/web/dist` a un CDN, o usar el `Dockerfile` incluido
 | [calc3d-api](https://github.com/EvananSemprun/calc3d-api) | Backend + motor de cálculo canónico |
 | **calc3d-web** (este) | Panel web (React + Vite) |
 | [calc3d-landing](https://github.com/EvananSemprun/calc3d-landing) | Sitio público / tienda de Banano Lab (Vite, sin React). ⚠️ El nombre dice "landing" por historia git |
+
+## Levantar el panel en local
+
+```bash
+pnpm dev                      # dev server en 5173
+```
+
+Para probarlo **contra la API** (que corre en el **3001**), en el puerto 5180 que
+espera el CORS del backend:
+
+```bash
+VITE_API_URL="http://localhost:3001/api" pnpm --filter @calc3d/web exec vite --port 5180 --strictPort
+```
+
+> ⚠️ **La variable no es opcional.** Sin `VITE_API_URL`, el front cae a su valor
+> por defecto (`http://localhost:3000/api`, puerto **3000**) y el login falla con
+> *"no se pudo conectar con el servidor"* aunque la API esté perfecta.
+>
+> Para no depender de cómo se arranque, poné la variable en un
+> `apps/web/.env.local` (no se versiona): Vite la lee siempre.
