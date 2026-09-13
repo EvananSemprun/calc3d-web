@@ -109,6 +109,10 @@ export function ExpensesPage() {
 
   const total = rows.reduce((s, r) => s + r.amount, 0);
   const inversion = rows.filter((r) => r.isInvestment).reduce((s, r) => s + r.amount, 0);
+  // La inversión está DENTRO del total, no al lado: los equipos también son
+  // dinero que salió. Lo que resta ganancia es el resto (ver el `sub` de cada
+  // tarjeta) — la máquina se recupera en Producción → Reposición de equipos.
+  const operativo = total - inversion;
 
   return (
     <div className="space-y-5">
@@ -142,8 +146,26 @@ export function ExpensesPage() {
           </Select>
         </div>
         <div className="flex gap-3">
-          <Stat label="Total del periodo" value={money(total)} accent="yellow" className="min-w-[150px]" />
-          <Stat label="De inversión" value={money(inversion)} accent="blue" className="min-w-[150px]" />
+          <Stat
+            label="Total del periodo"
+            value={money(total)}
+            sub="todo lo que salió"
+            accent="yellow"
+            className="min-w-[150px]"
+          />
+          <Stat
+            label="Operativo"
+            value={money(operativo)}
+            sub="lo que resta ganancia"
+            className="min-w-[150px]"
+          />
+          <Stat
+            label="De inversión"
+            value={money(inversion)}
+            sub="equipos, incluidos en el total"
+            accent="blue"
+            className="min-w-[150px]"
+          />
         </div>
       </div>
 

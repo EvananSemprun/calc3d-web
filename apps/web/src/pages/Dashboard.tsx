@@ -74,8 +74,15 @@ export function DashboardPage() {
     const abonos = paymentRows.reduce((s, r) => s + r.amount, 0);
     const ingresos = ventas + abonos;
     const gastos = expenseRows.reduce((s, r) => s + r.amount, 0);
-    const utilidad = ingresos - gastos;
     const inversion = expenseRows.filter((e) => e.isInvestment).reduce((s, r) => s + r.amount, 0);
+    // ⚠️ La UTILIDAD se mide contra los gastos OPERATIVOS, no contra todo lo que
+    // salió. Comprar una impresora no es perder ese dinero: es inversión que el
+    // negocio devuelve, y por eso la tarjeta de Reposición de equipos la excluye
+    // (`ganancia acumulada = ingresos − gastos operativos`, definición del dueño).
+    // Restándola acá, la misma pantalla decía dos ganancias distintas: el KPI
+    // contaba las impresoras como gasto y el texto de abajo afirmaba lo contrario.
+    const gastosOperativos = gastos - inversion;
+    const utilidad = ingresos - gastosOperativos;
 
     // Ingresos por día (ventas + abonos), asc
     const byDayMap = new Map<string, number>();
@@ -129,6 +136,7 @@ export function DashboardPage() {
       abonos,
       ingresos,
       gastos,
+      gastosOperativos,
       utilidad,
       inversion,
       ticket: saleRows.length ? ventas / saleRows.length : 0,
@@ -194,14 +202,24 @@ export function DashboardPage() {
         />
         <Stat
           label="Gastos"
-          value={<NumberTicker value={agg.gastos} format={money} />}
-          sub={moneyAlt ? `≈ ${moneyAlt(agg.gastos)}` : 'filamento + generales'}
+          value={<NumberTicker value={agg.gastosOperativos} format={money} />}
+          sub={
+            agg.inversion > 0
+              ? `+ ${money(agg.inversion)} de inversión en equipos`
+              : moneyAlt
+                ? `≈ ${moneyAlt(agg.gastosOperativos)}`
+                : 'filamento + generales'
+          }
         />
         <Stat
           label="Utilidad"
           value={<NumberTicker value={agg.utilidad} format={money} />}
           accent={agg.utilidad >= 0 ? 'success' : 'plain'}
-          sub={moneyAlt ? `≈ ${moneyAlt(agg.utilidad)} · ingresos − gastos` : 'ventas + abonos − gastos'}
+          sub={
+            moneyAlt
+              ? `≈ ${moneyAlt(agg.utilidad)} · ingresos − gastos operativos`
+              : 'ventas + abonos − gastos operativos'
+          }
         />
       </div>
 

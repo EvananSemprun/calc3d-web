@@ -253,6 +253,17 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   calcula el SERVIDOR sobre toda la historia: **no depende del filtro de
   fechas**. Reemplazó a la tarjeta "Recuperación de la inversión", que sí
   dependía del rango y por eso mostraba un negocio distinto según lo elegido.
+- ⚠️ **La UTILIDAD se mide contra los gastos OPERATIVOS**, no contra todo lo
+  que salió (`agg.gastosOperativos` = gastos − inversión). Comprar una impresora
+  no es perder ese dinero: es inversión que el negocio devuelve, y es la misma
+  definición que usa Reposición de equipos. Restándola, el KPI contaba las
+  máquinas como gasto mientras el texto de esa tarjeta, en la MISMA pantalla,
+  decía "las impresoras no son gasto: son inversión". El KPI "Gastos" muestra el
+  operativo y anuncia la inversión aparte en su renglón de apoyo, para que la
+  resta se pueda seguir a ojo. Lo mismo en **Gastos** (`pages/Expenses.tsx`):
+  "Total del periodo" incluye la inversión y la tarjeta "De inversión" es un
+  SUBCONJUNTO, no un segundo monto — sin decirlo, se leen como dos cubetas que
+  se suman.
 - ⚠️ **El punto de equilibrio se compara contra los INGRESOS** (`agg.ingresos`
   = ventas + abonos de pedidos), no contra `agg.ventas`. Con solo las ventas de
   mostrador, la tarjeta decía "vendiste $5,00 · 3 %" mientras la de Metas, justo
