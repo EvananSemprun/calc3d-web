@@ -128,7 +128,7 @@ export function ExpensesPage() {
             </p>
           </div>
         </div>
-        <Button variant="accent" onClick={() => setOpen(true)}>
+        <Button variant="accent" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
           <Plus className="h-4 w-4" /> Registrar gasto
         </Button>
       </div>

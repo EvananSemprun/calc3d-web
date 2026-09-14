@@ -79,7 +79,9 @@
   --ring: 46 100% 50%; /* #FFC300 */
 
   --brand-blue: 209 100% 20%; /* #003566 */
-  --brand-blue-bright: 209 100% 20%;
+  /* En oscuro NO puede ser #003566: es el mismo tono que --border y la tarjeta, y
+     el texto con este color ("Confirmado", íconos) desaparecía. Azul claro, AA sobre navy. */
+  --brand-blue-bright: 209 100% 62%;
   --brand-yellow: 46 100% 50%; /* #FFC300 */
   --brand-yellow-hover: 50 100% 52%; /* #FFD60A */
   --brand-yellow-foreground: 216 100% 5%; /* texto navy sobre oro */

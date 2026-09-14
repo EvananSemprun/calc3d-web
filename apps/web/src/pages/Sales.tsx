@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, ShoppingCart, Trash2, Wand2 } from 'lucide-react';
+import { Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
 import { Badge, Button, Card, CardContent, EmptyState, Field, FilterBar, Input, NumberInput, Select, Stat, TableSkeleton, FieldGrid } from '@/components/ui';
@@ -22,7 +22,6 @@ export function SalesPage() {
   const qc = useQueryClient();
   const { data: sales = [], isLoading } = useSales(range);
   const [openManual, setOpenManual] = useState(false);
-  const [openQuote, setOpenQuote] = useState(false);
   const confirm = useConfirm();
 
   const remove = useMutation({
@@ -47,14 +46,9 @@ export function SalesPage() {
             <p className="text-sm text-muted-foreground">Registra cada venta; el total se calcula solo.</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => setOpenQuote(true)}>
-            <Wand2 className="h-4 w-4" /> Desde presupuesto
-          </Button>
-          <Button variant="accent" onClick={() => setOpenManual(true)}>
-            <Plus className="h-4 w-4" /> Registrar venta
-          </Button>
-        </div>
+        <Button variant="accent" className="w-full sm:w-auto" onClick={() => setOpenManual(true)}>
+          <Plus className="h-4 w-4" /> Registrar venta
+        </Button>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -77,7 +71,7 @@ export function SalesPage() {
           ) : sales.length === 0 ? (
             <EmptyState
               icon={ShoppingCart}
-              description="Sin ventas en este periodo. Registra una venta o conviértela desde un presupuesto."
+              description="Sin ventas en este periodo. Registra la primera con «Registrar venta»."
               action={
                 <Button variant="accent" onClick={() => setOpenManual(true)}>
                   <Plus className="h-4 w-4" /> Registrar venta
@@ -140,9 +134,7 @@ export function SalesPage() {
         </CardContent>
       </Card>
 
-      {openManual && <ManualSaleModal onClose={() => setOpenManual(false)} onSaved={() => { setOpenManual(false); qc.invalidateQueries({ queryKey: ['sales'] }); }} />}
-      {openQuote && <FromQuoteModal onClose={() => setOpenQuote(false)} onSaved={() => { setOpenQuote(false); qc.invalidateQueries({ queryKey: ['sales'] }); }} />}
-    </div>
+      {openManual && <ManualSaleModal onClose={() => setOpenManual(false)} onSaved={() => { setOpenManual(false); qc.invalidateQueries({ queryKey: ['sales'] }); }} />}    </div>
   );
 }
 
@@ -215,60 +207,6 @@ function ManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button variant="accent" onClick={save} disabled={saving || form.amount <= 0}>
             {saving ? 'Guardando…' : 'Guardar'}
-          </Button>
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
-function FromQuoteModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const { data: quotes = [] } = useQuery({
-    queryKey: ['quotes'],
-    queryFn: async () => (await api.get<{ id: string; name: string; status: string }[]>('/quotes')).data,
-  });
-  const [quoteId, setQuoteId] = useState('');
-  const [date, setDate] = useState(todayIso());
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      await api.post('/sales/from-quote', { quoteId, date, kind: 'ENCARGO' });
-      onSaved();
-    } catch (e) {
-      notify.error(apiErrorMessage(e));
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      title="Venta desde presupuesto"
-      description="El monto se toma del precio sugerido del presupuesto."
-    >
-      <div className="space-y-3">
-        <Field label="Presupuesto">
-          <Select value={quoteId} onChange={(e) => setQuoteId(e.target.value)}>
-            <option value="">Elegir presupuesto…</option>
-            {quotes.map((q) => (
-              <option key={q.id} value={q.id}>
-                {q.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Fecha">
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </Field>
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button variant="accent" onClick={save} disabled={saving || !quoteId}>
-            {saving ? 'Guardando…' : 'Crear venta'}
           </Button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { CheckCircle2, Circle, X, Rocket } from 'lucide-react';
 import { api } from '@/lib/api';
 import { usePersistentState } from '@/lib/usePersistentState';
 import { Card, CardContent } from '@/components/ui';
+import { useExchangeRates } from '@/features/settings/useExchangeRates';
 
 /** Cuenta perezosa de una lista (solo el largo importa para el checklist). */
 function useCount(key: string, path: string) {
@@ -30,14 +31,14 @@ export function OnboardingChecklist() {
   const [hidden, setHidden] = usePersistentState('onboarding-hidden', false);
   const materials = useCount('materials', '/materials');
   const printers = useCount('printers', '/printers');
-  const quotes = useCount('quotes', '/quotes');
   const orders = useCount('orders', '/orders');
   const sales = useCount('sales', '/sales');
+  const rates = useExchangeRates().data?.rates.length ?? 0;
 
   const steps: Step[] = [
     { done: materials > 0, label: 'Registra tu primera compra de filamento', hint: 'En Gastos, tipo Filamento: la ficha se crea con el precio de la compra.', to: '/expenses' },
     { done: printers > 0, label: 'Agrega una impresora', hint: 'Para calcular desgaste y electricidad.', to: '/catalogs/printers' },
-    { done: quotes > 0, label: 'Crea tu primer presupuesto', hint: 'Desde la calculadora, con tus datos del trabajo.', to: '/' },
+    { done: rates > 0, label: 'Carga las tasas de cambio', hint: 'En Configuración → Moneda, para ver los precios en bolívares.', to: '/settings?seccion=moneda' },
     { done: orders > 0 || sales > 0, label: 'Registra una venta o pedido', hint: 'Empieza a medir ingresos y ganancia.', to: '/orders' },
   ];
 

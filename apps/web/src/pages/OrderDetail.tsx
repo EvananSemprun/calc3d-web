@@ -10,7 +10,7 @@ import { useOrder, ORDER_STATUS_OPTIONS } from '@/features/orders/api';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, NumberInput, PageSkeleton, Select, Stat, FieldGrid } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
-import { todayKey } from '@/lib/today';
+import { formatStoredDay, todayKey } from '@/lib/today';
 import { ProductionCard } from '@/features/orders/ProductionCard';
 
 const todayIso = () => todayKey();
@@ -35,7 +35,7 @@ export function OrderDetailPage() {
       `Hola ${order.client.name}, aquí el resumen de tu pedido #${order.code}:\n${items}\n\n` +
       `Total: ${money(order.total)}\nAbonado: ${money(order.paid)}\nSaldo: ${money(order.balance)}` +
       (order.deliveryDate
-        ? `\nEntrega: ${new Date(order.deliveryDate).toLocaleDateString('es-VE')}`
+        ? `\nEntrega: ${formatStoredDay(order.deliveryDate)}`
         : '');
     // Teléfono a formato internacional: quita no-dígitos; 0 inicial (Venezuela) → 58.
     const raw = (order.client.phone ?? '').replace(/\D/g, '');
@@ -138,7 +138,7 @@ export function OrderDetailPage() {
             <p className="text-sm text-muted-foreground">
               {order.client?.phone ? `${order.client.phone} · ` : ''}
               {order.deliveryDate
-                ? `entrega ${new Date(order.deliveryDate).toLocaleDateString('es-VE')}`
+                ? `entrega ${formatStoredDay(order.deliveryDate)}`
                 : 'sin fecha de entrega'}
             </p>
           </div>
@@ -288,7 +288,7 @@ export function OrderDetailPage() {
                       ) : null}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(p.date).toLocaleDateString('es-VE')}
+                      {formatStoredDay(p.date)}
                       {p.note ? ` · ${p.note}` : ''}
                     </div>
                   </div>

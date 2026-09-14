@@ -18,6 +18,7 @@ import {
   OBJECTIVE_LABELS,
 } from '@/features/campaigns/api';
 import { apiErrorMessage, downloadFile } from '@/lib/api';
+import { formatStoredDay } from '@/lib/today';
 import { notify } from '@/components/toast';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, PageSkeleton, Stat } from '@/components/ui';
 
@@ -71,8 +72,8 @@ export function CampaignDetailPage() {
               {PLATFORM_LABELS[c.platform]} · <span className={CAMPAIGN_STATUS[c.status].tone}>{CAMPAIGN_STATUS[c.status].label}</span>
               {c.objective ? ` · ${OBJECTIVE_LABELS[c.objective]}` : ''}
               {' · '}
-              {new Date(c.startDate).toLocaleDateString('es-VE')}
-              {c.endDate ? ` → ${new Date(c.endDate).toLocaleDateString('es-VE')}` : ' → en curso'}
+              {formatStoredDay(c.startDate)}
+              {c.endDate ? ` → ${formatStoredDay(c.endDate)}` : ' → en curso'}
             </p>
           </div>
         </div>

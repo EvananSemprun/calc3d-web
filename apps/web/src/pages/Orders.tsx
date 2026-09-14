@@ -5,13 +5,16 @@ import { Plus, Package, Trash2 } from 'lucide-react';
 import type { OrderLineDto } from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
-import { useOrders, ORDER_STATUS, type Order } from '@/features/orders/api';
+import { useOrders, ORDER_STATUS, ORDER_STATUS_OPTIONS, type Order } from '@/features/orders/api';
 import { useSortable } from '@/lib/useSortable';
+import { usePersistentState } from '@/lib/usePersistentState';
+import { uniqueSorted } from '@/lib/utils';
+import { formatStoredDay } from '@/lib/today';
 import { useStoreProducts } from '@/features/store/api';
 import { useSettings } from '@/features/settings/useSettings';
 import { CurrencyPicker } from '@/features/settings/CurrencyPicker';
 import { AttributionPicker, EMPTY_ATTRIBUTION, type Attribution } from '@/features/campaigns/AttributionPicker';
-import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, SearchInput, Select, SortHeader, TableSkeleton, FieldGrid } from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Field, Input, FilterBar, NumberInput, Select, SortHeader, TableSkeleton, FieldGrid } from '@/components/ui';
 import { Dialog } from '@/components/overlays';
 import { notify } from '@/components/toast';
 
@@ -24,20 +27,23 @@ export function OrdersPage() {
 
   const pendiente = orders.reduce((s, o) => s + o.balance, 0);
 
-  const [search, setSearch] = useState('');
-  const q = search.trim().toLowerCase();
+  // Filtros como selects (pedido del dueño): valores cerrados, sin tipear.
+  const [estadoF, setEstadoF] = usePersistentState('orders:status', '');
+  const [clienteF, setClienteF] = usePersistentState('orders:client', '');
+  const clientes = useMemo(() => uniqueSorted(orders.map((o) => o.client?.name)), [orders]);
+  // Un valor guardado que ya no existe dejaría el select en blanco y la lista vacía.
+  const estadoSeguro = ORDER_STATUS_OPTIONS.some((s) => s.value === estadoF) ? estadoF : '';
+  const clienteSeguro = clientes.includes(clienteF) ? clienteF : '';
   const rows = useMemo(
     () =>
       orders
         .map((o) => ({ ...o, clientName: o.client?.name ?? '' }))
         .filter(
           (o) =>
-            !q ||
-            o.clientName.toLowerCase().includes(q) ||
-            String(o.code).includes(q) ||
-            ORDER_STATUS[o.status].label.toLowerCase().includes(q),
+            (!estadoSeguro || o.status === estadoSeguro) &&
+            (!clienteSeguro || o.clientName === clienteSeguro),
         ),
-    [orders, q],
+    [orders, estadoSeguro, clienteSeguro],
   );
   type OrderRow = Order & { clientName: string };
   const { sorted, sortKey, sortDir, toggle } = useSortable<OrderRow>(rows, 'code', 'desc');
@@ -55,18 +61,30 @@ export function OrdersPage() {
             </p>
           </div>
         </div>
-        <Button variant="accent" onClick={() => setOpen(true)}>
+        <Button variant="accent" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
           <Plus className="h-4 w-4" /> Nuevo pedido
         </Button>
       </div>
 
       {orders.length > 0 && (
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Buscar por cliente, N° o estado…"
-          className="w-full sm:max-w-md"
-        />
+        <FilterBar>
+          <Select className="w-full sm:w-44" value={estadoSeguro} onChange={(e) => setEstadoF(e.target.value)}>
+            <option value="">Estado: todos</option>
+            {ORDER_STATUS_OPTIONS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+          <Select className="w-full sm:w-52" value={clienteSeguro} onChange={(e) => setClienteF(e.target.value)}>
+            <option value="">Cliente: todos</option>
+            {clientes.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </FilterBar>
       )}
 
       <Card>
@@ -84,7 +102,7 @@ export function OrdersPage() {
               }
             />
           ) : sorted.length === 0 ? (
-            <EmptyState icon={Package} description={`Sin pedidos para «${search.trim()}».`} />
+            <EmptyState icon={Package} description="Ningún pedido coincide con los filtros." />
           ) : (
             <>
               {/* Desktop: tabla ordenable */}
@@ -110,7 +128,7 @@ export function OrdersPage() {
                         <td className="px-4 py-3 font-mono">#{o.code}</td>
                         <td className="px-4 py-3">{o.clientName || '—'}</td>
                         <td className="px-4 py-3">
-                          {o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString('es-VE') : '—'}
+                          {o.deliveryDate ? formatStoredDay(o.deliveryDate) : '—'}
                         </td>
                         <td className="px-4 py-3">
                           <span className={ORDER_STATUS[o.status].tone}>{ORDER_STATUS[o.status].label}</span>
@@ -148,7 +166,7 @@ export function OrdersPage() {
                         {o.deliveryDate && (
                           <span className="text-muted-foreground">
                             {' '}
-                            · entrega {new Date(o.deliveryDate).toLocaleDateString('es-VE')}
+                            · entrega {formatStoredDay(o.deliveryDate)}
                           </span>
                         )}
                       </div>

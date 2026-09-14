@@ -11,6 +11,7 @@ import {
   CardContent,
   EmptyState,
   Field,
+  FilterBar,
   Input,
   SearchInput,
   Select,
@@ -23,6 +24,7 @@ import { Dialog, useConfirm } from '@/components/overlays';
 import { LocationPicker } from '@/components/LeafletMap';
 import { usePersistentState } from '@/lib/usePersistentState';
 import { useSortable } from '@/lib/useSortable';
+import { uniqueSorted } from '@/lib/utils';
 import { notify } from '@/components/toast';
 
 type Filter = 'ALL' | ContactTypeDto;
@@ -30,21 +32,29 @@ type Filter = 'ALL' | ContactTypeDto;
 export function ContactsPage() {
   const { data: contacts = [], isLoading } = useContacts();
   const [filter, setFilter] = usePersistentState<Filter>('contacts:filter', 'ALL');
-  const [search, setSearch] = useState('');
+  const [ciudadF, setCiudadF] = usePersistentState('contacts:city', '');
   const [modal, setModal] = useState<{ contact: Contact | null } | null>(null);
 
+  const ciudades = useMemo(() => uniqueSorted(contacts.map((c) => c.city)), [contacts]);
+  // Una ciudad guardada que ya no tiene contactos dejaría el select en blanco y la lista vacía.
+  const ciudadSegura = ciudades.includes(ciudadF) ? ciudadF : '';
+  // El buscador es la excepción a "filtros = selects": en un directorio se busca a
+  // alguien puntual. Solo nombre y teléfono; el teléfono se compara por dígitos
+  // para que "0414 111" encuentre "0414-1112233".
+  const [search, setSearch] = useState('');
   const q = search.trim().toLowerCase();
+  const qDigitos = q.replace(/\D/g, '');
   const filtered = useMemo(
     () =>
       contacts.filter(
         (c) =>
           (filter === 'ALL' || c.type === filter) &&
+          (!ciudadSegura || c.city === ciudadSegura) &&
           (!q ||
-            [c.name, c.phone, c.rif, c.municipality, c.city].some((v) =>
-              String(v ?? '').toLowerCase().includes(q),
-            )),
+            c.name.toLowerCase().includes(q) ||
+            (!!qDigitos && (c.phone ?? '').replace(/\D/g, '').includes(qDigitos))),
       ),
-    [contacts, filter, q],
+    [contacts, filter, ciudadSegura, q, qDigitos],
   );
   const { sorted, sortKey, sortDir, toggle } = useSortable<Contact>(filtered, 'name');
   const sort = { sortKey, sortDir, toggle };
@@ -62,10 +72,10 @@ export function ContactsPage() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
           <Link
             to="/map"
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <MapPin className="h-4 w-4" /> Ver mapa
           </Link>
@@ -82,30 +92,30 @@ export function ContactsPage() {
         <Stat label="Proveedores" value={String(contacts.filter((c) => c.type === 'SUPPLIER').length)} />
       </div>
 
-      {/* Buscador + filtro por tipo */}
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Buscar por nombre, teléfono, RIF o ciudad…"
-        className="w-full sm:max-w-md"
-      />
-      <div className="flex flex-wrap gap-2">
-        {(['ALL', ...CONTACT_TYPE_OPTIONS.map((o) => o.value)] as Filter[]).map((t) => {
-          const on = filter === t;
-          const label = t === 'ALL' ? 'Todos' : CONTACT_TYPE[t].label;
-          return (
-            <button
-              key={t}
-              onClick={() => setFilter(t)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                on ? 'bg-brand-yellow text-brand-yellow-foreground' : 'border border-border text-muted-foreground hover:bg-accent'
-              }`}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
+      <FilterBar>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar por nombre o teléfono…"
+          className="col-span-full w-full sm:w-72"
+        />
+        <Select className="w-full sm:w-44" value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
+          <option value="ALL">Tipo: todos</option>
+          {CONTACT_TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {CONTACT_TYPE[o.value].label}
+            </option>
+          ))}
+        </Select>
+        <Select className="w-full sm:w-48" value={ciudadSegura} onChange={(e) => setCiudadF(e.target.value)}>
+          <option value="">Ciudad: todas</option>
+          {ciudades.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </Select>
+      </FilterBar>
 
       <Card>
         <CardContent className="p-0">
@@ -115,14 +125,14 @@ export function ContactsPage() {
             <EmptyState
               icon={Users}
               description={
-                q
-                  ? `Sin resultados para «${search.trim()}».`
+                q || ciudadSegura
+                  ? 'Ningún contacto coincide con la búsqueda o los filtros.'
                   : filter === 'ALL'
                     ? 'Sin contactos todavía. Agrega tu primer cliente, proveedor o aliado.'
                     : `Sin contactos de tipo ${CONTACT_TYPE[filter as ContactTypeDto].label}.`
               }
               action={
-                !q && filter === 'ALL' ? (
+                !q && !ciudadSegura && filter === 'ALL' ? (
                   <Button variant="accent" onClick={() => setModal({ contact: null })}>
                     <Plus className="h-4 w-4" /> Nuevo contacto
                   </Button>

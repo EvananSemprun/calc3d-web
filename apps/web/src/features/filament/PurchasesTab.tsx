@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { ShoppingCart } from 'lucide-react';
-import { Card, CardContent, EmptyState, FilterBar, SearchInput, Stat, TableSkeleton } from '@/components/ui';
+import { Card, CardContent, EmptyState, FilterBar, Select, Stat, TableSkeleton } from '@/components/ui';
 import { useMoney } from '@/features/settings/useSettings';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { usePersistentState } from '@/lib/usePersistentState';
+import { uniqueSorted } from '@/lib/utils';
 import { useFilamentPurchases } from '@/features/filament/api';
 
 /**
@@ -16,16 +17,24 @@ import { useFilamentPurchases } from '@/features/filament/api';
 export function PurchasesTab() {
   const range = useDateRange('ALL', 'filament-purchases');
   const { money } = useMoney();
-  const [q, setQ] = usePersistentState('filament:purchases:q', '');
+  const [materialF, setMaterialF] = usePersistentState('filament:purchases:material', '');
+  const [proveedorF, setProveedorF] = usePersistentState('filament:purchases:provider', '');
   const { data: compras = [], isLoading } = useFilamentPurchases(range);
 
-  const filtradas = useMemo(() => {
-    const t = norm(q);
-    if (!t) return compras;
-    return compras.filter(
-      (c) => norm(c.materialName ?? '').includes(t) || norm(c.providerName ?? '').includes(t),
-    );
-  }, [compras, q]);
+  // Las opciones salen de las compras del rango: un valor guardado que no está cae a "todos".
+  const materiales = useMemo(() => uniqueSorted(compras.map((c) => c.materialName)), [compras]);
+  const proveedores = useMemo(() => uniqueSorted(compras.map((c) => c.providerName)), [compras]);
+  const materialSeguro = materiales.includes(materialF) ? materialF : '';
+  const proveedorSeguro = proveedores.includes(proveedorF) ? proveedorF : '';
+  const filtradas = useMemo(
+    () =>
+      compras.filter(
+        (c) =>
+          (!materialSeguro || c.materialName === materialSeguro) &&
+          (!proveedorSeguro || c.providerName === proveedorSeguro),
+      ),
+    [compras, materialSeguro, proveedorSeguro],
+  );
 
   const rollos = filtradas.reduce((s, c) => s + c.quantity, 0);
   const invertido = filtradas.reduce((s, c) => s + c.amount, 0);
@@ -37,12 +46,22 @@ export function PurchasesTab() {
         <div className="col-span-full sm:col-span-1">
           <DateRangePicker range={range} />
         </div>
-        <SearchInput
-          value={q}
-          onChange={setQ}
-          placeholder="Buscar filamento o proveedor…"
-          className="col-span-full w-full sm:w-72"
-        />
+        <Select className="w-full sm:w-56" value={materialSeguro} onChange={(e) => setMaterialF(e.target.value)}>
+          <option value="">Filamento: todos</option>
+          {materiales.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </Select>
+        <Select className="w-full sm:w-48" value={proveedorSeguro} onChange={(e) => setProveedorF(e.target.value)}>
+          <option value="">Proveedor: todos</option>
+          {proveedores.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </Select>
       </FilterBar>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -60,7 +79,7 @@ export function PurchasesTab() {
           description={
             compras.length === 0
               ? 'Las compras se registran desde Gastos, con el tipo "Filamento".'
-              : 'Ninguna compra coincide con la búsqueda.'
+              : 'Ninguna compra coincide con los filtros.'
           }
         />
       ) : (
@@ -138,9 +157,3 @@ function porGramo(n: number): string {
 function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString('es-VE', { timeZone: 'UTC' });
 }
-
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');

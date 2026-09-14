@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Inbox, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
+import { uniqueSorted } from '@/lib/utils';
 import { useMoney } from '@/features/settings/useSettings';
 import {
   Badge,
@@ -15,7 +16,6 @@ import {
   FilterBar,
   Input,
   NumberInput,
-  SearchInput,
   Select,
   TableSkeleton,
 } from '@/components/ui';
@@ -80,18 +80,14 @@ function CatalogView({ config }: { config: CatalogConfig }) {
     return String(value);
   };
 
-  const [search, setSearch] = useState('');
-  const q = search.trim().toLowerCase();
-  const visible = items.filter(
-    (r) =>
-      !q ||
-      String(r.name ?? '').toLowerCase().includes(q) ||
-      config.columns.some((c) => String(r[c.key] ?? '').toLowerCase().includes(q)),
-  );
+  const [nombreF, setNombreF] = useState('');
+  const nombres = uniqueSorted(items.map((r) => (typeof r.name === 'string' ? r.name : null)));
+  const nombreSeguro = nombres.includes(nombreF) ? nombreF : '';
+  const visible = items.filter((r) => !nombreSeguro || r.name === nombreSeguro);
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
           <div>
@@ -100,7 +96,7 @@ function CatalogView({ config }: { config: CatalogConfig }) {
           </div>
         </div>
         {!config.costDefinition && (
-          <Button variant="accent" onClick={startCreate}>
+          <Button variant="accent" className="w-full sm:w-auto" onClick={startCreate}>
             <Plus className="h-4 w-4" /> Agregar
           </Button>
         )}
@@ -108,12 +104,14 @@ function CatalogView({ config }: { config: CatalogConfig }) {
 
       {items.length > 0 && (
         <FilterBar>
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder={`Buscar ${config.title.toLowerCase()}…`}
-            className="col-span-full w-full sm:w-64"
-          />
+          <Select className="w-full sm:w-56" value={nombreSeguro} onChange={(e) => setNombreF(e.target.value)}>
+            <option value="">Nombre: todos</option>
+            {nombres.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </Select>
         </FilterBar>
       )}
 

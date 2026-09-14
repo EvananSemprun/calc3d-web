@@ -44,7 +44,7 @@ export function GoalsPage() {
             </p>
           </div>
         </div>
-        <Button onClick={() => setEditando('nuevo')}>
+        <Button className="w-full sm:w-auto" onClick={() => setEditando('nuevo')}>
           <Plus className="h-4 w-4" /> Meta del mes
         </Button>
       </div>

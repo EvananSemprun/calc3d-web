@@ -4,6 +4,7 @@ import { AlertTriangle, ImageOff, Plus, Store as StoreIcon, Tags } from 'lucide-
 import { productMarkup } from '@calc3d/shared';
 import { useMoney } from '@/features/settings/useSettings';
 import { apiErrorMessage } from '@/lib/api';
+import { uniqueSorted } from '@/lib/utils';
 import { notify } from '@/components/toast';
 import {
   moveItem,
@@ -21,7 +22,6 @@ import {
   Card,
   CardContent,
   EmptyState,
-  SearchInput,
   Select,
   Stat,
   TableSkeleton,
@@ -41,13 +41,15 @@ export function StorePage() {
   const create = useCreateStoreProduct();
   const reorder = useReorderStoreProducts();
 
-  const [search, setSearch] = useState('');
+  const [categoriaF, setCategoriaF] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [categorias, setCategorias] = useState(false);
 
-  const sq = search.trim().toLowerCase();
+  const nombresCategoria = uniqueSorted(products.map((p) => p.category?.name));
+  // Una categoría que se borró o renombró dejaría el select en blanco y la vitrina vacía.
+  const categoriaSegura = nombresCategoria.includes(categoriaF) ? categoriaF : '';
   const visible = products.filter((p) => {
-    if (sq && !p.name.toLowerCase().includes(sq)) return false;
+    if (categoriaSegura && p.category?.name !== categoriaSegura) return false;
     if (filtro === 'publicados') return p.visible;
     if (filtro === 'borradores') return !p.visible;
     return true;
@@ -58,7 +60,7 @@ export function StorePage() {
   // Reordenar con la lista filtrada sería mentiroso: "mover antes" movería el
   // producto respecto a lo que se ve, no respecto a la vitrina real. Con filtro
   // activo los controles se ocultan y se explica por qué.
-  const filtrando = !!sq || filtro !== 'todos';
+  const filtrando = !!categoriaSegura || filtro !== 'todos';
 
   const mover = async (from: number, to: number) => {
     const ids = moveItem(products, from, to).map((p) => p.id);
@@ -99,7 +101,7 @@ export function StorePage() {
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
           <Button variant="outline" onClick={() => setCategorias(true)}>
             <Tags className="h-4 w-4" /> Categorías
           </Button>
@@ -142,18 +144,26 @@ export function StorePage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Buscar producto…"
-          className="w-full sm:w-64"
-        />
+        {nombresCategoria.length > 0 && (
+          <Select
+            className="w-full sm:w-48"
+            value={categoriaSegura}
+            onChange={(e) => setCategoriaF(e.target.value)}
+          >
+            <option value="">Categoría: todas</option>
+            {nombresCategoria.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        )}
         <Select
           className="w-full sm:w-44"
           value={filtro}
           onChange={(e) => setFiltro(e.target.value as Filtro)}
         >
-          <option value="todos">Todos</option>
+          <option value="todos">Estado: todos</option>
           <option value="publicados">Publicados</option>
           <option value="borradores">Borradores</option>
         </Select>
@@ -168,14 +178,14 @@ export function StorePage() {
           description={
             products.length === 0
               ? 'Cargá un producto a mano, o publicá uno desde un producto costeado o una cotización.'
-              : 'Probá con otro nombre o cambiá el filtro.'
+              : 'Ningún producto coincide con los filtros.'
           }
         />
       ) : (
         <>
           {filtrando && products.length > 1 && (
             <p className="text-xs text-muted-foreground">
-              Para cambiar el orden de la vitrina, quitá la búsqueda y el filtro.
+              Para cambiar el orden de la vitrina, quitá los filtros.
             </p>
           )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

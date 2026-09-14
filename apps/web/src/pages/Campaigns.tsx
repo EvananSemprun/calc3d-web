@@ -26,9 +26,7 @@ import {
   Field,
   FilterBar,
   Input,
-  NumberInput,
-  SearchInput,
-  Select,
+  NumberInput,  Select,
   SortHeader,
   Stat,
   TableSkeleton,
@@ -55,22 +53,19 @@ export function CampaignsPage() {
   const del = useDeleteCampaign();
   const confirm = useConfirm();
 
-  const [search, setSearch] = useState('');
   const [platformF, setPlatformF] = usePersistentState('campaigns:platform', '');
   const [statusF, setStatusF] = usePersistentState('campaigns:status', '');
 
   const totalInvertido = campaigns.reduce((s, c) => s + c.stats.invested, 0);
   const totalVendido = campaigns.reduce((s, c) => s + c.stats.revenue, 0);
 
-  const q = search.trim().toLowerCase();
   const rows = useMemo(
     () =>
       campaigns
         .filter(
           (c) =>
             (!platformF || c.platform === platformF) &&
-            (!statusF || c.status === statusF) &&
-            (!q || c.name.toLowerCase().includes(q)),
+            (!statusF || c.status === statusF),
         )
         .map((c) => ({
           ...c,
@@ -79,7 +74,7 @@ export function CampaignsPage() {
           orders: c.stats.orders,
           roasVal: roas(c.stats.revenue, c.stats.invested) ?? -1,
         })),
-    [campaigns, platformF, statusF, q],
+    [campaigns, platformF, statusF],
   );
   type CampaignRow = (typeof rows)[number];
   const { sorted, sortKey, sortDir, toggle } = useSortable<CampaignRow>(rows, 'revenue', 'desc');
@@ -97,7 +92,7 @@ export function CampaignsPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid w-full auto-cols-fr grid-flow-col gap-2 sm:flex sm:w-auto sm:items-center">
           {campaigns.length > 0 && (
             <Button
               variant="outline"
@@ -127,12 +122,6 @@ export function CampaignsPage() {
 
       {campaigns.length > 0 && (
         <FilterBar>
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Buscar campaña…"
-            className="col-span-full w-full sm:w-64"
-          />
           <Select className="w-full sm:w-44" value={platformF} onChange={(e) => setPlatformF(e.target.value)}>
             <option value="">Plataforma: todas</option>
             {PLATFORM_OPTIONS.map((o) => (

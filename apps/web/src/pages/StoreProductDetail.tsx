@@ -522,13 +522,13 @@ export function StoreProductDetailPage() {
                   <p className="pt-1 text-xs text-muted-foreground">
                     Costo congelado al publicar. No se recalcula solo:{' '}
                     {product.productId ? (
-                      <Link className="underline" to={`/products/${product.productId}`}>
-                        ver el producto de origen
+                      // Los productos viven en Configuración → Productos (no hay pantalla por producto).
+                      <Link className="underline" to="/settings?seccion=productos">
+                        ver los productos
                       </Link>
                     ) : product.quoteId ? (
-                      <Link className="underline" to={`/quotes/${product.quoteId}`}>
-                        ver la cotización de origen
-                      </Link>
+                      // La pantalla de presupuestos ya no existe: el origen queda solo como dato.
+                      'viene de una cotización guardada'
                     ) : (
                       'sin origen'
                     )}

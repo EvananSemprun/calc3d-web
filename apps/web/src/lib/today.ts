@@ -24,6 +24,15 @@ export function todayKey(base = new Date()): string {
   return `${base.getFullYear()}-${dosDigitos(base.getMonth() + 1)}-${dosDigitos(base.getDate())}`;
 }
 
+/**
+ * Formatea un DÍA guardado (entrega, abono, campaña): llega como medianoche UTC,
+ * así que se lee en UTC. Con la zona local, en Venezuela mostraba el día anterior.
+ * No usar para instantes reales (`settledAt`, `createdAt`): esos van en local.
+ */
+export function formatStoredDay(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-VE', { timeZone: 'UTC' });
+}
+
 /** El mes en curso, en la zona del usuario, como `AAAA-MM`. */
 export function currentMonthKey(base = new Date()): string {
   return `${base.getFullYear()}-${dosDigitos(base.getMonth() + 1)}`;

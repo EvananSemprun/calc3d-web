@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Boxes,
@@ -56,7 +57,11 @@ export function SettingsPage() {
     { key: 'negocio', label: 'Negocio', icon: Building2, Comp: BusinessSettings },
     { key: 'datos', label: 'Datos', icon: Database, Comp: DataSettings },
   ] as const;
-  const [active, setActive] = useState<(typeof sections)[number]['key']>('cuenta');
+  type SectionKey = (typeof sections)[number]['key'];
+  // `?seccion=moneda` abre directo esa sección (lo usan los "Primeros pasos" del Dashboard).
+  const [params] = useSearchParams();
+  const pedida = sections.find((s) => s.key === params.get('seccion'))?.key;
+  const [active, setActive] = useState<SectionKey>(pedida ?? 'cuenta');
   const Active = sections.find((s) => s.key === active)!.Comp;
 
   return (

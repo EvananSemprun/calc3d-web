@@ -47,7 +47,7 @@ export function LoansPage() {
             </p>
           </div>
         </div>
-        <Button onClick={() => setNuevo(true)}>
+        <Button className="w-full sm:w-auto" onClick={() => setNuevo(true)}>
           <Plus className="h-4 w-4" /> Nuevo préstamo
         </Button>
       </div>

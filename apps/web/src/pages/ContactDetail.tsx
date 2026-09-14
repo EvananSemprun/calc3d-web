@@ -186,15 +186,12 @@ export function ContactDetailPage() {
             <CardTitle>Presupuestos</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5 p-4 text-sm">
+            {/* Sin enlace: la pantalla de presupuestos ya no existe (la calculadora es una sola). */}
             {history.quotes.map((q) => (
-              <Link
-                key={q.id}
-                to={`/quotes/${q.id}`}
-                className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-accent/40"
-              >
+              <div key={q.id} className="flex items-center justify-between rounded-lg px-2 py-1.5">
                 <span>{q.name}</span>
                 <Badge variant="outline">{q.status}</Badge>
-              </Link>
+              </div>
             ))}
           </CardContent>
         </Card>

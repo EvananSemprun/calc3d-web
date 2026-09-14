@@ -150,8 +150,16 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 - **Dialog** — limita el alto a `100dvh` y scrollea el cuerpo (los modales no se
   salen de pantalla). Modales con `<form onSubmit>` + botón `type="submit"` dan
   **Enter=Guardar**; el primer input lleva `autoFocus`.
-- **Buscar / ordenar / recordar filtros / móvil** — `SearchInput` (input con ícono
-  + limpiar) y `SortHeader` (cabecera `<th>` ordenable); hooks `lib/useSortable.ts`
+- **Filtros = SELECTS, no buscador de texto** (decisión del dueño, 2026-09-14). Las
+  listas filtran con `Select` sobre valores cerrados (Pedidos: Estado/Cliente;
+  Contactos: Tipo/Ciudad; Catálogo: Nombre; Tienda: Categoría/Estado; Compras de
+  filamento: Filamento/Proveedor; Stock: Color/Marca/Tipo/Estado). Opciones con
+  `uniqueSorted` (`lib/utils.ts`) y siempre un **valor "seguro"**: si lo guardado ya
+  no existe, cae a "todos" (si no, select en blanco y lista vacía). **Única
+  excepción: Contactos** lleva `SearchInput` solo por nombre y teléfono (por
+  dígitos), además de Tipo/Ciudad — en un directorio se busca a alguien puntual.
+  En el resto de las listas no reintroducir buscadores de texto.
+- **Ordenar / recordar filtros / móvil** — `SortHeader` (cabecera `<th>` ordenable); hooks `lib/useSortable.ts`
   (orden client-side por `keyof T`, texto locale es+numeric) y
   `lib/usePersistentState.ts` (useState espejado a localStorage). El filtro de fechas
   `useDateRange(initial, persistKey?)` + `DateRangePicker` viven en
@@ -278,8 +286,9 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 - **Stock del mes** (`StockTab`): conteo MANUAL al cierre de mes. Filas agrupadas
   por **tipo + color** (como la hoja), con una fila por MARCA dentro de cada grupo.
   Tres casillas (Sin abrir / En uso / Por acabarse) y el total derivado.
-  **Filtros** (2026-09-14): Buscar (color o marca, sin acentos), Tipo y Estado
-  (arranca en **Todas**; `filament:stock:q|type|status`). ⚠️ Solo cambian lo que
+  **Filtros** (2026-09-14): selects de Color (acotado al Tipo elegido), Marca, Tipo
+  y Estado (arranca en **Todas**; `filament:stock:color|brand|type|status`). Un
+  valor guardado que ya no existe cae a "todos". ⚠️ Solo cambian lo que
   SE VE: cerrar el mes guarda TODAS las fichas. Con fichas ocultas hay aviso
   ("Se ven X de Y… Quitar filtros") y la confirmación de cierre lo repite; no
   arrancar en "Activas": una descontinuada con rollos se cerraría en 0 sin verla.

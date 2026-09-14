@@ -24,7 +24,6 @@ import {
   CardContent,
   FilterBar,
   NumberInput,
-  SearchInput,
   Select,
   TableSkeleton,
 } from '@/components/ui';
@@ -33,7 +32,7 @@ import { notify } from '@/components/toast';
 import { apiErrorMessage } from '@/lib/api';
 import { currentMonthKey } from '@/lib/today';
 import { usePersistentState } from '@/lib/usePersistentState';
-import { cn } from '@/lib/utils';
+import { cn, uniqueSorted } from '@/lib/utils';
 import {
   useCloseStockMonth,
   useFilamentMonthStatus,
@@ -115,34 +114,40 @@ export function StockTab() {
 
   // Filtros (2026-09-14): solo cambian lo que SE VE. Cerrar el mes guarda TODAS
   // las fichas, filtradas o no — por eso el Estado arranca en "Todas" y hay aviso.
-  const [busqueda, setBusqueda] = usePersistentState('filament:stock:q', '');
+  const [colorF, setColorF] = usePersistentState('filament:stock:color', '');
+  const [marcaF, setMarcaF] = usePersistentState('filament:stock:brand', '');
   const [tipoF, setTipoF] = usePersistentState('filament:stock:type', '');
   const [estadoRaw, setEstadoF] = usePersistentState('filament:stock:status', '');
   // Un valor viejo o raro en localStorage dejaría la grilla vacía y el selector en blanco.
   const estadoF = ESTADOS.includes(estadoRaw) ? estadoRaw : '';
 
-  const tipos = useMemo(
-    () =>
-      [...new Set(filas.map((f) => f.type).filter((t): t is string => !!t))].sort((a, b) =>
-        a.localeCompare(b, 'es'),
-      ),
-    [filas],
-  );
-  // Un tipo guardado que ya no existe este mes (cambió de mes o se editó la
-  // ficha) dejaría el Select en blanco y la grilla vacía, igual que `estadoF`.
+  const tipos = useMemo(() => uniqueSorted(filas.map((f) => f.type)), [filas]);
+  // Un valor guardado que ya no existe (cambió de mes, se corrigió la ficha o
+  // cambió el Tipo) dejaría el Select en blanco y la grilla vacía, igual que `estadoF`.
   const tipoSeguro = tipos.includes(tipoF) ? tipoF : '';
-  const filasVisibles = useMemo(() => {
-    const q = norm(busqueda.trim());
-    return filas.filter(
-      (f) =>
-        (!tipoSeguro || f.type === tipoSeguro) &&
-        (!estadoF || f.status === estadoF) &&
-        (!q || norm(`${claveDeColor(f)} ${f.brand ?? ''} ${f.name}`).includes(q)),
-    );
-  }, [filas, busqueda, tipoSeguro, estadoF]);
+  // Los colores se acotan al Tipo elegido: con "PETG" no se ofrecen colores que solo hay en PLA.
+  const colores = useMemo(
+    () => uniqueSorted(filas.filter((f) => !tipoSeguro || f.type === tipoSeguro).map((f) => f.color)),
+    [filas, tipoSeguro],
+  );
+  const colorSeguro = colores.includes(colorF) ? colorF : '';
+  const marcas = useMemo(() => uniqueSorted(filas.map((f) => f.brand)), [filas]);
+  const marcaSegura = marcas.includes(marcaF) ? marcaF : '';
+  const filasVisibles = useMemo(
+    () =>
+      filas.filter(
+        (f) =>
+          (!tipoSeguro || f.type === tipoSeguro) &&
+          (!colorSeguro || f.color === colorSeguro) &&
+          (!marcaSegura || f.brand === marcaSegura) &&
+          (!estadoF || f.status === estadoF),
+      ),
+    [filas, tipoSeguro, colorSeguro, marcaSegura, estadoF],
+  );
   const hayOcultas = filasVisibles.length < filas.length;
   const quitarFiltros = () => {
-    setBusqueda('');
+    setColorF('');
+    setMarcaF('');
     setTipoF('');
     setEstadoF('');
   };
@@ -230,7 +235,7 @@ export function StockTab() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <MonthPicker month={month} onChange={setMonth} />
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-md text-sm text-muted-foreground">
             El último día del mes contá los rollos, llená las casillas y cerrá el mes. Tocá una
             marca para corregir o descontinuar su ficha.
           </p>
@@ -339,12 +344,22 @@ export function StockTab() {
       {filas.length > 0 && (
         <div className="space-y-2">
           <FilterBar>
-            <SearchInput
-              value={busqueda}
-              onChange={setBusqueda}
-              placeholder="Buscar color o marca…"
-              className="col-span-full w-full sm:w-64"
-            />
+            <Select className="w-full sm:w-48" value={colorSeguro} onChange={(e) => setColorF(e.target.value)}>
+              <option value="">Color: todos</option>
+              {colores.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+            <Select className="w-full sm:w-44" value={marcaSegura} onChange={(e) => setMarcaF(e.target.value)}>
+              <option value="">Marca: todas</option>
+              {marcas.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </Select>
             <Select
               className="w-full sm:w-40"
               value={tipoSeguro}
@@ -510,12 +525,6 @@ const CERO: Partes = { sealed: 0, inUse: 0, running: 0 };
 /** Valores válidos del filtro de estado: '' = todas. */
 const ESTADOS = ['', 'ACTIVE', 'DISCONTINUED'];
 
-/** Minúsculas y sin acentos, para que "limon" encuentre "Limón". */
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
 
 const partesDe = (f: StockCountRow): Partes => ({ sealed: f.sealed, inUse: f.inUse, running: f.running });
 
@@ -745,7 +754,7 @@ function MonthPicker({ month, onChange }: { month: string; onChange: (m: string)
   const esFuturo = month >= currentMonthKey();
 
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-border bg-background/40 p-1">
+    <div className="flex w-fit items-center gap-1 rounded-xl border border-border bg-background/40 p-1">
       <button
         type="button"
         onClick={() => mover(-1)}
