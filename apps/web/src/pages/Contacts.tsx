@@ -17,6 +17,7 @@ import {
   SortHeader,
   Stat,
   TableSkeleton,
+  FieldGrid,
 } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { LocationPicker } from '@/components/LeafletMap';
@@ -298,7 +299,7 @@ export function ContactModal({ contact, onClose }: { contact: Contact | null; on
   return (
     <Dialog open onOpenChange={(n) => !n && onClose()} title={contact ? 'Editar contacto' : 'Nuevo contacto'}>
       <form className="space-y-3" onSubmit={submit}>
-        <div className="grid grid-cols-2 gap-3">
+        <FieldGrid min="11rem" className="gap-3">
           <Field label="Nombre" required>
             <Input autoFocus value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Nombre o negocio" />
           </Field>
@@ -331,12 +332,12 @@ export function ContactModal({ contact, onClose }: { contact: Contact | null; on
               placeholder="Ej. Caracas"
             />
           </Field>
-          <div className="col-span-2">
+          <div className="col-span-full">
             <Field label="Dirección">
               <Input value={form.address} onChange={(e) => set({ address: e.target.value })} />
             </Field>
           </div>
-        </div>
+        </FieldGrid>
         <Field label="Notas">
           <Input value={form.notes} onChange={(e) => set({ notes: e.target.value })} />
         </Field>

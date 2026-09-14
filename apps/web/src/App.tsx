@@ -36,7 +36,7 @@ const ContactsMapPage = lazy(() =>
 );
 import { SettingsPage } from '@/pages/Settings';
 import { CatalogPage } from '@/pages/Catalog';
-import { FilamentPage } from '@/pages/Filament';
+import { FilamentAnalysisPage, FilamentPurchasesPage, FilamentStockPage } from '@/pages/Filament';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -119,7 +119,11 @@ export function App() {
             </Suspense>
           }
         />
-        <Route path="/filament" element={<FilamentPage />} />
+        {/* Filamento: tres páginas. `/filament` sola sigue andando (enlaces viejos). */}
+        <Route path="/filament" element={<Navigate to="/filament/stock" replace />} />
+        <Route path="/filament/stock" element={<FilamentStockPage />} />
+        <Route path="/filament/compras" element={<FilamentPurchasesPage />} />
+        <Route path="/filament/analisis" element={<FilamentAnalysisPage />} />
         <Route path="/catalogs/:resource" element={<CatalogPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import type { MaterialStatus } from '@calc3d/shared';
 import { api } from '@/lib/api';
 
 export interface MaterialItem {
@@ -6,6 +7,7 @@ export interface MaterialItem {
   name: string;
   rollPrice: string;
   rollGrams: number;
+  status: MaterialStatus;
 }
 export interface PrinterItem {
   id: string;

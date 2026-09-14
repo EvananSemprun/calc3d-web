@@ -40,6 +40,7 @@ import {
   NumberInput,
   Select,
   TableSkeleton,
+  FieldGrid,
 } from '@/components/ui';
 import { useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
@@ -132,7 +133,7 @@ function MyAccount() {
         <CardTitle>Mi cuenta</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <FieldGrid>
           <Field label="Nombre">
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
@@ -147,7 +148,7 @@ function MyAccount() {
               onChange={(e) => setForm({ ...form, password: e.target.value })}
             />
           </Field>
-        </div>
+        </FieldGrid>
         <div className="flex items-center gap-3">
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending ? 'Guardando…' : 'Guardar cambios'}
@@ -209,7 +210,7 @@ function GeneralSettings() {
         <CardTitle>Valores por defecto del cálculo</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <FieldGrid>
           <Field label="Moneda (código ISO)" hint="Ej. USD, MXN, EUR">
             <Input value={String(form.currency ?? '')} onChange={(e) => set('currency', e.target.value)} />
           </Field>
@@ -261,7 +262,7 @@ function GeneralSettings() {
               onChange={(v) => set('roundingIncrement', v)}
             />
           </Field>
-        </div>
+        </FieldGrid>
         <div className="flex items-center gap-3">
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending ? 'Guardando…' : 'Guardar configuración'}
@@ -590,7 +591,7 @@ function BusinessSettings() {
           Aparecen como emisor en la nota de entrega y en la cotización, y encabezan ambos documentos.
         </p>
         <BusinessLogo />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <FieldGrid>
           <Field label="Nombre del negocio" hint="Encabeza los documentos y firma la entrega">
             <Input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} />
           </Field>
@@ -606,7 +607,7 @@ function BusinessSettings() {
           <Field label="Quién firma la entrega" hint="Ej. tu nombre">
             <Input value={form.businessSigner} onChange={(e) => set('businessSigner', e.target.value)} />
           </Field>
-        </div>
+        </FieldGrid>
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? 'Guardando…' : 'Guardar datos'}
         </Button>

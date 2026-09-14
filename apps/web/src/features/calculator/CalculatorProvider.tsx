@@ -67,9 +67,7 @@ interface CalculatorCtx {
   supplies: SupplyLine[];
   setSupplies: React.Dispatch<React.SetStateAction<SupplyLine[]>>;
 
-  // 4. Máquina y energía
-  printerEnabled: boolean;
-  setPrinterEnabled: (b: boolean) => void;
+  // 4. Máquina · 5. Luz
   printer: Printer;
   setPrinter: React.Dispatch<React.SetStateAction<Printer>>;
   electricity: { enabled: boolean; kwhPrice: number };
@@ -130,7 +128,6 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
   });
   const [waste, setWaste] = React.useState(0.08);
   const [supplies, setSupplies] = React.useState<SupplyLine[]>([]);
-  const [printerEnabled, setPrinterEnabled] = React.useState(true);
   const [printer, setPrinter] = React.useState<Printer>({
     name: '',
     price: 0,
@@ -168,7 +165,7 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
       filament,
       waste: { pct: waste },
       supplies,
-      printer: printerEnabled ? printer : undefined,
+      printer,
       electricity,
       parallelPrinters,
       labor,
@@ -189,7 +186,6 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
       filament,
       waste,
       supplies,
-      printerEnabled,
       printer,
       electricity,
       parallelPrinters,
@@ -226,7 +222,7 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
     quantity < 1 && 'cantidad de piezas',
     filament.grams <= 0 && 'gramos de la tanda',
     filament.rollPrice <= 0 && 'precio del rollo',
-    printerEnabled && printer.hours <= 0 && 'tiempo de impresión',
+    printer.hours <= 0 && 'tiempo de impresión',
   ].filter(Boolean) as string[];
 
   const value: CalculatorCtx = {
@@ -244,8 +240,6 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
     setWaste,
     supplies,
     setSupplies,
-    printerEnabled,
-    setPrinterEnabled,
     printer,
     setPrinter,
     electricity,

@@ -1,5 +1,5 @@
 import type { AttributionChannel } from '@calc3d/shared';
-import { Field, Select } from '@/components/ui';
+import { Field, Select, FieldGrid } from '@/components/ui';
 import { CHANNEL_OPTIONS, useCampaigns } from './api';
 
 export interface Attribution {
@@ -63,9 +63,9 @@ export function AttributionPicker({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <FieldGrid min="11rem" className="gap-3">
       <Field label="¿Cómo llegó el cliente?">{channel}</Field>
       <Field label="Campaña (opcional)">{campaign}</Field>
-    </div>
+    </FieldGrid>
   );
 }

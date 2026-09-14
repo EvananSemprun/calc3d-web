@@ -15,6 +15,7 @@ import {
   Select,
   Stat,
   TableSkeleton,
+  FieldGrid,
 } from '@/components/ui';
 import { Dialog, useConfirm, Tooltip } from '@/components/overlays';
 import { notify } from '@/components/toast';
@@ -306,9 +307,11 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const listEndpoint = type.endpoint ?? (type.key === 'maintenance' ? 'printers' : undefined);
   const { data: items = [] } = useQuery({
     queryKey: [listEndpoint],
-    queryFn: async () => (await api.get<{ id: string; name: string }[]>(`/${listEndpoint}`)).data,
+    queryFn: async () =>
+      (await api.get<{ id: string; name: string; status?: string }[]>(`/${listEndpoint}`)).data,
     enabled: !!listEndpoint,
   });
+  const elegidaDescontinuada = items.find((i) => i.id === selectedId)?.status === 'DISCONTINUED';
 
   // Proveedores (opcional, para cualquier tipo de gasto).
   const { data: providers = [] } = useQuery({
@@ -368,6 +371,13 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           },
         });
         qc.invalidateQueries({ queryKey: [type.endpoint] });
+        if (type.linkField === 'materialId') {
+          // Una compra de filamento reactiva la ficha y suma compras: la reposición y
+          // las compras de filamento dependen de eso.
+          for (const key of ['filament-stock', 'filament-summary', 'filament-purchases']) {
+            qc.invalidateQueries({ queryKey: [key] });
+          }
+        }
       } else {
         // Publicidad en Bs: el `amount` SIEMPRE va en USD base (= Bs ÷ tasa); se
         // guarda la tasa y el código para poder mostrar el Bs congelado luego.
@@ -453,7 +463,7 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         <>
           <Checkbox checked={payBs} onChange={(v) => setPayBs(v)} label="Pagué en bolívares" />
           {payBs && (
-            <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-background/30 p-3">
+            <FieldGrid min="11rem" className="gap-3 rounded-lg border border-border bg-background/30 p-3">
               <Field label="Tasa (Bs por USD)">
                 <Select value={bsRateLabel} onChange={(e) => setBsRateLabel(e.target.value)}>
                   <option value="">Elegir tasa…</option>
@@ -467,12 +477,12 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
               <Field label="Monto pagado (Bs)">
                 <NumberInput step="0.01" value={bsAmount} onChange={setBsAmount} />
               </Field>
-              <p className="col-span-2 text-xs text-muted-foreground">
+              <p className="col-span-full text-xs text-muted-foreground">
                 {selectedBsRate
                   ? `Equivale a ${usdFromBs.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} (se guarda como costo base).`
                   : 'Elige una tasa en Bs para calcular el equivalente en USD. Si no hay tasas, créalas en Config → Moneda.'}
               </p>
-            </div>
+            </FieldGrid>
           )}
           <Field label="Fecha de fin (opcional)" hint="Para calcular cuántos días duró la campaña.">
             <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
@@ -498,11 +508,16 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
               <option value="">Elegir…</option>
               {items.map((i) => (
                 <option key={i.id} value={i.id}>
-                  {i.name}
+                  {i.status === 'DISCONTINUED' ? `${i.name} (descontinuado)` : i.name}
                 </option>
               ))}
             </Select>
           </Field>
+          {elegidaDescontinuada && type.perUnit && (
+            <p className="text-xs text-muted-foreground">
+              Esta ficha está descontinuada: al registrar la compra vuelve a estar activa.
+            </p>
+          )}
           {type.perUnit && (
             <Field label="Cantidad comprada">
               <NumberInput value={quantity} onChange={(n) => setQuantity(Math.max(1, Math.floor(n)))} />

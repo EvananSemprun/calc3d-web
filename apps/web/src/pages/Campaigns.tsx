@@ -31,6 +31,7 @@ import {
   SortHeader,
   Stat,
   TableSkeleton,
+  FieldGrid,
 } from '@/components/ui';
 import { Dialog, useConfirm, Tooltip } from '@/components/overlays';
 import { usePersistentState } from '@/lib/usePersistentState';
@@ -319,7 +320,7 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
         <Field label="Nombre de la campaña" required>
           <Input autoFocus value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Ej. Promo llaveros diciembre" />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <FieldGrid min="11rem" className="gap-3">
           <Field label="Plataforma">
             <Select value={form.platform} onChange={(e) => set({ platform: e.target.value as typeof form.platform })}>
               {PLATFORM_OPTIONS.map((o) => (
@@ -366,7 +367,7 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
               ))}
             </Select>
           </Field>
-        </div>
+        </FieldGrid>
         <Field label="Notas (opcional)">
           <Input value={form.notes} onChange={(e) => set({ notes: e.target.value })} />
         </Field>

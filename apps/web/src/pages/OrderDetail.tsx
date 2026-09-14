@@ -7,7 +7,7 @@ import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
 import { useDocRate } from '@/features/settings/useExchangeRates';
 import { useOrder, ORDER_STATUS_OPTIONS } from '@/features/orders/api';
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, NumberInput, PageSkeleton, Select, Stat } from '@/components/ui';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, NumberInput, PageSkeleton, Select, Stat, FieldGrid } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { todayKey } from '@/lib/today';
@@ -460,14 +460,14 @@ function AddPaymentModal({
           if (amount > 0 && !saving) save();
         }}
       >
-        <div className="grid grid-cols-2 gap-3">
+        <FieldGrid min="11rem" className="gap-3">
           <Field label="Fecha">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field label="Monto">
             <NumberInput autoFocus step="0.01" value={amount} onChange={setAmount} />
           </Field>
-        </div>
+        </FieldGrid>
         <Field label="Nota (opcional)">
           <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej. adelanto por Pago Móvil" />
         </Field>

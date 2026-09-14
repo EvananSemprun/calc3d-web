@@ -14,6 +14,13 @@ y luego trae los cambios con `pnpm sync:shared` (copia shared desde calc3d-api) 
 sobrescribe al sincronizar. El front consume el build **ESM** (`dist/esm`) que
 Vite importa.
 
+> ⚠️ **Si cambia la FORMA de una respuesta de la API, se despliega primero la
+> API y después el panel.** Se despliegan por separado: un panel nuevo leyendo
+> la respuesta vieja se cae al dibujar. Pasó en desarrollo el 2026-09-13 con la
+> reposición por color (shared 0.11.0): la pantalla se actualizó en caliente,
+> React Query conservaba el resumen viejo sin `brands` y `RestockCard` rompió en
+> `g.brands.length`. En local se arregla recargando; en producción no.
+
 ## Estructura
 - `apps/web` — React + Vite + TS. Tailwind + primitivas propias (`components/ui.tsx`),
   TanStack Query, React Hook Form + Zod, axios con interceptor JWT. **App de un solo
@@ -34,7 +41,9 @@ Vite importa.
     `components/effects.tsx`: `NumberTicker` (cifras que ruedan, para KPIs en
     vivo y montos), `Reveal` (entrada con stagger), `SpotlightCard`, `BeamBorder`
     (haz de oro, SOLO para el precio elegido / CTA héroe), `GridPattern`,
-    `GoldText`. Todo respeta `prefers-reduced-motion` (guard JS `useReducedMotion`
+    `GoldText`. ⚠️ `BeamBorder` ya no se usa (2026-09-13): en el precio de la
+    calculadora el haz asomaba corrido en las esquinas y se reemplazó por un
+    borde dorado fijo. Todo respeta `prefers-reduced-motion` (guard JS `useReducedMotion`
     + media query en `index.css`). Utilidades CSS: `.glass`, `.surface-grid`,
     `.text-gold-sheen`; tokens nuevos en `tailwind.config.js` (animaciones
     `shimmer`/`shine`/`glow-pulse`, sombras `glow-sm`/`glow-lg`/`glow-blue`,
@@ -94,6 +103,22 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   y una barra en **0 % no se ve nada**, con lo que la fila parece rota en vez de
   "todavía en cero". Pasaba en las impresoras sin reponer y en los meses futuros
   de Metas. Usarla siempre en vez de escribir el div a mano.
+- **`FieldGrid`** — la grilla de TODO formulario con campos lado a lado (desde
+  el 2026-09-13, en las 19 grillas de la app). Pone tantas columnas como entren
+  con un ancho mínimo por campo y baja el que no cabe: mira el ancho
+  DISPONIBLE, no la ventana. **No usar `grid-cols-2` ni `sm:`/`lg:grid-cols-N`
+  para campos.** Dos fallas que reemplazó:
+  - Los modales usaban `grid-cols-2` **sin breakpoint**: en un teléfono, dos
+    columnas de ~150 px con las etiquetas partidas.
+  - En la calculadora `lg:grid-cols-4` se activaba aunque el formulario
+    compartiera el ancho con el panel del precio.
+  El `min` va según la etiqueta MÁS LARGA de esa grilla, con su "Obligatorio":
+  **`11rem` en un modal** (`Dialog` es `max-w-md`; así entran dos columnas en PC
+  y una en el teléfono) y el default de `15rem` en una página. Las etiquetas
+  de `Field` no se parten, y si igual no entran se cortan con "…" y el texto
+  completo va en el `title`. Un campo a todo el ancho va en un div
+  `col-span-full` — **nunca `col-span-2`**: con una sola columna crea una
+  columna fantasma y desborda.
 - **Skeletons** — `Skeleton`/`TableSkeleton`/`PageSkeleton` (ya NO queda texto
   "Cargando…") y `EmptyState` (ícono + descripción + acción/CTA). Úsalos en listas.
 - **Dialog** — limita el alto a `100dvh` y scrollea el cuerpo (los modales no se
@@ -133,22 +158,46 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 > Spec: `calc3d-api/docs/superpowers/specs/2026-09-06-calculadora-una-pantalla-design.md`.
 
 - **Archivos**: `CalculatorProvider` (estado + cálculo en vivo `POST /calc`),
-  `CalculatorScreen` (layout), `sections.tsx` (las 7 secciones de entrada, en el
-  orden del Excel), `ResultPanel` (el precio y su semáforo), `analysis.tsx`
+  `CalculatorScreen` (layout), `sections.tsx` (las 8 secciones de entrada, en el
+  orden del Excel; "Luz" se separó de "Máquina"), `ResultPanel` (el precio y su semáforo), `analysis.tsx`
   (comparador de redondeos, mayoreo, producción), `parts.tsx` (bloques
   reutilizables). **`Wizard.tsx` y `steps/` fueron eliminados.**
-- **Layout**: formulario a la izquierda, panel de precio **pegajoso** a la
-  derecha; en móvil se apila con el precio ARRIBA. Debajo, a lo ancho: redondeos,
-  mayoreo y producción.
+- **Layout** (cambió el 2026-09-13): formulario ARRIBA y a todo el ancho, el
+  panel de precio DEBAJO; en móvil el precio sigue ARRIBA del formulario.
+  Después: redondeos, mayoreo y producción. Antes el precio iba en una columna
+  `sticky` a la derecha, que no servía —con el cobro en bolívares y el desglose
+  el panel mide más que la pantalla— y dejaba cada campo de ~150 px.
+- **Grillas de campos: `FieldGrid`** (`components/ui.tsx`), no
+  `sm:`/`lg:grid-cols-N`. Pone tantas columnas como entren con un mínimo por
+  campo (15rem) y baja el que no cabe; las etiquetas no se parten, así que los
+  inputs de una fila quedan alineados. `Field` fija además el alto de la fila de
+  la etiqueta: la insignia "Obligatorio" la hacía ~5 px más alta que la del
+  campo vecino. Un control que no es input (el interruptor de la luz) va dentro
+  de un `Field` con un contenedor `h-10`, el alto de un input.
 - **Datos OBLIGATORIOS del trabajo** (los da el laminador, no los catálogos):
   unidades, **gramos de la tanda**, precio del rollo y horas de impresión. Van con
   `RequiredTag` + `REQUIRED_INPUT`, y `missing` (del provider) bloquea guardar.
+- **La impresora NO se puede apagar; la LUZ sí, y arranca apagada**
+  (2026-09-13). Sin máquina no hay pieza, así que desgaste y horas de la tanda
+  cuentan siempre: el interruptor que la quitaba del cálculo se eliminó. La
+  electricidad es su propia sección ("Luz", con el consumo en kW y la tarifa)
+  y solo se cobra si se activa. El contrato de `shared`
+  sigue aceptando `printer` opcional (se edita en `calc3d-api`), pero la
+  calculadora lo manda siempre.
 - **Un solo margen objetivo** y **un solo precio final**, editable a mano. El
   semáforo (`price.status` → `PRICE_STATUS_LABEL`, ambos de shared) marca
   PIERDES DINERO / Margen bajo / Por debajo de tu objetivo / OK. **No
   re-implementar esos umbrales en la UI**: vienen del motor.
 - **Mayoreo por DESCUENTO** (`discountPct`), no por margen. Cada tramo muestra el
   margen real que deja.
+- **Mayoreo que se lee solo** (2026-09-13, shared 0.10.0): la tabla muestra cada
+  tramo como RANGO ("De 5 a 9 u", "25 u o más"), ordenado, con los avisos de
+  `tierRanges` — desde 1 (baja el precio de lista sin que se note), cantidad
+  repetida, o un descuento que no mejora al anterior. **"Sugerir"** llama a
+  `suggestTiers(c.input)`: el mayor descuento entero que deja el margen en el
+  piso o arriba, en tres escalones desde una tanda completa (o 5 u). Si ya hay
+  tramos pide confirmación; está deshabilitado mientras falten datos del
+  trabajo. "+ Tramo" nunca nace "desde 1": arranca después del último.
 - **El panel juzga el precio COBRADO, no el de lista**: el semáforo usa
   `order.status`/`order.marginReal`, y cuando `order.fromTier` es true muestra el
   precio de lista tachado → el del tramo. Es el mismo número que sale en la
@@ -163,9 +212,11 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   `ResultPanel` lo detecta y muestra un aviso; sin ese guard, `QuoteDetail` se
   cae con pantalla en blanco. No se recalcula el snapshot: es el precio que se le
   cotizó al cliente ese día.
-- ⚠️ **Los breakpoints de Tailwind miran el VIEWPORT, no el contenedor.** El panel
-  mide 22rem: un `sm:grid-cols-2` adentro se activa igual y trunca las etiquetas.
-  Dentro del panel, una sola columna.
+- ⚠️ **Los breakpoints de Tailwind miran el VIEWPORT, no el contenedor.** Un
+  `sm:grid-cols-2` se activa aunque el contenedor sea angosto y trunca las
+  etiquetas. Por eso el formulario usa `FieldGrid` y `ResultPanel` reparte sus
+  tarjetas con `repeat(auto-fit, minmax(…))` (28rem: la tabla de bolívares
+  necesita 440 px), las dos cosas atadas al ancho disponible.
 - El formulario se alimenta de los catálogos guardados vía
   `features/calculator/useCatalogData.ts`. Al elegir un insumo del catálogo, el
   costo unitario es `packagePrice / unitsPerPackage` (el catálogo guarda el
@@ -179,9 +230,17 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 > (compras) y "Stock mensual" (conteo físico). Spec:
 > `calc3d-api/docs/superpowers/specs/2026-09-07-control-de-filamento-design.md`.
 
-- Página propia en **Definiciones → Filamento** (`/filament`), con pestañas. Vive
-  aparte de Catálogos (que es el alta de fichas) y de Gastos (que es dinero que
-  sale): acá se responde "cuánto me cuesta el filamento y cuánto me queda".
+- **Categoría propia del menú, "Filamento"** (2026-09-13), con TRES páginas y
+  su propia dirección: **Stock del mes** (`/filament/stock`), **Compras**
+  (`/filament/compras`) y **Análisis** (`/filament/analisis`), más **Materiales**
+  (`/catalogs/materials`, el catálogo de esas fichas). Antes eran pestañas de una
+  sola página en Definiciones: no se podía enlazar a una ni volver con "atrás".
+  `/filament` sola redirige a Stock, para no romper enlaces viejos. Las tres
+  comparten encabezado (`FilamentShell` en `pages/Filament.tsx`) y reusan los
+  componentes de `features/filament/` (`StockTab`/`PurchasesTab`/`AnalysisTab`,
+  que conservan el nombre). Vive aparte de Catálogos (alta de fichas) y de
+  Gastos (dinero que sale): acá se responde "cuánto me cuesta el filamento y
+  cuánto me queda".
 - **Compras** (`PurchasesTab`): los `Expense` con `materialId`, con **costo por
   rollo y por gramo derivados por el SERVIDOR** (`GET /filament/purchases`). El
   costo por gramo se muestra con **4 decimales**: son centavos, y con 2 todo se
@@ -193,16 +252,34 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 - **Stock del mes** (`StockTab`): conteo MANUAL al cierre de mes. Filas agrupadas
   por **tipo + color** (como la hoja), con una fila por MARCA dentro de cada grupo.
   Tres casillas (Sin abrir / En uso / Por acabarse) y el total derivado.
-- **El guardado es al SALIR del campo (`onBlur`)**, con un borrador local: con 39
-  materiales × 3 casillas, guardar en cada tecla sería un bombardeo de requests.
-- ⚠️ **"No contado" ≠ "cero rollos".** `counted` distingue los dos casos: el total
-  solo se pinta en rojo si SE contó y dio cero. Sin conteo va en gris, el consumo
-  dice "Sin dato" y la reposición no incluye ese material. Es la misma distinción
-  en las tres partes de la pantalla; romperla en una sola la vuelve mentirosa.
-- La **lista de reposición** usa los colores de la hoja: rojo = sin rollos, ámbar =
-  por acabarse. Los descontinuados nunca entran.
+- **El mes se CIERRA, no se guarda casilla por casilla** (2026-09-13, shared
+  0.13.0). Lo escrito vive en un borrador del navegador
+  (`filament:stock:draft:AAAA-MM`) hasta tocar **"Guardar y cerrar"**, que manda
+  todas las fichas juntas (`POST /filament/stock/close`). Sin ningún rollo
+  cargado, la confirmación avisa en tono destructivo que queda TODO en 0. Si el
+  cierre falla, el borrador NO se borra; si el mes YA está cerrado (se pudo
+  cerrar desde otro dispositivo), el borrador de ese mes se descarta y al
+  reabrir se ve lo guardado en la base, no un borrador viejo. Un mes cerrado
+  queda de solo lectura y se corrige con **"Reabrir mes"** (con confirmación).
+  El botón se habilita desde el último día del mes en hora de Venezuela
+  (`canCloseMonth`), pero el límite REAL está en el servidor. Un mes abierto no
+  muestra total, consumo ni reposición. Spec:
+  `calc3d-api/docs/superpowers/specs/2026-09-13-cierre-mensual-stock-design.md`.
+- ⚠️ **Casillas vacías = no hay** (2026-09-13, decisión del dueño, como se lee el
+  Excel): al cerrar, lo que no se marcó queda en 0. `counted` es "el mes está
+  CERRADO"; un mes abierto (nunca cerrado o reabierto) es "sin dato" y su total
+  no se pinta en rojo. Por eso no hay aviso de "X de Y colores".
+- La **lista de reposición va POR TIPO + COLOR, no por marca** (2026-09-13,
+  shared 0.11.0): la marca cambia de un mes a otro, el color es lo que se maneja.
+  Tres columnas (`RestockCard` en `StockTab.tsx`), cada una de más comprado a
+  menos: **Sin rollos** (rojo), **Por acabarse** (ámbar) y **Conviene reponer**
+  (los colores comprados MÁS que el promedio por color, con 1 rollo o menos —
+  decisión del dueño). La tarjeta "Hay que reponer" cuenta solo las dos
+  primeras y anuncia las sugeridas aparte. Los descontinuados nunca entran.
+  Se descontinúan desde Materiales.
 - Los **rollos por identificar** (`needsBrandCheck`, los que vinieron del Excel sin
-  marca) se listan aparte; contarlos a mano apaga el aviso.
+  marca) se listan aparte; el aviso se apaga al CERRAR el mes (el cierre escribe
+  `needsBrandCheck: false` en todas las fichas), no al contarlos a mano.
 - **Análisis** (`AnalysisTab`): la parte de la hoja "Resumen" que mira las
   compras — rollos e inversión **por marca** (con costo promedio por rollo y
   participación), **colores más comprados** y reparto por material. Usa el helper
@@ -210,7 +287,6 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   lado; no hay endpoint propio, para que los totales no puedan discrepar.
 - ⚠️ `capitalize` de Tailwind pone mayúscula en CADA palabra ("Septiembre De
   2026"): para un mes en español va `first-letter:uppercase`.
-- Las pestañas solo se dibujan si hay más de una (`TABS.length > 1`).
 
 ### Dashboard + finanzas (`pages/Dashboard.tsx`, `Sales.tsx`, `Expenses.tsx`; `features/finance/`)
 - KPIs (ventas, gastos, **utilidad**, ticket), recuperación de inversión y 4
@@ -396,6 +472,15 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   "usar como precio de referencia" → `PATCH` PARCIAL al item. El tipo **Publicidad** con
   "pagué en bolívares" elige una tasa VES + monto Bs y guarda `amount` en USD base
   (= Bs ÷ tasa) + `rate`/`currencyCode='VES'` para presentación.
+- **Activo / Descontinuado** (2026-09-13, shared 0.14.0): en Materiales, filtro
+  **Estado** que arranca en Activas (`catalog:materials:status`), insignia
+  "descontinuado" y botón **Descontinuar / Reactivar** por fila con confirmación
+  (`statusToggle` en `config.ts`, `PATCH /materials/:id/status`). El formulario
+  de la ficha NO tiene estado. La **calculadora no ofrece** fichas descontinuadas
+  (lo ya cotizado no cambia: se copian precio y gramos). En **Gastos** siguen
+  visibles con "(descontinuado)" y **registrar una compra con rollos la
+  reactiva** (lo hace el servidor). Cambiar el estado refresca también el stock
+  y el resumen de filamento, porque la reposición depende de él.
 
 ### Cotizar a un cliente (ya NO hay Presupuestos)
 

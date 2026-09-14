@@ -1,13 +1,6 @@
 import * as React from 'react';
-import { Boxes, Layers, Package, Printer, Clock, Box, Percent, Trash2 } from 'lucide-react';
-import {
-  Field,
-  Input,
-  NumberInput,
-  REQUIRED_INPUT,
-  Select,
-  Switch,
-} from '@/components/ui';
+import { Boxes, Layers, Package, Printer, Clock, Box, Percent, Trash2, Zap } from 'lucide-react';
+import { Field, FieldGrid, Input, NumberInput, REQUIRED_INPUT, Select, Switch } from '@/components/ui';
 import { useMoney } from '@/features/settings/useSettings';
 import { useCalculator, removeAt, updateAt } from '@/features/calculator/CalculatorProvider';
 import { CatalogSelect, LineGroup, MiniField } from '@/features/calculator/parts';
@@ -80,8 +73,8 @@ export function SectionPieza() {
       title="La pieza"
       hint="Qué cotizas y cuántas salen en cada impresión."
     >
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="sm:col-span-3">
+      <FieldGrid>
+        <div className="col-span-full">
           <Field label="Nombre del trabajo">
             <Input
               value={c.quoteName}
@@ -108,7 +101,7 @@ export function SectionPieza() {
             onChange={(n) => c.setPiecesPerBatch(Math.max(1, Math.round(n)))}
           />
         </Field>
-      </div>
+      </FieldGrid>
     </CostSection>
   );
 }
@@ -127,7 +120,9 @@ export function SectionFilamento() {
       action={
         <div className="w-full sm:w-44">
           <CatalogSelect
-            items={c.catalogs.materials.data}
+            // Una ficha descontinuada no se ofrece al cotizar. Lo ya cotizado no
+            // cambia: elegir una ficha COPIA precio y gramos al trabajo.
+            items={c.catalogs.materials.data?.filter((m) => m.status !== 'DISCONTINUED')}
             onPick={(m) =>
               c.setFilament((f) => ({
                 ...f,
@@ -140,7 +135,7 @@ export function SectionFilamento() {
         </div>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <FieldGrid>
         <Field label="Precio del rollo" required>
           <NumberInput
             className={REQUIRED_INPUT}
@@ -174,7 +169,7 @@ export function SectionFilamento() {
             onChange={(n) => c.setWaste(n / 100)}
           />
         </Field>
-      </div>
+      </FieldGrid>
     </CostSection>
   );
 }
@@ -260,117 +255,132 @@ export function SectionMaquina() {
     <CostSection
       n={4}
       icon={Printer}
-      title="Máquina y energía"
-      hint="Desgaste del equipo y electricidad de la tanda."
-      amount={r ? r.breakdown.wear + r.breakdown.power : undefined}
+      title="Máquina"
+      hint="Desgaste del equipo en la tanda."
+      amount={r?.breakdown.wear}
       action={
-        <div className="flex items-center gap-2">
-          {c.printerEnabled && (
-            <div className="w-full sm:w-40">
-              <CatalogSelect
-                items={c.catalogs.printers.data}
-                onPick={(p) =>
-                  c.setPrinter((prev) => ({
-                    ...prev,
-                    name: p.name,
-                    price: Number(p.price),
-                    lifetimeHours: p.lifetimeHours,
-                    powerKw: Number(p.powerKw),
-                    maintPerHour: Number(p.maintPerHour),
-                  }))
-                }
-              />
-            </div>
-          )}
-          <Switch checked={c.printerEnabled} onChange={c.setPrinterEnabled} />
+        <div className="w-full sm:w-44">
+          <CatalogSelect
+            items={c.catalogs.printers.data}
+            onPick={(p) =>
+              c.setPrinter((prev) => ({
+                ...prev,
+                name: p.name,
+                price: Number(p.price),
+                lifetimeHours: p.lifetimeHours,
+                powerKw: Number(p.powerKw),
+                maintPerHour: Number(p.maintPerHour),
+              }))
+            }
+          />
         </div>
       }
     >
-      {c.printerEnabled ? (
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Inversión en el equipo">
-              <NumberInput
-                value={c.printer.price}
-                onChange={(n) => c.setPrinter((p) => ({ ...p, price: n }))}
-              />
-            </Field>
-            <Field label="Vida útil (horas)">
-              <NumberInput
-                value={c.printer.lifetimeHours}
-                onChange={(n) => c.setPrinter((p) => ({ ...p, lifetimeHours: n || 1 }))}
-              />
-            </Field>
-            <Field label="Horas de la tanda" required>
-              <NumberInput
-                className={REQUIRED_INPUT}
-                value={c.printer.hours}
-                onChange={(n) => c.setPrinter((p) => ({ ...p, hours: n }))}
-              />
-            </Field>
-            <Field label="Mantenimiento / hora" hint="Boquillas, correas.">
-              <NumberInput
-                value={c.printer.maintPerHour}
-                onChange={(n) => c.setPrinter((p) => ({ ...p, maintPerHour: n }))}
-              />
-            </Field>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Consumo (kW)">
-              <NumberInput
-                value={c.printer.powerKw}
-                onChange={(n) => c.setPrinter((p) => ({ ...p, powerKw: n }))}
-              />
-            </Field>
-            <Field label="Tarifa eléctrica / kWh">
-              <NumberInput
-                value={c.electricity.kwhPrice}
-                onChange={(n) => c.setElectricity((e) => ({ ...e, kwhPrice: n }))}
-                disabled={!c.electricity.enabled}
-              />
-            </Field>
-            <div className="flex items-end pb-2">
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <Switch
-                  checked={c.electricity.enabled}
-                  onChange={(v) => c.setElectricity((e) => ({ ...e, enabled: v }))}
-                />
-                <span className="text-muted-foreground">Cobrar la luz</span>
-              </label>
-            </div>
-            <Field
-              label="Impresoras en paralelo"
-              hint="Solo acorta la entrega, no el costo."
-            >
-              <NumberInput
-                min={1}
-                value={c.parallelPrinters}
-                onChange={(n) => c.setParallelPrinters(Math.max(1, Math.round(n)))}
-              />
-            </Field>
-          </div>
-        </div>
+      <FieldGrid>
+        <Field label="Inversión en el equipo">
+          <NumberInput
+            value={c.printer.price}
+            onChange={(n) => c.setPrinter((p) => ({ ...p, price: n }))}
+          />
+        </Field>
+        <Field label="Vida útil (horas)">
+          <NumberInput
+            value={c.printer.lifetimeHours}
+            onChange={(n) => c.setPrinter((p) => ({ ...p, lifetimeHours: n || 1 }))}
+          />
+        </Field>
+        <Field label="Horas de la tanda" required>
+          <NumberInput
+            className={REQUIRED_INPUT}
+            value={c.printer.hours}
+            onChange={(n) => c.setPrinter((p) => ({ ...p, hours: n }))}
+          />
+        </Field>
+        <Field label="Mantenimiento / hora" hint="Boquillas, correas.">
+          <NumberInput
+            value={c.printer.maintPerHour}
+            onChange={(n) => c.setPrinter((p) => ({ ...p, maintPerHour: n }))}
+          />
+        </Field>
+        <Field
+          label="Impresoras en paralelo"
+          hint="Solo acorta la entrega, no el costo."
+        >
+          <NumberInput
+            min={1}
+            value={c.parallelPrinters}
+            onChange={(n) => c.setParallelPrinters(Math.max(1, Math.round(n)))}
+          />
+        </Field>
+      </FieldGrid>
+    </CostSection>
+  );
+}
+
+/**
+ * 5. LUZ — tarjeta aparte y APAGADA por defecto (decisión del dueño,
+ * 2026-09-13). La impresora es obligatoria; la electricidad no: apagada, el
+ * motor no la cobra. El consumo (kW) vive acá aunque sea un dato de la
+ * impresora, porque solo sirve para esta cuenta; elegir una impresora del
+ * catálogo lo sigue cargando.
+ */
+export function SectionLuz() {
+  const c = useCalculator();
+  const r = c.result;
+  const on = c.electricity.enabled;
+  return (
+    <CostSection
+      n={5}
+      icon={Zap}
+      title="Luz"
+      hint="Electricidad de la tanda."
+      amount={on ? r?.breakdown.power : undefined}
+      action={
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          Cobrar
+          <Switch
+            checked={on}
+            onChange={(v) => c.setElectricity((e) => ({ ...e, enabled: v }))}
+          />
+        </label>
+      }
+    >
+      {on ? (
+        <FieldGrid>
+          <Field label="Consumo (kW)">
+            <NumberInput
+              value={c.printer.powerKw}
+              onChange={(n) => c.setPrinter((p) => ({ ...p, powerKw: n }))}
+            />
+          </Field>
+          <Field label="Tarifa eléctrica / kWh">
+            <NumberInput
+              value={c.electricity.kwhPrice}
+              onChange={(n) => c.setElectricity((e) => ({ ...e, kwhPrice: n }))}
+            />
+          </Field>
+        </FieldGrid>
       ) : (
         <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          Sin impresora: no se cobra desgaste ni electricidad.
+          No se cobra la electricidad. Activá «Cobrar» para sumar el consumo de la tanda.
         </p>
       )}
     </CostSection>
   );
 }
 
-/** 5. TU TIEMPO — el postprocesado, la partida que más se olvida. */
+/** 6. TU TIEMPO — el postprocesado, la partida que más se olvida. */
 export function SectionTiempo() {
   const c = useCalculator();
   return (
     <CostSection
-      n={5}
+      n={6}
       icon={Clock}
       title="Tu tiempo"
       hint="Lijar, pintar, armar. La partida que más se olvida."
       amount={c.result?.breakdown.labor}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <FieldGrid>
         <Field label="Minutos por pieza">
           <NumberInput
             value={c.labor.minutes}
@@ -383,23 +393,23 @@ export function SectionTiempo() {
             onChange={(n) => c.setLabor((l) => ({ ...l, hourlyRate: n }))}
           />
         </Field>
-      </div>
+      </FieldGrid>
     </CostSection>
   );
 }
 
-/** 6. EMPAQUE Y OTROS. */
+/** 7. EMPAQUE Y OTROS. */
 export function SectionExtras() {
   const c = useCalculator();
   return (
     <CostSection
-      n={6}
+      n={7}
       icon={Box}
       title="Empaque y otros"
       hint="El empaque va por pieza; “otros” es un cargo único del pedido."
       amount={c.result?.breakdown.extras}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <FieldGrid>
         <Field label="Empaque por pieza">
           <NumberInput
             value={c.extras.packagingPerPiece}
@@ -415,7 +425,7 @@ export function SectionExtras() {
             onChange={(n) => c.setExtras((e) => ({ ...e, otherPerOrder: n }))}
           />
         </Field>
-      </div>
+      </FieldGrid>
     </CostSection>
   );
 }
@@ -429,19 +439,19 @@ const ROUNDING_OPTIONS: { value: string; label: string }[] = [
   { value: 'DOWN|1', label: 'Hacia abajo al entero' },
 ];
 
-/** 7. MARGEN Y REDONDEO — de dónde sale el precio sugerido. */
+/** 8. MARGEN Y REDONDEO — de dónde sale el precio sugerido. */
 export function SectionMargen() {
   const c = useCalculator();
   const value = `${c.roundingMode}|${c.roundingIncrement}`;
   const known = ROUNDING_OPTIONS.some((o) => o.value === value);
   return (
     <CostSection
-      n={7}
+      n={8}
       icon={Percent}
       title="Margen y redondeo"
       hint="Tu ganancia sobre el costo, y cómo se redondea el precio."
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <FieldGrid>
         <Field label="Margen objetivo (%)" hint="Ganancia sobre el costo: 100 % = el doble.">
           <NumberInput
             value={Math.round(c.markup * 1000) / 10}
@@ -464,7 +474,7 @@ export function SectionMargen() {
             ))}
           </Select>
         </Field>
-      </div>
+      </FieldGrid>
     </CostSection>
   );
 }
@@ -477,6 +487,7 @@ export function CalculatorForm() {
       <SectionFilamento />
       <SectionInsumos />
       <SectionMaquina />
+      <SectionLuz />
       <SectionTiempo />
       <SectionExtras />
       <SectionMargen />

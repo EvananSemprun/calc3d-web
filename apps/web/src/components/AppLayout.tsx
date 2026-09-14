@@ -8,6 +8,8 @@ import {
   Calculator,
   Disc3,
   LayoutDashboard,
+  PieChart,
+  ShoppingCart,
   TrendingUp,
   Receipt,
   Package,
@@ -63,12 +65,21 @@ const navGroups: { heading?: string; items: { to: string; label: string; icon: t
     ],
   },
   {
+    // Categoría propia (2026-09-13): antes era una sola página con pestañas en
+    // Definiciones. Materiales va acá porque es el catálogo de esos rollos.
+    heading: 'Filamento',
+    items: [
+      { to: '/filament/stock', label: 'Stock del mes', icon: Disc3 },
+      { to: '/filament/compras', label: 'Compras', icon: ShoppingCart },
+      { to: '/filament/analisis', label: 'Análisis', icon: PieChart },
+      { to: '/catalogs/materials', label: 'Materiales', icon: Box },
+    ],
+  },
+  {
     heading: 'Definiciones',
     items: [
       { to: '/store', label: 'Tienda', icon: Store },
       { to: '/store/requests', label: 'Bandeja de tienda', icon: Inbox, badge: 'store-requests' },
-      { to: '/filament', label: 'Filamento', icon: Disc3 },
-      { to: '/catalogs/materials', label: 'Materiales', icon: Box },
       { to: '/catalogs/printers', label: 'Impresoras', icon: Printer },
       { to: '/catalogs/components', label: 'Insumos', icon: Puzzle },
       { to: '/catalogs/providers', label: 'Proveedores', icon: Truck },

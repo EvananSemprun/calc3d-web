@@ -1,5 +1,13 @@
-import { Plus, Trash2, Factory, Coins, Scale } from 'lucide-react';
-import { PRICE_STATUS_LABEL, type PriceStatus } from '@calc3d/shared';
+import { AlertTriangle, Coins, Factory, Plus, Scale, Sparkles, Trash2 } from 'lucide-react';
+import {
+  PRICE_STATUS_LABEL,
+  suggestTiers,
+  TIER_WARNING_LABEL,
+  tierRanges,
+  type PriceStatus,
+} from '@calc3d/shared';
+import { useConfirm } from '@/components/overlays';
+import { notify } from '@/components/toast';
 import { Button, Card, CardContent, CardHeader, CardTitle, NumberInput } from '@/components/ui';
 import { useMoney } from '@/features/settings/useSettings';
 import { cn } from '@/lib/utils';
@@ -102,12 +110,57 @@ const ROUNDING_LABEL: Record<string, string> = {
 export function WholesaleTable() {
   const c = useCalculator();
   const { money, percent } = useMoney();
-  const tiers = c.result?.wholesale?.tiers ?? [];
+  const confirm = useConfirm();
+  const calcTiers = c.result?.wholesale?.tiers ?? [];
+  // Ordenados y con hasta dónde llega cada uno: "desde 5" suelto no dice nada.
+  const ranges = tierRanges(c.tiers);
+  const sinDatos = !c.result || c.missing.length > 0;
+
+  /** Pide al motor los tramos que no rompen el piso de margen. */
+  const sugerir = async () => {
+    const s = suggestTiers(c.input);
+    if (s.tiers.length === 0) {
+      notify.info(
+        'No hay margen para descontar',
+        `Con este precio, cualquier descuento baja el margen del piso (${percent(c.minMarginPct)}).`,
+      );
+      return;
+    }
+    if (
+      c.tiers.length > 0 &&
+      !(await confirm({
+        title: `¿Reemplazar tus ${c.tiers.length} tramos?`,
+        description: `Se proponen ${s.tiers.length}, con hasta ${percent(s.maxDiscountPct)} de descuento sin bajar del piso de margen.`,
+        confirmLabel: 'Reemplazar',
+      }))
+    ) {
+      return;
+    }
+    c.setTiers(s.tiers);
+    notify.success(
+      'Tramos sugeridos',
+      `Hasta ${percent(s.maxDiscountPct)} de descuento sin bajar del piso de margen.`,
+    );
+  };
+
+  /** Un tramo nuevo arranca DESPUÉS del último y descuenta más: nunca "desde 1". */
+  const agregar = () =>
+    c.setTiers((t) => {
+      if (t.length === 0) {
+        return [{ minQty: c.piecesPerBatch > 1 ? c.piecesPerBatch : 5, discountPct: 0.05 }];
+      }
+      const ultimo = Math.max(...t.map((x) => x.minQty));
+      const mayor = Math.max(...t.map((x) => x.discountPct));
+      return [
+        ...t,
+        { minQty: ultimo * 2, discountPct: Math.min(0.99, Math.round((mayor + 0.05) * 100) / 100) },
+      ];
+    });
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <Scale className="h-4 w-4 text-brand-yellow-ink" />
@@ -117,96 +170,129 @@ export function WholesaleTable() {
               Descuento sobre el precio final, según las unidades del pedido.
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              c.setTiers((t) => [
-                ...t,
-                { minQty: t.length ? t[t.length - 1].minQty * 2 : 1, discountPct: 0.05 },
-              ])
-            }
-          >
-            <Plus className="h-4 w-4" /> Tramo
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={sugerir}
+              disabled={sinDatos}
+              title={
+                sinDatos
+                  ? 'Completá los datos del trabajo para sugerir tramos'
+                  : 'El mayor descuento que respeta tu piso de margen, en tres escalones'
+              }
+            >
+              <Sparkles className="h-4 w-4" /> Sugerir
+            </Button>
+            <Button size="sm" variant="outline" onClick={agregar}>
+              <Plus className="h-4 w-4" /> Tramo
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        {c.tiers.length === 0 ? (
+        {ranges.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-            Sin tramos. Agrega uno si haces precio por volumen.
+            Sin tramos. Usá «Sugerir» para que la app proponga unos que respeten tu piso de margen, o
+            agregá uno a mano.
           </p>
         ) : (
           <div className="space-y-2">
-            {c.tiers.map((t, i) => {
-              const calc = tiers.find((x) => x.minQty === t.minQty);
+            {ranges.map((t) => {
+              const calc = calcTiers.find((x) => x.minQty === t.minQty);
+              const rango =
+                t.maxQty == null
+                  ? `${t.minQty} u o más`
+                  : t.maxQty === t.minQty
+                    ? `${t.minQty} u`
+                    : `De ${t.minQty} a ${t.maxQty} u`;
               return (
                 <div
-                  key={i}
+                  key={t.index}
                   className={cn(
-                    'grid grid-cols-2 items-end gap-3 rounded-lg border p-3 sm:grid-cols-[7rem_7rem_1fr_auto]',
+                    'space-y-3 rounded-lg border p-3',
                     calc?.applies
                       ? 'border-brand-yellow/50 bg-brand-yellow/[0.05]'
                       : 'border-border/60 bg-background/40',
                   )}
                 >
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Desde (u)</label>
-                    <NumberInput
-                      className="h-9"
-                      min={1}
-                      value={t.minQty}
-                      onChange={(n) => updateAt(c.setTiers, i, { minQty: Math.max(1, Math.round(n)) })}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Descuento %</label>
-                    <NumberInput
-                      className="h-9"
-                      value={Math.round(t.discountPct * 1000) / 10}
-                      onChange={(n) =>
-                        updateAt(c.setTiers, i, { discountPct: Math.min(99, n) / 100 })
-                      }
-                    />
-                  </div>
-                  <div className="text-sm">
-                    {calc ? (
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <span className="font-display text-base font-bold tabular-nums">
-                          {money(calc.unitPrice)}
-                        </span>
-                        <span className="text-muted-foreground">
-                          margen {percent(calc.marginReal)}
-                        </span>
-                        <span className={cn('text-xs font-semibold', STATUS_TEXT[calc.status])}>
-                          {PRICE_STATUS_LABEL[calc.status]}
-                        </span>
-                        {calc.applies && (
-                          <span className="text-[10px] font-bold uppercase text-brand-yellow-ink">
-                            aplica a este pedido
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-display text-sm font-semibold">
+                      {rango}
+                      <span className="font-sans font-normal text-muted-foreground">
+                        {` · ${percent(t.discountPct)} de descuento`}
+                      </span>
+                    </span>
+                    {calc?.applies && (
+                      <span className="text-[10px] font-bold uppercase text-brand-yellow-ink">
+                        aplica a este pedido
+                      </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeAt(c.setTiers, i)}
-                    className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-destructive/60 hover:text-destructive"
-                    aria-label={`Quitar el tramo desde ${t.minQty}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[7rem_7rem_1fr_auto]">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Desde (u)</label>
+                      <NumberInput
+                        className="h-9"
+                        min={1}
+                        value={t.minQty}
+                        onChange={(n) =>
+                          updateAt(c.setTiers, t.index, { minQty: Math.max(1, Math.round(n)) })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Descuento %</label>
+                      <NumberInput
+                        className="h-9"
+                        value={Math.round(t.discountPct * 1000) / 10}
+                        onChange={(n) =>
+                          updateAt(c.setTiers, t.index, { discountPct: Math.min(99, n) / 100 })
+                        }
+                      />
+                    </div>
+                    <div className="text-sm">
+                      {calc ? (
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                          <span className="font-display text-base font-bold tabular-nums">
+                            {money(calc.unitPrice)}
+                          </span>
+                          <span className="text-muted-foreground">
+                            margen {percent(calc.marginReal)}
+                          </span>
+                          <span className={cn('text-xs font-semibold', STATUS_TEXT[calc.status])}>
+                            {PRICE_STATUS_LABEL[calc.status]}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeAt(c.setTiers, t.index)}
+                      className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-destructive/60 hover:text-destructive"
+                      aria-label={`Quitar el tramo desde ${t.minQty}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {t.warnings.length > 0 && (
+                    <ul className="space-y-1">
+                      {t.warnings.map((w) => (
+                        <li key={w} className="flex items-start gap-1.5 text-xs text-brand-yellow-ink">
+                          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+                          {TIER_WARNING_LABEL[w]}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               );
             })}
             {c.result?.wholesale?.appliedTier && (
               <div className="flex items-center justify-between rounded-lg bg-brand-blue/10 px-3 py-2 text-sm ring-1 ring-inset ring-brand-blue/25">
-                <span className="text-muted-foreground">
-                  Total del pedido con el tramo aplicado
-                </span>
+                <span className="text-muted-foreground">Total del pedido con el tramo aplicado</span>
                 <span className="font-display font-bold tabular-nums">
                   {money(c.result.wholesale.orderTotal)}
                 </span>

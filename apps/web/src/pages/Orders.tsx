@@ -11,7 +11,7 @@ import { useStoreProducts } from '@/features/store/api';
 import { useSettings } from '@/features/settings/useSettings';
 import { CurrencyPicker } from '@/features/settings/CurrencyPicker';
 import { AttributionPicker, EMPTY_ATTRIBUTION, type Attribution } from '@/features/campaigns/AttributionPicker';
-import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, SearchInput, Select, SortHeader, TableSkeleton } from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, SearchInput, Select, SortHeader, TableSkeleton, FieldGrid } from '@/components/ui';
 import { Dialog } from '@/components/overlays';
 import { notify } from '@/components/toast';
 
@@ -237,7 +237,7 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
   return (
     <Dialog open onOpenChange={(n) => !n && onClose()} title="Nuevo pedido">
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <FieldGrid min="11rem" className="gap-3">
           <Field label="Cliente" required>
             <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
               <option value="">Elige un cliente…</option>
@@ -251,13 +251,13 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
           <Field label="Fecha de entrega">
             <Input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} />
           </Field>
-          <div className="col-span-2">
+          <div className="col-span-full">
             <CurrencyPicker value={currencyLabel} onChange={setCurrencyLabel} />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-full">
             <AttributionPicker value={attr} onChange={setAttr} />
           </div>
-        </div>
+        </FieldGrid>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">

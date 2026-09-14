@@ -40,6 +40,7 @@ import {
   PageSkeleton,
   Select,
   Switch,
+  FieldGrid,
 } from '@/components/ui';
 
 /** Grupo de opciones en edición (sin ids: se reemplazan como bloque al guardar). */
@@ -289,7 +290,7 @@ export function StoreProductDetailPage() {
               <CardTitle>Ficha</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <FieldGrid>
                 <Field label="Nombre" required>
                   <Input value={form.name} onChange={(e) => set('name', e.target.value)} />
                 </Field>
@@ -302,7 +303,7 @@ export function StoreProductDetailPage() {
                     <option value="SERVICE">Servicio</option>
                   </Select>
                 </Field>
-              </div>
+              </FieldGrid>
               <Field label="Resumen" hint="Una línea, la que se ve en la tarjeta de la vitrina">
                 <Input value={form.summary} onChange={(e) => set('summary', e.target.value)} />
               </Field>
@@ -313,7 +314,7 @@ export function StoreProductDetailPage() {
                   onChange={(e) => set('description', e.target.value)}
                 />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <FieldGrid>
                 <Field label="Material" hint="Se muestra en la tarjeta, junto a la categoría">
                   <Input
                     list="materiales-tienda"
@@ -335,7 +336,7 @@ export function StoreProductDetailPage() {
                     onChange={(e) => set('badge', e.target.value)}
                   />
                 </Field>
-              </div>
+              </FieldGrid>
               <Switch
                 checked={form.custom}
                 onChange={(v) => set('custom', v)}

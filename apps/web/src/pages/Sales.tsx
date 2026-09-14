@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, ShoppingCart, Trash2, Wand2 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
-import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, Select, Stat, TableSkeleton } from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, Select, Stat, TableSkeleton, FieldGrid } from '@/components/ui';
 import { Dialog, useConfirm, Tooltip } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
@@ -178,14 +178,14 @@ function ManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
       title="Registrar venta"
     >
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <FieldGrid min="11rem" className="gap-3">
           <Field label="Fecha">
             <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
           </Field>
           <Field label="Monto">
             <NumberInput step="0.01" value={form.amount} onChange={(n) => setForm({ ...form, amount: n })} />
           </Field>
-        </div>
+        </FieldGrid>
         <Field label="Tipo">
           <Select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
             <option value="COUNTER">Mostrador</option>

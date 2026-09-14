@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, AlertTriangle, CheckCircle2, TrendingDown } from 'lucide-react';
 import { PRICE_STATUS_LABEL, type CalcResult, type PriceStatus } from '@calc3d/shared';
 import { Card, CardContent, CardHeader, CardTitle, NumberInput } from '@/components/ui';
-import { BeamBorder, NumberTicker } from '@/components/effects';
+import { NumberTicker } from '@/components/effects';
 import { useMoney } from '@/features/settings/useSettings';
 import { cn } from '@/lib/utils';
 import { ChargeEquivalentsCard } from './ChargeEquivalentsCard';
@@ -94,126 +94,137 @@ export function ResultPanel({
   const editable = !!onManualPrice;
 
   return (
-    <div className="space-y-4">
-      <BeamBorder className="rounded-2xl">
-        <Card className="border-0">
-          <CardContent className="space-y-4 pt-5">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Precio final por pieza
-              </div>
-              {editable ? (
-                <div className="mt-1 flex items-baseline gap-2">
-                  <span className="font-display text-2xl font-bold text-muted-foreground">
-                    {result.currency === 'USD' ? '$' : ''}
-                  </span>
-                  <NumberInput
-                    className="h-14 border-0 bg-transparent px-0 font-display text-4xl font-bold shadow-none focus-visible:ring-0"
-                    value={Math.round(p.final * 100) / 100}
-                    onChange={(n) => onManualPrice?.(n > 0 ? n : null)}
-                    aria-label="Precio final por pieza"
-                  />
-                </div>
-              ) : (
-                <div className="font-display text-4xl font-bold tabular-nums">
-                  <NumberTicker value={p.final} format={money} />
-                </div>
-              )}
-              {moneyAlt && (
-                <div className="text-sm text-muted-foreground">{moneyAlt(p.final)}</div>
-              )}
+    // El precio y el cobro en bolívares se reparten según el ANCHO DISPONIBLE,
+    // no el de la ventana: lado a lado en PC, uno bajo otro en un teléfono. El
+    // desglose va siempre debajo, a todo el ancho.
+    // 28rem de mínimo porque la tabla de bolívares necesita 440 px sin scroll.
+    // Sin `items-start`: lado a lado, las dos tarjetas miden lo mismo (se
+    // estiran a la fila) en vez de quedar una más corta que la otra.
+    <div
+      className="grid gap-4"
+      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 28rem), 1fr))' }}
+    >
+      {/* Borde dorado FIJO. Antes era un haz animado (BeamBorder): la tarjeta
+          tiene esquinas más chicas que su envoltorio y la línea asomaba corrida. */}
+      <Card className="border-brand-yellow/40 shadow-glow-sm">
+        <CardContent className="space-y-4 pt-5">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Precio final por pieza
             </div>
-
-            {sinDatos ? (
-              <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                Carga el trabajo para ver tu margen.
+            {editable ? (
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="font-display text-2xl font-bold text-muted-foreground">
+                  {result.currency === 'USD' ? '$' : ''}
+                </span>
+                <NumberInput
+                  className="h-14 border-0 bg-transparent px-0 font-display text-4xl font-bold shadow-none focus-visible:ring-0"
+                  value={Math.round(p.final * 100) / 100}
+                  onChange={(n) => onManualPrice?.(n > 0 ? n : null)}
+                  aria-label="Precio final por pieza"
+                />
               </div>
             ) : (
-              <div
-                className={cn(
-                  'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold',
-                  style.ring,
-                  style.text,
-                )}
-              >
-                <StatusIcon className="h-4 w-4 shrink-0" />
-                <span>{PRICE_STATUS_LABEL[o.status]}</span>
-                <span className="ml-auto tabular-nums">{percent(o.marginReal)}</span>
+              <div className="font-display text-4xl font-bold tabular-nums">
+                <NumberTicker value={p.final} format={money} />
               </div>
             )}
-
-            {o.status === 'LOW' && !sinDatos && (
-              <p className="rounded-xl border border-destructive/50 bg-destructive/[0.07] px-3 py-2 text-xs text-destructive">
-                Estás por debajo de tu piso de margen. Se puede vender igual, pero sabiendo
-                que a este precio el trabajo casi no deja.
-              </p>
+            {moneyAlt && (
+              <div className="text-sm text-muted-foreground">{moneyAlt(p.final)}</div>
             )}
+          </div>
 
-            {o.fromTier && (
-              <div className="rounded-xl border border-brand-yellow/40 bg-brand-yellow/[0.06] px-3 py-2 text-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Descuento por cantidad · {o.units} u
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-muted-foreground line-through">
-                    {money(o.listUnitPrice)}
-                  </span>
-                  <span className="font-display text-lg font-bold tabular-nums">
-                    {money(o.unitPrice)}
-                  </span>
-                  <span className="text-xs font-semibold text-brand-yellow-ink">
-                    −{percent(o.discountPct)}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Es el precio que va en la cotización del cliente.
-                </p>
-              </div>
-            )}
-
-            {editable && (
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  Sugerido {money(p.suggested)} · redondeado {money(p.rounded)}
-                </span>
-                {p.isManual && (
-                  <button
-                    type="button"
-                    onClick={() => onManualPrice?.(null)}
-                    className="font-semibold text-brand-yellow-ink underline-offset-2 hover:underline"
-                  >
-                    Usar el sugerido
-                  </button>
-                )}
-              </div>
-            )}
-
-            <dl className="grid gap-2 border-t border-border/70 pt-3 text-sm">
-              <Line label="Costo por pieza" value={money(result.costPerUnit)} />
-              <Line label="Ganancia por pieza" value={money(o.unitPrice - result.costPerUnit)} accent />
-              <Line label="Costo del pedido" value={money(result.costBatch)} />
-              <Line label="Ganancia del pedido" value={money(o.profit)} accent />
-            </dl>
-
-            <div className="rounded-xl bg-brand-blue/10 px-3 py-3 ring-1 ring-inset ring-brand-blue/25">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Total del pedido · {o.units} u
-              </div>
-              <div className="font-display text-2xl font-bold tabular-nums">
-                <NumberTicker value={o.total} format={money} />
-              </div>
-              {moneyAlt && <div className="text-xs text-muted-foreground">{moneyAlt(o.total)}</div>}
+          {sinDatos ? (
+            <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+              Carga el trabajo para ver tu margen.
             </div>
-          </CardContent>
-        </Card>
-      </BeamBorder>
+          ) : (
+            <div
+              className={cn(
+                'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold',
+                style.ring,
+                style.text,
+              )}
+            >
+              <StatusIcon className="h-4 w-4 shrink-0" />
+              <span>{PRICE_STATUS_LABEL[o.status]}</span>
+              <span className="ml-auto tabular-nums">{percent(o.marginReal)}</span>
+            </div>
+          )}
+
+          {o.status === 'LOW' && !sinDatos && (
+            <p className="rounded-xl border border-destructive/50 bg-destructive/[0.07] px-3 py-2 text-xs text-destructive">
+              Estás por debajo de tu piso de margen. Se puede vender igual, pero sabiendo
+              que a este precio el trabajo casi no deja.
+            </p>
+          )}
+
+          {o.fromTier && (
+            <div className="rounded-xl border border-brand-yellow/40 bg-brand-yellow/[0.06] px-3 py-2 text-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Descuento por cantidad · {o.units} u
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-muted-foreground line-through">
+                  {money(o.listUnitPrice)}
+                </span>
+                <span className="font-display text-lg font-bold tabular-nums">
+                  {money(o.unitPrice)}
+                </span>
+                <span className="text-xs font-semibold text-brand-yellow-ink">
+                  −{percent(o.discountPct)}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Es el precio que va en la cotización del cliente.
+              </p>
+            </div>
+          )}
+
+          {editable && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                Sugerido {money(p.suggested)} · redondeado {money(p.rounded)}
+              </span>
+              {p.isManual && (
+                <button
+                  type="button"
+                  onClick={() => onManualPrice?.(null)}
+                  className="font-semibold text-brand-yellow-ink underline-offset-2 hover:underline"
+                >
+                  Usar el sugerido
+                </button>
+              )}
+            </div>
+          )}
+
+          <dl className="grid gap-2 border-t border-border/70 pt-3 text-sm">
+            <Line label="Costo por pieza" value={money(result.costPerUnit)} />
+            <Line label="Ganancia por pieza" value={money(o.unitPrice - result.costPerUnit)} accent />
+            <Line label="Costo del pedido" value={money(result.costBatch)} />
+            <Line label="Ganancia del pedido" value={money(o.profit)} accent />
+          </dl>
+
+          <div className="rounded-xl bg-brand-blue/10 px-3 py-3 ring-1 ring-inset ring-brand-blue/25">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Total del pedido · {o.units} u
+            </div>
+            <div className="font-display text-2xl font-bold tabular-nums">
+              <NumberTicker value={o.total} format={money} />
+            </div>
+            {moneyAlt && <div className="text-xs text-muted-foreground">{moneyAlt(o.total)}</div>}
+          </div>
+        </CardContent>
+      </Card>
 
       {frozenRate === undefined && (
         <ChargeEquivalentsCard orderUsd={o.total} unitUsd={o.unitPrice} />
       )}
 
-      <Card>
-        <CardHeader className="pb-0">
+      <Card className="col-span-full">
+        {/* Cerrado, el encabezado necesita su padding de abajo: con `pb-0` fijo
+            el título quedaba pegado al borde y la tarjeta parecía cortada. */}
+        <CardHeader className={showBreakdown ? 'pb-0' : 'pb-5'}>
           <button
             type="button"
             onClick={() => setShowBreakdown((v) => !v)}
@@ -227,7 +238,12 @@ export function ResultPanel({
         </CardHeader>
         {showBreakdown && (
           <CardContent className="pt-4">
-            <dl className="space-y-2 text-sm">
+            {/* A todo el ancho, los renglones se reparten en columnas: uno solo
+                dejaba la etiqueta y su monto a mil píxeles de distancia. */}
+            <dl
+              className="grid gap-x-10 gap-y-2 text-sm"
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 16rem), 1fr))' }}
+            >
               <Line label="Filamento" value={money(result.breakdown.material)} />
               <Line label="Desgaste de la máquina" value={money(result.breakdown.wear)} />
               <Line label="Electricidad" value={money(result.breakdown.power)} />
@@ -235,7 +251,7 @@ export function ResultPanel({
               <Line label="Tu tiempo" value={money(result.breakdown.labor)} />
               <Line label="Empaque y otros" value={money(result.breakdown.extras)} />
               <Line label="Merma" value={money(result.breakdown.wasteAmount)} />
-              <div className="flex items-center justify-between border-t border-border/70 pt-2 font-semibold">
+              <div className="col-span-full flex items-center justify-between border-t border-border/70 pt-2 font-semibold">
                 <dt>Costo del pedido</dt>
                 <dd className="tabular-nums">{money(result.costBatch)}</dd>
               </div>

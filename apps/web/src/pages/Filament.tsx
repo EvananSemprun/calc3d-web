@@ -1,6 +1,5 @@
+import type { ReactNode } from 'react';
 import { Disc3 } from 'lucide-react';
-import { usePersistentState } from '@/lib/usePersistentState';
-import { cn } from '@/lib/utils';
 import { AnalysisTab } from '@/features/filament/AnalysisTab';
 import { PurchasesTab } from '@/features/filament/PurchasesTab';
 import { StockTab } from '@/features/filament/StockTab';
@@ -12,58 +11,69 @@ import { StockTab } from '@/features/filament/StockTab';
  * Vive aparte de Catálogos (que es el alta de fichas) y de Gastos (que es el
  * dinero que sale): acá se responde "cuánto me cuesta el filamento y cuánto me
  * queda".
+ *
+ * Desde el 2026-09-13 son TRES PÁGINAS con su propia dirección, agrupadas en la
+ * categoría "Filamento" del menú (decisión del dueño). Antes eran pestañas de una
+ * sola página: no se podía enlazar a una ni volver con "atrás".
  */
-const TABS = [
-  { id: 'stock', label: 'Stock del mes', Component: StockTab },
-  { id: 'compras', label: 'Compras', Component: PurchasesTab },
-  { id: 'analisis', label: 'Análisis', Component: AnalysisTab },
-] as const;
-
-type TabId = (typeof TABS)[number]['id'];
-
-export function FilamentPage() {
-  const [tab, setTab] = usePersistentState<TabId>('filament:tab', 'stock');
-  const actual = TABS.find((t) => t.id === tab) ?? TABS[0];
-  const Actual = actual.Component;
-
+function FilamentShell({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
         <div>
-          <h1 className="font-display text-2xl font-bold">Filamento</h1>
-          <p className="text-sm text-muted-foreground">
-            Lo que compraste y lo que te queda en el estante.
-          </p>
+          <h1 className="font-display text-2xl font-bold">{title}</h1>
+          <p className="text-sm text-muted-foreground">{description}</p>
         </div>
       </div>
-
-      {TABS.length > 1 && (
-        <div role="tablist" aria-label="Control de filamento" className="flex gap-1 border-b border-border/70">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              type="button"
-              aria-selected={t.id === actual.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                '-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors',
-                t.id === actual.id
-                  ? 'border-brand-yellow text-brand-yellow-ink'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <Actual />
+      {children}
     </div>
   );
 }
 
-/** Ícono del menú: el carrete. `Spool` no existe en esta versión de lucide. */
+/** `/filament/stock` — el conteo de rollos al cierre de cada mes. */
+export function FilamentStockPage() {
+  return (
+    <FilamentShell
+      title="Stock del mes"
+      description="Lo que te queda en el estante: el conteo de rollos al cierre de cada mes."
+    >
+      <StockTab />
+    </FilamentShell>
+  );
+}
+
+/** `/filament/compras` — cada compra con su costo por rollo y por gramo. */
+export function FilamentPurchasesPage() {
+  return (
+    <FilamentShell
+      title="Compras de filamento"
+      description="Lo que compraste y a cuánto te sale cada rollo y cada gramo."
+    >
+      <PurchasesTab />
+    </FilamentShell>
+  );
+}
+
+/** `/filament/analisis` — marcas, tipos y colores que más se compran. */
+export function FilamentAnalysisPage() {
+  return (
+    <FilamentShell
+      title="Análisis de filamento"
+      description="Qué marcas, tipos y colores comprás más, y cuánto invertiste en cada uno."
+    >
+      <AnalysisTab />
+    </FilamentShell>
+  );
+}
+
+/** Ícono de la categoría del menú: el carrete. `Spool` no existe en esta versión de lucide. */
 export const FilamentIcon = Disc3;

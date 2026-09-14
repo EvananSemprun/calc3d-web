@@ -1,131 +1,258 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, AlertTriangle, HelpCircle, PackageCheck } from 'lucide-react';
-import { monthKey, monthStart, previousMonth, stockTotal, type StockCountRow } from '@calc3d/shared';
-import { Badge, Card, CardContent, NumberInput, TableSkeleton } from '@/components/ui';
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  HelpCircle,
+  Lock,
+  LockOpen,
+  PackageCheck,
+} from 'lucide-react';
+import {
+  BUSINESS_TIME_ZONE,
+  monthKey,
+  monthStart,
+  previousMonth,
+  stockTotal,
+  type RestockGroup,
+  type StockCountRow,
+} from '@calc3d/shared';
+import { Badge, Button, Card, CardContent, NumberInput, TableSkeleton } from '@/components/ui';
+import { useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
+import { apiErrorMessage } from '@/lib/api';
+import { currentMonthKey } from '@/lib/today';
 import { usePersistentState } from '@/lib/usePersistentState';
 import { cn } from '@/lib/utils';
-import { useFilamentStock, useFilamentSummary, useSaveStockCount } from '@/features/filament/api';
+import {
+  useCloseStockMonth,
+  useFilamentMonthStatus,
+  useFilamentStock,
+  useFilamentSummary,
+  useReopenStockMonth,
+} from '@/features/filament/api';
+
+// Arreglo estable: si `data` viene undefined (cargando o con error), el default
+// `= []` del destructuring crearía un arreglo NUEVO en cada render y el efecto
+// de más abajo (que depende de `filas`) entraría en bucle de renders.
+const SIN_FILAS: StockCountRow[] = [];
 
 /**
  * STOCK AL CIERRE DE MES — la hoja "Stock mensual" del Excel.
  *
- * El conteo es MANUAL: el último día del mes se cuentan los rollos y se llenan
- * las tres casillas. No se descuenta lo que consumen los presupuestos porque no
- * todo lo cotizado se imprime ni todo lo impreso sale bien; el estante es lo
- * único que no miente.
+ * El conteo es un ACTO DE CIERRE (decisión del dueño, 2026-09-13): el último día
+ * del mes (o después) se llenan las casillas y se toca "Guardar y cerrar". Hasta
+ * entonces lo escrito vive en un borrador del navegador; después el mes queda de
+ * solo lectura y se corrige reabriéndolo. El bloqueo REAL está en el servidor.
  *
- * Las filas se agrupan por color (como la hoja), pero cada marca cuenta aparte:
- * el PLA de Bambu y el de Creality ni cuestan ni imprimen igual.
+ * Casillas vacías = no hay, como en el Excel: al cerrar, lo que no se marcó es 0.
+ * Las filas se agrupan por color, con una fila por marca.
  */
 export function StockTab() {
-  const [month, setMonth] = usePersistentState('filament:stock:month', monthKey(new Date()));
-  const { data: filas = [], isLoading } = useFilamentStock(month);
+  const [month, setMonth] = usePersistentState('filament:stock:month', currentMonthKey());
+  // Consulta cruda (no solo `filas`): en TanStack v5 un refetch en segundo
+  // plano que falla deja `isError` en true aunque `data` conserve lo último
+  // bueno; distinguir "nunca cargó" de "falló refrescando" evita tapar la
+  // grilla con el aviso de error cuando en realidad hay datos para mostrar.
+  const stockQuery = useFilamentStock(month);
+  const filas = stockQuery.data ?? SIN_FILAS;
+  const isLoading = stockQuery.isLoading;
+  const stockFallo = stockQuery.isError;
   const { data: resumen } = useFilamentSummary(month);
-  const guardar = useSaveStockCount();
+  const { data: estado, isError: estadoFallo } = useFilamentMonthStatus(month);
+  const cerrar = useCloseStockMonth();
+  const reabrir = useReopenStockMonth();
+  const confirm = useConfirm();
 
-  // Borrador local: escribir dispara un guardado por campo sería un bombardeo
-  // con 39 materiales; se manda al salir del campo.
+  const cerrado = !!estado?.closed;
+  // Listo para dibujar filas/botón: cargó, no falló ninguna de las dos consultas
+  // y el estado del mes llegó. Sin esto, un fallo de red dejaba `filas` en []
+  // con `isLoading` en false: el botón de cerrar quedaba habilitado y mandaba
+  // un cierre con TODO en cero, borrando de paso el borrador del navegador.
+  const listo = !isLoading && !stockFallo && !!estado;
+  const claveBorrador = `filament:stock:draft:${month}`;
+
+  // Borrador: lo escrito y todavía no cerrado. Arranca con lo guardado en este
+  // navegador o, si no hay (o el mes está cerrado), con lo que tiene la base
+  // (un mes reabierto trae sus números para corregirlos).
+  //
+  // Espera a tener `estado` antes de leer localStorage: el borrador guarda con
+  // qué reapertura se escribió (`reopenedAt`), y sin `estado` no hay con qué
+  // comparar. Un borrador de OTRO dispositivo, escrito antes de que ESTE
+  // navegador viera la reapertura vigente, queda desactualizado y se descarta
+  // (ver `leerBorrador`) para no pisar correcciones ya guardadas en la base.
   const [draft, setDraft] = useState<Record<string, Partes>>({});
   useEffect(() => {
+    if (!estado) {
+      setDraft(Object.fromEntries(filas.map((f) => [f.materialId, partesDe(f)])));
+      return;
+    }
     setDraft(
-      Object.fromEntries(
-        filas.map((f) => [f.materialId, { sealed: f.sealed, inUse: f.inUse, running: f.running }]),
-      ),
+      (!cerrado && leerBorrador(claveBorrador, estado.reopenedAt)) ||
+        Object.fromEntries(filas.map((f) => [f.materialId, partesDe(f)])),
     );
-  }, [filas]);
+  }, [claveBorrador, filas, cerrado, estado?.reopenedAt]);
+
+  // Un mes cerrado manda: si quedó un borrador viejo en este navegador (se cerró
+  // desde otro lado), se descarta para que al reabrir aparezca lo guardado.
+  useEffect(() => {
+    if (cerrado) borrarBorrador(claveBorrador);
+  }, [cerrado, claveBorrador]);
 
   const grupos = useMemo(() => agruparPorColor(filas), [filas]);
 
-  const enviar = (fila: StockCountRow) => {
-    const p = draft[fila.materialId];
-    if (!p) return;
-    if (p.sealed === fila.sealed && p.inUse === fila.inUse && p.running === fila.running) return;
-    guardar.mutate(
-      { materialId: fila.materialId, month, ...p },
-      { onError: () => notify.error('No se pudo guardar el conteo') },
+  // Cerrado: lo guardado, de solo lectura. Abierto: el borrador — así el total
+  // de cada grupo (en el encabezado) sigue lo que se está escribiendo en vez
+  // de quedarse pegado al valor viejo de la base.
+  const valores = (f: StockCountRow): Partes => (cerrado ? partesDe(f) : draft[f.materialId] ?? CERO);
+
+  const set = (id: string, patch: Partial<Partes>) => {
+    const next = { ...draft, [id]: { ...(draft[id] ?? CERO), ...patch } };
+    setDraft(next);
+    // La grilla solo se dibuja con `estado` cargado (ver `listo`/skeleton más
+    // abajo), así que acá `estado` ya existe.
+    guardarBorrador(claveBorrador, next, estado?.reopenedAt ?? null);
+  };
+
+  const cerrarMes = async () => {
+    const counts = filas.map((f) => ({ materialId: f.materialId, ...(draft[f.materialId] ?? CERO) }));
+    const rollos = counts.reduce((s, c) => s + stockTotal(c), 0);
+    const colores = new Set(
+      filas.filter((f) => stockTotal(draft[f.materialId] ?? CERO) > 0).map(claveDeColor),
+    ).size;
+    const mes = etiquetaMes(month);
+    const ok = await confirm(
+      rollos === 0
+        ? {
+            title: `¿Cerrar ${mes}?`,
+            description: `No cargaste ningún rollo: ${mes} se va a cerrar con TODO en 0. Después solo se corrige reabriendo el mes.`,
+            confirmLabel: 'Guardar y cerrar',
+            tone: 'destructive',
+          }
+        : {
+            title: `¿Cerrar ${mes}?`,
+            description: `Vas a cerrar ${mes} con ${rollos} rollo(s) en ${colores} color(es). Lo que dejaste vacío queda en 0. Después solo se corrige reabriendo el mes.`,
+            confirmLabel: 'Guardar y cerrar',
+          },
+    );
+    if (!ok) return;
+    cerrar.mutate(
+      { month, counts },
+      {
+        onSuccess: () => {
+          borrarBorrador(claveBorrador);
+          notify.success(`Stock de ${mes} cerrado`);
+        },
+        // El borrador NO se borra: si el cierre falla, lo escrito sigue ahí.
+        onError: (e) => notify.error('No se pudo cerrar el mes', apiErrorMessage(e)),
+      },
     );
   };
 
-  const set = (id: string, patch: Partial<Partes>) =>
-    setDraft((d) => ({ ...d, [id]: { ...d[id], ...patch } }));
+  const reabrirMes = async () => {
+    const mes = etiquetaMes(month);
+    const ok = await confirm({
+      title: `¿Reabrir ${mes}?`,
+      description: `Vas a reabrir ${mes} para corregirlo. Mientras esté abierto no cuenta para el resumen ni la reposición.`,
+      confirmLabel: 'Reabrir',
+    });
+    if (!ok) return;
+    reabrir.mutate(month, {
+      onSuccess: () => notify.success(`${mes} reabierto`),
+      onError: (e) => notify.error('No se pudo reabrir el mes', apiErrorMessage(e)),
+    });
+  };
 
   const pendientes = filas.filter((f) => f.needsBrandCheck);
+  const urgentes = resumen?.restock.filter((g) => g.status !== 'SUGGEST').length ?? 0;
+  const sugeridos = resumen?.restock.filter((g) => g.status === 'SUGGEST').length ?? 0;
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <MonthPicker month={month} onChange={setMonth} />
-        <p className="text-sm text-muted-foreground">
-          El último día del mes contá los rollos y llená las tres casillas.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <MonthPicker month={month} onChange={setMonth} />
+          <p className="text-sm text-muted-foreground">
+            El último día del mes contá los rollos, llená las casillas y cerrá el mes.
+          </p>
+        </div>
+
+        {estado &&
+          (cerrado ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Badge variant="outline" className="gap-1 border-success/50 text-success">
+                <Lock className="h-3 w-3" aria-hidden />
+                Cerrado el {fechaNegocio(estado.closedAt as string)}
+              </Badge>
+              {estado.reopenedAt && (
+                <span className="text-xs text-muted-foreground">
+                  reabierto el {fechaNegocio(estado.reopenedAt)}
+                </span>
+              )}
+              <Button size="sm" variant="outline" onClick={reabrirMes} disabled={reabrir.isPending}>
+                <LockOpen className="h-4 w-4" /> Reabrir mes
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                variant="accent"
+                onClick={cerrarMes}
+                disabled={!estado.canClose || cerrar.isPending || !listo || filas.length === 0}
+              >
+                <Lock className="h-4 w-4" /> Guardar y cerrar {etiquetaMes(month)}
+              </Button>
+              {!estado.canClose && (
+                <p className="text-xs text-muted-foreground">
+                  Se puede cerrar desde el {diaLargo(estado.closableFrom)}.
+                </p>
+              )}
+            </div>
+          ))}
       </div>
 
-      {resumen && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric label="Rollos en total" value={String(resumen.totalRolls)} />
-          <Metric
-            label="Por acabarse"
-            value={String(resumen.running)}
-            tone={resumen.running > 0 ? 'warn' : undefined}
-          />
-          <Metric
-            label="Consumidos en el mes"
-            value={resumen.consumption == null ? 'Sin dato' : String(resumen.consumption)}
-            hint={
-              resumen.consumption == null
-                ? `Falta el conteo de ${etiquetaMes(previousMonth(month))}`
-                : `Se compraron ${resumen.purchased}`
-            }
-            tone={resumen.consumption != null && !resumen.complete ? 'warn' : undefined}
-          />
-          <Metric
-            label="Hay que reponer"
-            value={String(resumen.restock.length)}
-            tone={resumen.restock.length > 0 ? 'warn' : undefined}
-          />
-        </div>
-      )}
-
-      {resumen && !resumen.complete && resumen.countedMaterials > 0 && (
-        // Un conteo a medias hace que el total del mes sea la suma de lo poco
-        // contado, y el consumo salga disparatado. Mejor decirlo que dejar que
-        // se lea como un dato firme.
-        <p className="rounded-xl border border-brand-yellow/40 bg-brand-yellow/[0.06] px-4 py-3 text-sm text-brand-yellow-ink">
-          Llevás <strong>{resumen.countedMaterials} de {resumen.totalMaterials}</strong> fichas
-          contadas este mes. Hasta terminar el conteo, el total y el consumo no son de fiar.
-        </p>
-      )}
-
-      {resumen && resumen.restock.length > 0 && (
-        <Card className="border-brand-yellow/40">
-          <CardContent className="pt-5">
-            <h3 className="mb-2 flex items-center gap-2 font-display text-base font-semibold">
-              <PackageCheck className="h-4 w-4 text-brand-yellow-ink" />
-              Lista de reposición
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {resumen.restock.map((r) => (
-                // Rojo = cero rollos, ámbar = por acabarse. Los mismos colores
-                // que usa la hoja para leerla de un vistazo.
-                <Badge
-                  key={r.materialId}
-                  variant={r.status === 'OUT' ? 'outline' : 'warning'}
-                  className={
-                    r.status === 'OUT'
-                      ? 'border-destructive/50 bg-destructive/10 text-destructive'
-                      : undefined
-                  }
-                >
-                  {r.name} · {r.status === 'OUT' ? 'sin rollos' : 'por acabarse'}
-                </Badge>
-              ))}
+      {cerrado ? (
+        // El resumen se pide APARTE del estado y puede llegar antes o después
+        // (a propósito). Entre que el estado ya dice "cerrado" y el resumen
+        // todavía no se refrescó con el cierre nuevo, `resumen` puede seguir
+        // siendo el del mes ABIERTO: `resumen.complete` es la marca de que ese
+        // resumen corresponde de verdad a un mes cerrado, no `resumen` a secas.
+        resumen?.complete ? (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric label="Rollos en total" value={String(resumen.totalRolls)} />
+              <Metric
+                label="Por acabarse"
+                value={String(resumen.running)}
+                tone={resumen.running > 0 ? 'warn' : undefined}
+              />
+              <Metric
+                label="Consumidos en el mes"
+                value={resumen.consumption == null ? 'Sin dato' : String(resumen.consumption)}
+                hint={
+                  resumen.consumption == null
+                    ? `Falta cerrar ${etiquetaMes(previousMonth(month))}`
+                    : `Se compraron ${resumen.purchased}`
+                }
+              />
+              <Metric
+                label="Hay que reponer"
+                value={String(urgentes)}
+                hint={sugeridos > 0 ? `+ ${sugeridos} que conviene reponer` : undefined}
+                tone={urgentes > 0 ? 'warn' : undefined}
+              />
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Los colores descontinuados no entran, aunque estén en cero.
-            </p>
-          </CardContent>
-        </Card>
+            {resumen.restock.length > 0 && (
+              <RestockCard grupos={resumen.restock} promedio={resumen.averagePurchased} />
+            )}
+          </>
+        ) : null
+      ) : (
+        listo && (
+          <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+            Cuando cierres {etiquetaMes(month)} vas a ver el total, el consumo y la reposición.
+          </p>
+        )
       )}
 
       {pendientes.length > 0 && (
@@ -136,8 +263,8 @@ export function StockTab() {
               {pendientes.length} rollo(s) por identificar
             </h3>
             <p className="text-sm text-muted-foreground">
-              Vinieron del Excel sin saber de qué marca eran. Al contarlos de nuevo mirando el
-              estante, el aviso se apaga solo.
+              Vinieron del Excel sin saber de qué marca eran. Al cerrar el mes contándolos de nuevo
+              mirando el estante, el aviso se apaga solo.
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {pendientes.map((p) => (
@@ -150,7 +277,11 @@ export function StockTab() {
         </Card>
       )}
 
-      {isLoading ? (
+      {(stockFallo && !stockQuery.data) || (estadoFallo && !estado) ? (
+        <p className="text-sm text-destructive">No se pudo cargar el conteo del mes. Recargá la página.</p>
+      ) : !stockQuery.data || !estado ? (
+        // Esqueleto solo sin datos: si falla un refetch en segundo plano, la grilla
+        // sigue a la vista (el botón de cerrar igual queda bloqueado por `listo`).
         <TableSkeleton rows={8} cols={5} />
       ) : (
         <Card>
@@ -160,7 +291,7 @@ export function StockTab() {
                 <header className="mb-2 flex items-baseline justify-between gap-2 border-b border-border/60 pb-1">
                   <h3 className="font-display text-sm font-semibold">{g.clave}</h3>
                   <span className="text-xs text-muted-foreground">
-                    {g.total} rollo(s) · {g.filas.length} marca(s)
+                    {g.filas.reduce((s, f) => s + stockTotal(valores(f)), 0)} rollo(s) · {g.filas.length} marca(s)
                   </span>
                 </header>
 
@@ -174,8 +305,9 @@ export function StockTab() {
 
                 <div className="space-y-2">
                   {g.filas.map((f) => {
-                    const p = draft[f.materialId] ?? { sealed: 0, inUse: 0, running: 0 };
+                    const p = valores(f);
                     const total = stockTotal(p);
+                    const ficha = `${g.clave} ${f.brand ?? 'Sin marca'}`;
                     return (
                       <div
                         key={f.materialId}
@@ -189,37 +321,39 @@ export function StockTab() {
                             </Badge>
                           )}
                           {f.needsBrandCheck && (
-                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-brand-blue-bright" />
+                            <AlertTriangle
+                              className="h-3.5 w-3.5 shrink-0 text-brand-blue-bright"
+                              role="img"
+                              aria-label="Marca por identificar"
+                            />
                           )}
                         </div>
                         <Campo
-                          etiqueta="Sin abrir"
+                          etiqueta={`Sin abrir · ${ficha}`}
                           value={p.sealed}
+                          disabled={cerrado || cerrar.isPending}
                           onChange={(n) => set(f.materialId, { sealed: n })}
-                          onBlur={() => enviar(f)}
                         />
                         <Campo
-                          etiqueta="En uso"
+                          etiqueta={`En uso · ${ficha}`}
                           value={p.inUse}
+                          disabled={cerrado || cerrar.isPending}
                           onChange={(n) => set(f.materialId, { inUse: n })}
-                          onBlur={() => enviar(f)}
                         />
                         <Campo
-                          etiqueta="Por acabarse"
+                          etiqueta={`Por acabarse · ${ficha}`}
                           value={p.running}
+                          disabled={cerrado || cerrar.isPending}
                           onChange={(n) => set(f.materialId, { running: n })}
-                          onBlur={() => enviar(f)}
                         />
                         <div
                           className={cn(
                             'col-span-3 text-right text-sm font-semibold tabular-nums sm:col-span-1 sm:text-center',
-                            // Rojo solo si se contó y dio cero: "no hay" no es
-                            // lo mismo que "todavía no miré".
-                            f.counted && total === 0 && f.status === 'ACTIVE' && 'text-destructive',
+                            // Rojo solo en un mes CERRADO: ahí un 0 es "no hay".
+                            // Mientras se llena el borrador todavía no es un dato.
+                            cerrado && total === 0 && f.status === 'ACTIVE' && 'text-destructive',
                             total > 0 && p.running > 0 && 'text-brand-yellow-ink',
-                            !f.counted && 'text-muted-foreground',
                           )}
-                          title={f.counted ? undefined : 'Este mes todavía no se contó'}
                         >
                           {total}
                         </div>
@@ -242,24 +376,117 @@ interface Partes {
   running: number;
 }
 
+const CERO: Partes = { sealed: 0, inUse: 0, running: 0 };
+
+const partesDe = (f: StockCountRow): Partes => ({ sealed: f.sealed, inUse: f.inUse, running: f.running });
+
+/** Tipo + color, como las filas de la hoja. */
+const claveDeColor = (f: StockCountRow) => [f.type, f.color].filter(Boolean).join(' ') || f.name;
+
+/**
+ * El borrador del mes en este navegador. Además de las casillas, guarda con
+ * qué reapertura estaba vigente cuando se escribió (`reopenedAt`): así, si el
+ * mes se cerró y reabrió desde OTRO dispositivo mientras este quedaba con la
+ * pestaña abierta, el borrador viejo no pisa las correcciones ya guardadas.
+ */
+interface Borrador {
+  reopenedAt: string | null;
+  valores: Record<string, Partes>;
+}
+
+function esBorradorNuevo(x: unknown): x is Borrador {
+  return (
+    !!x &&
+    typeof x === 'object' &&
+    'valores' in x &&
+    'reopenedAt' in x &&
+    typeof (x as { valores: unknown }).valores === 'object'
+  );
+}
+
+/**
+ * `reopenedAtVigente` es el `reopenedAt` que devuelve HOY `GET
+ * /filament/stock/status` para este mes (null si nunca se reabrió). El
+ * borrador solo sirve si coincide con esa marca:
+ * - Formato viejo (objeto plano de partes, de antes de este cambio): no hay
+ *   forma de saber con qué reapertura se escribió → se descarta.
+ * - `reopenedAtVigente` no nulo y distinto del guardado (nulo o de una
+ *   reapertura anterior): el mes se reabrió después de este borrador → hay
+ *   correcciones más nuevas en la base, no se pisan.
+ */
+function leerBorrador(clave: string, reopenedAtVigente: string | null): Record<string, Partes> | null {
+  try {
+    const raw = localStorage.getItem(clave);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!esBorradorNuevo(parsed)) {
+      localStorage.removeItem(clave);
+      return null;
+    }
+    if (reopenedAtVigente !== null && parsed.reopenedAt !== reopenedAtVigente) {
+      localStorage.removeItem(clave);
+      return null;
+    }
+    return parsed.valores;
+  } catch {
+    return null;
+  }
+}
+
+function guardarBorrador(clave: string, valores: Record<string, Partes>, reopenedAt: string | null) {
+  try {
+    const borrador: Borrador = { reopenedAt, valores };
+    localStorage.setItem(clave, JSON.stringify(borrador));
+  } catch {
+    // Sin almacenamiento (modo privado, cuota): el borrador queda solo en memoria.
+  }
+}
+
+function borrarBorrador(clave: string) {
+  try {
+    localStorage.removeItem(clave);
+  } catch {
+    // Idem: no hay nada que borrar.
+  }
+}
+
+/** Una fecha guardada (ISO) → `'01/09/2026'`, en la zona del negocio. */
+function fechaNegocio(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-VE', {
+    timeZone: BUSINESS_TIME_ZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+/** `'2026-08-31'` → `'31 de agosto'`. */
+function diaLargo(dia: string): string {
+  return new Date(`${dia}T12:00:00Z`).toLocaleDateString('es-VE', {
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  });
+}
+
 function Campo({
   etiqueta,
   value,
+  disabled,
   onChange,
-  onBlur,
 }: {
   etiqueta: string;
   value: number;
+  disabled: boolean;
   onChange: (n: number) => void;
-  onBlur: () => void;
 }) {
   return (
     <NumberInput
       className="h-9 text-center"
       min={0}
       value={value}
+      disabled={disabled}
       onChange={(n) => onChange(Math.max(0, Math.round(n)))}
-      onBlur={onBlur}
       aria-label={etiqueta}
       placeholder="0"
     />
@@ -297,6 +524,78 @@ function Metric({
   );
 }
 
+/** Las tres columnas de la lista de reposición, en el orden de urgencia. */
+const COLUMNAS: {
+  status: RestockGroup['status'];
+  titulo: string;
+  vacio: string;
+  punto: string;
+  texto: string;
+}[] = [
+  { status: 'OUT', titulo: 'Sin rollos', vacio: 'Ningún color en cero.', punto: 'bg-destructive', texto: 'text-destructive' },
+  { status: 'LOW', titulo: 'Por acabarse', vacio: 'Ninguno por acabarse.', punto: 'bg-brand-yellow', texto: 'text-brand-yellow-ink' },
+  { status: 'SUGGEST', titulo: 'Conviene reponer', vacio: 'Tus colores más comprados tienen repuesto.', punto: 'bg-brand-blue-bright', texto: 'text-foreground' },
+];
+
+/**
+ * LISTA DE REPOSICIÓN — por tipo + color, no por marca: la marca cambia de un
+ * mes a otro, el color es lo que se maneja. Cada columna va de más comprado a
+ * menos, para que arriba quede lo que más se usa.
+ */
+function RestockCard({ grupos, promedio }: { grupos: RestockGroup[]; promedio: number }) {
+  return (
+    <Card className="border-brand-yellow/40">
+      <CardContent className="space-y-4 pt-5">
+        <h3 className="flex items-center gap-2 font-display text-base font-semibold">
+          <PackageCheck className="h-4 w-4 text-brand-yellow-ink" />
+          Lista de reposición
+        </h3>
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 15rem), 1fr))' }}
+        >
+          {COLUMNAS.map((col) => {
+            const items = grupos.filter((g) => g.status === col.status);
+            return (
+              <section key={col.status} className="space-y-2 rounded-xl border border-border/60 bg-background/30 p-3">
+                <h4 className={cn('flex items-center gap-2 text-sm font-semibold', col.texto)}>
+                  <span aria-hidden className={cn('h-2 w-2 rounded-full', col.punto)} />
+                  {col.titulo}
+                  <span className="ml-auto tabular-nums text-muted-foreground">{items.length}</span>
+                </h4>
+                {items.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">{col.vacio}</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {items.map((g) => (
+                      <li key={g.key} className="rounded-lg bg-card/60 px-2.5 py-1.5">
+                        <div className="text-sm font-medium">{g.label}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {g.purchased > 0
+                            ? `Compraste ${g.purchased} ${g.purchased === 1 ? 'rollo' : 'rollos'}`
+                            : 'Sin compras registradas'}
+                          {g.status !== 'OUT' && ` · te ${g.total === 1 ? 'queda 1' : `quedan ${g.total}`}`}
+                          {g.brands.length > 0 && ` · ${g.brands.join(', ')}`}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Por tipo y color, con todas las marcas juntas. «Conviene reponer» son los colores que
+          comprás más que el promedio ({promedio.toLocaleString('es', { maximumFractionDigits: 1 })}{' '}
+          rollos por color, hasta el cierre del mes) y a los que les queda 1 rollo o menos. Los
+          colores descontinuados no entran.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 /** ‹ Septiembre 2026 › — el conteo es de cierre de mes, se navega de a un mes. */
 function MonthPicker({ month, onChange }: { month: string; onChange: (m: string) => void }) {
   const mover = (delta: number) => {
@@ -304,7 +603,7 @@ function MonthPicker({ month, onChange }: { month: string; onChange: (m: string)
     d.setUTCMonth(d.getUTCMonth() + delta);
     onChange(monthKey(d));
   };
-  const esFuturo = month >= monthKey(new Date());
+  const esFuturo = month >= currentMonthKey();
 
   return (
     <div className="flex items-center gap-1 rounded-xl border border-border bg-background/40 p-1">
@@ -332,7 +631,7 @@ function MonthPicker({ month, onChange }: { month: string; onChange: (m: string)
   );
 }
 
-/** `'2026-09'` → `'septiembre 2026'`, leyendo el mes en UTC. */
+/** `'2026-09'` → `'septiembre de 2026'`, leyendo el mes en UTC. */
 function etiquetaMes(month: string): string {
   return monthStart(month).toLocaleDateString('es-VE', {
     month: 'long',
@@ -344,23 +643,18 @@ function etiquetaMes(month: string): string {
 interface Grupo {
   clave: string;
   filas: StockCountRow[];
-  total: number;
 }
 
 /** Agrupa por tipo + color, como las filas de la hoja. */
 function agruparPorColor(filas: StockCountRow[]): Grupo[] {
   const mapa = new Map<string, StockCountRow[]>();
   for (const f of filas) {
-    const clave = [f.type, f.color].filter(Boolean).join(' ') || f.name;
+    const clave = claveDeColor(f);
     const lista = mapa.get(clave) ?? [];
     lista.push(f);
     mapa.set(clave, lista);
   }
   return [...mapa.entries()]
-    .map(([clave, lista]) => ({
-      clave,
-      filas: lista,
-      total: lista.reduce((s, f) => s + f.total, 0),
-    }))
+    .map(([clave, lista]) => ({ clave, filas: lista }))
     .sort((a, b) => a.clave.localeCompare(b.clave, 'es'));
 }

@@ -231,8 +231,13 @@ export function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <Label>{label}</Label>
+      {/* Alto FIJO de la fila de la etiqueta: con la insignia "Obligatorio" la
+          fila crecía ~5 px, y en una grilla eso bajaba el input respecto del
+          campo vecino que no la tiene. */}
+      <div className="flex min-h-5 items-center gap-2">
+        <Label data-field-label title={label}>
+          {label}
+        </Label>
         {required && <RequiredTag />}
       </div>
       {children}
@@ -242,10 +247,48 @@ export function Field({
   );
 }
 
+/**
+ * Grilla de campos que se reacomoda SOLA: pone tantas columnas como quepan con
+ * un ancho mínimo por campo y, si no entran, el que sobra baja a la fila de
+ * abajo.
+ *
+ * Existe porque los breakpoints de Tailwind (`sm:`/`lg:grid-cols-N`) miran la
+ * VENTANA y no el contenedor. En la calculadora el formulario comparte el
+ * ancho con el panel del precio, así que en una pantalla "lg" cada columna
+ * quedaba de ~150 px: la etiqueta bajaba a dos o tres renglones y el input se
+ * desalineaba del de al lado.
+ *
+ * Las etiquetas no se parten: así todas las filas de etiqueta miden lo mismo y
+ * los inputs quedan alineados. `min` tiene que alcanzar para la etiqueta más
+ * larga de la grilla, con su "Obligatorio" (en un modal `max-w-md`, `11rem`
+ * deja dos columnas; en una página, el default). Si igual no entra, se corta
+ * con "…" y el texto completo queda en el `title` — mejor que invadir la
+ * columna de al lado. `leading-5` para que el recorte no se coma los acentos.
+ * `min(100%, …)` evita que en un teléfono angosto la columna desborde.
+ * Para un campo a todo el ancho: envolverlo en un div con `col-span-full`.
+ */
+export function FieldGrid({
+  min = '15rem',
+  className,
+  style,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { min?: string }) {
+  return (
+    <div
+      className={cn(
+        'grid gap-4 [&_[data-field-label]]:min-w-0 [&_[data-field-label]]:truncate [&_[data-field-label]]:leading-5',
+        className,
+      )}
+      style={{ gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${min}), 1fr))`, ...style }}
+      {...props}
+    />
+  );
+}
+
 /** Etiqueta "Obligatorio" para los datos del trabajo (cantidad, gramos, horas). */
 export function RequiredTag() {
   return (
-    <span className="inline-flex items-center rounded-full bg-brand-yellow/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-yellow-ink shadow-glow-sm ring-1 ring-brand-yellow/30">
+    <span className="inline-flex shrink-0 items-center rounded-full bg-brand-yellow/15 px-2 py-0.5 text-[10px] font-bold leading-none uppercase tracking-wide text-brand-yellow-ink shadow-glow-sm ring-1 ring-brand-yellow/30">
       Obligatorio
     </span>
   );

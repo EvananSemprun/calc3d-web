@@ -9,9 +9,15 @@ import { SaveProductModal } from '@/features/calculator/SaveProductModal';
 
 /**
  * La calculadora en UNA pantalla, con el mismo orden que la hoja "Costeo" del
- * Excel: las secciones de entrada a la izquierda y el precio a la derecha,
- * siempre a la vista. Abajo, a lo ancho, lo que se consulta al decidir:
- * redondeos, mayoreo y producción.
+ * Excel: las secciones de entrada ARRIBA y a todo el ancho, y el precio DEBAJO.
+ * Después, lo que se consulta al decidir: redondeos, mayoreo y producción.
+ *
+ * Hasta el 2026-09-13 el precio iba en una columna fija a la derecha. El
+ * dueño lo pasó abajo para que el formulario aproveche el ancho en PC: con la
+ * columna, cada campo quedaba de ~150 px. Esa columna era `sticky`, pero no
+ * servía: con el cobro en bolívares y el desglose el panel mide más que la
+ * pantalla, y un elemento fijo más alto que la ventana igual obliga a volver a
+ * subir. En móvil el precio sigue PRIMERO.
  */
 export function CalculatorScreen() {
   const c = useCalculator();
@@ -51,23 +57,22 @@ export function CalculatorScreen() {
         </p>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
-        {/* En móvil el precio va PRIMERO: es lo que se mira mientras se ajusta. */}
+      <div className="grid gap-5">
+        {/* En móvil el precio va PRIMERO: es lo que se mira mientras se ajusta.
+            En PC va debajo del formulario, que así ocupa todo el ancho. */}
         <div className="order-2 min-w-0 lg:order-1">
           <CalculatorForm />
         </div>
         <div className="order-1 min-w-0 lg:order-2">
-          <div className="lg:sticky lg:top-4">
-            {c.result ? (
-              <ResultPanel result={c.result} onManualPrice={c.setManualPrice} />
-            ) : (
-              <Card>
-                <CardContent className="pt-5 text-sm text-muted-foreground">
-                  Completa los datos del trabajo para ver el precio.
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          {c.result ? (
+            <ResultPanel result={c.result} onManualPrice={c.setManualPrice} />
+          ) : (
+            <Card>
+              <CardContent className="pt-5 text-sm text-muted-foreground">
+                Completa los datos del trabajo para ver el precio.
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 

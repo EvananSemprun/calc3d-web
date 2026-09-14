@@ -41,7 +41,9 @@ export interface CatalogConfig {
   /** true = definición de costo: se crea SOLO vía gasto (sin "Agregar" suelto). */
   costDefinition?: boolean;
   /** Filtros a mostrar en la página (solo materiales por ahora). */
-  filters?: Array<'brand' | 'color' | 'date'>;
+  filters?: Array<'status' | 'brand' | 'type' | 'color' | 'date'>;
+  /** true = botón Descontinuar / Reactivar por fila (`PATCH /:endpoint/:id/status`). */
+  statusToggle?: boolean;
 }
 
 export const catalogs: Record<string, CatalogConfig> = {
@@ -68,7 +70,8 @@ export const catalogs: Record<string, CatalogConfig> = {
       { key: 'rolls', label: 'Rollos', computed: 'rolls' },
     ],
     costDefinition: true,
-    filters: ['brand', 'color', 'date'],
+    filters: ['status', 'brand', 'type', 'color', 'date'],
+    statusToggle: true,
   },
   printers: {
     route: 'printers',
