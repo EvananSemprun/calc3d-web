@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { ShoppingCart } from 'lucide-react';
-import { Card, CardContent, EmptyState, SearchInput, Stat, TableSkeleton } from '@/components/ui';
+import { Card, CardContent, EmptyState, FilterBar, SearchInput, Stat, TableSkeleton } from '@/components/ui';
 import { useMoney } from '@/features/settings/useSettings';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { usePersistentState } from '@/lib/usePersistentState';
@@ -33,15 +33,17 @@ export function PurchasesTab() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <DateRangePicker range={range} />
+      <FilterBar className="sm:justify-between">
+        <div className="col-span-full sm:col-span-1">
+          <DateRangePicker range={range} />
+        </div>
         <SearchInput
           value={q}
           onChange={setQ}
           placeholder="Buscar filamento o proveedor…"
-          className="w-full sm:w-72"
+          className="col-span-full w-full sm:w-72"
         />
-      </div>
+      </FilterBar>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Rollos comprados" value={String(rollos)} />

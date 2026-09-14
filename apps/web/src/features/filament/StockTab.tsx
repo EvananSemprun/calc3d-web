@@ -17,7 +17,17 @@ import {
   type RestockGroup,
   type StockCountRow,
 } from '@calc3d/shared';
-import { Badge, Button, Card, CardContent, NumberInput, TableSkeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  FilterBar,
+  NumberInput,
+  SearchInput,
+  Select,
+  TableSkeleton,
+} from '@/components/ui';
 import { useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { apiErrorMessage } from '@/lib/api';
@@ -31,6 +41,7 @@ import {
   useFilamentSummary,
   useReopenStockMonth,
 } from '@/features/filament/api';
+import { FichaDialog } from '@/features/filament/FichaDialog';
 
 // Arreglo estable: si `data` viene undefined (cargando o con error), el default
 // `= []` del destructuring crearía un arreglo NUEVO en cada render y el efecto
@@ -63,6 +74,9 @@ export function StockTab() {
   const cerrar = useCloseStockMonth();
   const reabrir = useReopenStockMonth();
   const confirm = useConfirm();
+
+  // La ficha abierta en el diálogo (2026-09-14: reemplaza a la página Materiales).
+  const [fichaAbierta, setFichaAbierta] = useState<StockCountRow | null>(null);
 
   const cerrado = !!estado?.closed;
   // Listo para dibujar filas/botón: cargó, no falló ninguna de las dos consultas
@@ -99,7 +113,48 @@ export function StockTab() {
     if (cerrado) borrarBorrador(claveBorrador);
   }, [cerrado, claveBorrador]);
 
-  const grupos = useMemo(() => agruparPorColor(filas), [filas]);
+  // Filtros (2026-09-14): solo cambian lo que SE VE. Cerrar el mes guarda TODAS
+  // las fichas, filtradas o no — por eso el Estado arranca en "Todas" y hay aviso.
+  const [busqueda, setBusqueda] = usePersistentState('filament:stock:q', '');
+  const [tipoF, setTipoF] = usePersistentState('filament:stock:type', '');
+  const [estadoRaw, setEstadoF] = usePersistentState('filament:stock:status', '');
+  // Un valor viejo o raro en localStorage dejaría la grilla vacía y el selector en blanco.
+  const estadoF = ESTADOS.includes(estadoRaw) ? estadoRaw : '';
+
+  const tipos = useMemo(
+    () =>
+      [...new Set(filas.map((f) => f.type).filter((t): t is string => !!t))].sort((a, b) =>
+        a.localeCompare(b, 'es'),
+      ),
+    [filas],
+  );
+  // Un tipo guardado que ya no existe este mes (cambió de mes o se editó la
+  // ficha) dejaría el Select en blanco y la grilla vacía, igual que `estadoF`.
+  const tipoSeguro = tipos.includes(tipoF) ? tipoF : '';
+  const filasVisibles = useMemo(() => {
+    const q = norm(busqueda.trim());
+    return filas.filter(
+      (f) =>
+        (!tipoSeguro || f.type === tipoSeguro) &&
+        (!estadoF || f.status === estadoF) &&
+        (!q || norm(`${claveDeColor(f)} ${f.brand ?? ''} ${f.name}`).includes(q)),
+    );
+  }, [filas, busqueda, tipoSeguro, estadoF]);
+  const hayOcultas = filasVisibles.length < filas.length;
+  const quitarFiltros = () => {
+    setBusqueda('');
+    setTipoF('');
+    setEstadoF('');
+  };
+
+  const grupos = useMemo(() => agruparPorColor(filasVisibles), [filasVisibles]);
+  // El total del encabezado es SIEMPRE de TODAS las marcas de ese color, aunque
+  // el filtro oculte alguna: el dueño decide reposición por el total real del
+  // color, no por lo que quedó visible.
+  const gruposCompletos = useMemo(
+    () => new Map(agruparPorColor(filas).map((g) => [g.clave, g.filas])),
+    [filas],
+  );
 
   // Cerrado: lo guardado, de solo lectura. Abierto: el borrador — así el total
   // de cada grupo (en el encabezado) sigue lo que se está escribiendo en vez
@@ -121,17 +176,20 @@ export function StockTab() {
       filas.filter((f) => stockTotal(draft[f.materialId] ?? CERO) > 0).map(claveDeColor),
     ).size;
     const mes = etiquetaMes(month);
+    const avisoOcultas = hayOcultas
+      ? ' Se guardan TODAS las fichas, también las que ocultan los filtros.'
+      : '';
     const ok = await confirm(
       rollos === 0
         ? {
             title: `¿Cerrar ${mes}?`,
-            description: `No cargaste ningún rollo: ${mes} se va a cerrar con TODO en 0. Después solo se corrige reabriendo el mes.`,
+            description: `No cargaste ningún rollo: ${mes} se va a cerrar con TODO en 0. Después solo se corrige reabriendo el mes.${avisoOcultas}`,
             confirmLabel: 'Guardar y cerrar',
             tone: 'destructive',
           }
         : {
             title: `¿Cerrar ${mes}?`,
-            description: `Vas a cerrar ${mes} con ${rollos} rollo(s) en ${colores} color(es). Lo que dejaste vacío queda en 0. Después solo se corrige reabriendo el mes.`,
+            description: `Vas a cerrar ${mes} con ${rollos} rollo(s) en ${colores} color(es). Lo que dejaste vacío queda en 0. Después solo se corrige reabriendo el mes.${avisoOcultas}`,
             confirmLabel: 'Guardar y cerrar',
           },
     );
@@ -173,7 +231,8 @@ export function StockTab() {
         <div className="space-y-1">
           <MonthPicker month={month} onChange={setMonth} />
           <p className="text-sm text-muted-foreground">
-            El último día del mes contá los rollos, llená las casillas y cerrá el mes.
+            El último día del mes contá los rollos, llená las casillas y cerrá el mes. Tocá una
+            marca para corregir o descontinuar su ficha.
           </p>
         </div>
 
@@ -277,6 +336,49 @@ export function StockTab() {
         </Card>
       )}
 
+      {filas.length > 0 && (
+        <div className="space-y-2">
+          <FilterBar>
+            <SearchInput
+              value={busqueda}
+              onChange={setBusqueda}
+              placeholder="Buscar color o marca…"
+              className="col-span-full w-full sm:w-64"
+            />
+            <Select
+              className="w-full sm:w-40"
+              value={tipoSeguro}
+              onChange={(e) => setTipoF(e.target.value)}
+            >
+              <option value="">Tipo: todos</option>
+              {tipos.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+            <Select className="w-full sm:w-44" value={estadoF} onChange={(e) => setEstadoF(e.target.value)}>
+              <option value="">Estado: todas</option>
+              <option value="ACTIVE">Activas</option>
+              <option value="DISCONTINUED">Descontinuadas</option>
+            </Select>
+          </FilterBar>
+          {hayOcultas && (
+            <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              Se ven {filasVisibles.length} de {filas.length} fichas. Al cerrar el mes se guardan todas,
+              también las ocultas.
+              <button
+                type="button"
+                onClick={quitarFiltros}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Quitar filtros
+              </button>
+            </p>
+          )}
+        </div>
+      )}
+
       {(stockFallo && !stockQuery.data) || (estadoFallo && !estado) ? (
         <p className="text-sm text-destructive">No se pudo cargar el conteo del mes. Recargá la página.</p>
       ) : !stockQuery.data || !estado ? (
@@ -286,12 +388,29 @@ export function StockTab() {
       ) : (
         <Card>
           <CardContent className="space-y-5 pt-5">
-            {grupos.map((g) => (
+            {filas.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Todavía no hay fichas de filamento: se crean al registrar una compra en Gastos.
+              </p>
+            )}
+            {filas.length > 0 && grupos.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Ninguna ficha coincide con los filtros.
+              </p>
+            )}
+            {grupos.map((g) => {
+              const todas = gruposCompletos.get(g.clave) ?? g.filas;
+              const rollosDelColor = todas.reduce((s, f) => s + stockTotal(valores(f)), 0);
+              const marcas =
+                todas.length > g.filas.length
+                  ? `${g.filas.length} de ${todas.length} marca(s)`
+                  : `${todas.length} marca(s)`;
+              return (
               <section key={g.clave}>
                 <header className="mb-2 flex items-baseline justify-between gap-2 border-b border-border/60 pb-1">
                   <h3 className="font-display text-sm font-semibold">{g.clave}</h3>
                   <span className="text-xs text-muted-foreground">
-                    {g.filas.reduce((s, f) => s + stockTotal(valores(f)), 0)} rollo(s) · {g.filas.length} marca(s)
+                    {rollosDelColor} rollo(s) · {marcas}
                   </span>
                 </header>
 
@@ -314,7 +433,14 @@ export function StockTab() {
                         className="grid grid-cols-3 items-center gap-2 sm:grid-cols-[1fr_5rem_5rem_5rem_4rem]"
                       >
                         <div className="col-span-3 flex items-center gap-2 sm:col-span-1">
-                          <span className="truncate text-sm">{f.brand ?? 'Sin marca'}</span>
+                          <button
+                            type="button"
+                            onClick={() => setFichaAbierta(f)}
+                            aria-label={`Ficha de ${ficha}`}
+                            className="truncate rounded text-left text-sm underline decoration-dotted underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {f.brand ?? 'Sin marca'}
+                          </button>
                           {f.status === 'DISCONTINUED' && (
                             <Badge variant="outline" className="shrink-0 text-[10px]">
                               descontinuado
@@ -362,10 +488,13 @@ export function StockTab() {
                   })}
                 </div>
               </section>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       )}
+
+      {fichaAbierta && <FichaDialog fila={fichaAbierta} onClose={() => setFichaAbierta(null)} />}
     </div>
   );
 }
@@ -377,6 +506,16 @@ interface Partes {
 }
 
 const CERO: Partes = { sealed: 0, inUse: 0, running: 0 };
+
+/** Valores válidos del filtro de estado: '' = todas. */
+const ESTADOS = ['', 'ACTIVE', 'DISCONTINUED'];
+
+/** Minúsculas y sin acentos, para que "limon" encuentre "Limón". */
+const norm = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
 
 const partesDe = (f: StockCountRow): Partes => ({ sealed: f.sealed, inUse: f.inUse, running: f.running });
 

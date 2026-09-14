@@ -10,6 +10,7 @@ import {
   CardContent,
   Checkbox,
   Field,
+  FilterBar,
   Input,
   NumberInput,
   Select,
@@ -133,9 +134,15 @@ export function ExpensesPage() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <DateRangePicker range={range} />
-          <Select className="w-48" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+        <FilterBar className="w-full sm:w-auto">
+          <div className="col-span-full sm:col-span-1">
+            <DateRangePicker range={range} />
+          </div>
+          <Select
+            className="col-span-full w-full sm:w-48"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
             <option value="ALL">Todos los tipos</option>
             <option value="printer">Impresoras</option>
             <option value="material">Filamentos</option>
@@ -145,8 +152,9 @@ export function ExpensesPage() {
             <option value="investment">Inversión</option>
             <option value="general">General</option>
           </Select>
-        </div>
-        <div className="flex gap-3">
+        </FilterBar>
+        {/* En el teléfono los totales se reparten el ancho en vez de desbordar. */}
+        <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto">
           <Stat
             label="Total del periodo"
             value={money(total)}
@@ -346,7 +354,8 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         const kind = type.linkField.replace('Id', '') as 'material' | 'printer' | 'component';
         const name = mode === 'new' ? String(catForm.name ?? '') : items.find((i) => i.id === selectedId)?.name ?? '';
         const refValue =
-          mode === 'existing' && updatePrice && type.priceField
+          // Filamento: el precio del rollo lo fija el servidor con monto ÷ rollos.
+          mode === 'existing' && updatePrice && type.priceField && type.key !== 'filament'
             ? type.perUnit && quantity > 0
               ? amount / quantity
               : amount
@@ -523,11 +532,15 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
               <NumberInput value={quantity} onChange={(n) => setQuantity(Math.max(1, Math.floor(n)))} />
             </Field>
           )}
-          <Checkbox
-            checked={updatePrice}
-            onChange={setUpdatePrice}
-            label="Usar este precio como referencia para cotizar"
-          />
+          {type.key === 'filament' ? (
+            <PrecioDelRollo amount={amount} quantity={quantity} />
+          ) : (
+            <Checkbox
+              checked={updatePrice}
+              onChange={setUpdatePrice}
+              label="Usar este precio como referencia para cotizar"
+            />
+          )}
         </>
       )}
 
@@ -573,6 +586,7 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
               <NumberInput value={quantity} onChange={(n) => setQuantity(Math.max(1, Math.floor(n)))} />
             </Field>
           )}
+          {type.key === 'filament' && <PrecioDelRollo amount={amount} quantity={quantity} />}
         </div>
       )}
 
@@ -650,6 +664,17 @@ function ModeButton({
     >
       {children}
     </button>
+  );
+}
+
+/** Filamento: el precio del rollo para cotizar sale de la compra, no de una casilla (2026-09-14). */
+function PrecioDelRollo({ amount, quantity }: { amount: number; quantity: number }) {
+  const precio = quantity > 0 ? amount / quantity : 0;
+  return (
+    <p className="text-xs text-muted-foreground">
+      El precio del rollo para cotizar queda en{' '}
+      {precio.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}.
+    </p>
   );
 }
 

@@ -24,6 +24,7 @@ import {
   CardContent,
   EmptyState,
   Field,
+  FilterBar,
   Input,
   NumberInput,
   SearchInput,
@@ -125,30 +126,30 @@ export function CampaignsPage() {
       {campaigns.length > 0 && <CampaignCharts campaigns={campaigns} money={money} />}
 
       {campaigns.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <FilterBar>
           <SearchInput
             value={search}
             onChange={setSearch}
             placeholder="Buscar campaña…"
-            className="w-full sm:max-w-xs"
+            className="col-span-full w-full sm:w-64"
           />
-          <Select className="w-40" value={platformF} onChange={(e) => setPlatformF(e.target.value)}>
-            <option value="">Todas las plataformas</option>
+          <Select className="w-full sm:w-44" value={platformF} onChange={(e) => setPlatformF(e.target.value)}>
+            <option value="">Plataforma: todas</option>
             {PLATFORM_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </Select>
-          <Select className="w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-            <option value="">Todos los estados</option>
+          <Select className="w-full sm:w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
+            <option value="">Estado: todos</option>
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </Select>
-        </div>
+        </FilterBar>
       )}
 
       <Card>

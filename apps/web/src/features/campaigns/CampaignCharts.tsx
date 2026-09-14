@@ -22,33 +22,59 @@ const tooltipStyle = {
 };
 
 interface Datum {
+  /** El nombre corto que entra en el eje. */
   name: string;
+  /** El nombre entero, para el tooltip. */
+  fullName: string;
   Invertido: number;
   Vendido: number;
 }
 
+const tick = { fontSize: 11, fill: 'hsl(var(--muted-foreground))' };
+
+/**
+ * Barras HORIZONTALES: el nombre va a la izquierda, derecho y en su propio renglón.
+ * En vertical los nombres se inclinaban y se encimaban en un teléfono. El alto
+ * crece con la cantidad de filas en vez de apretarlas en un alto fijo.
+ */
 function Bars({ data, money }: { data: Datum[]; money: (n: number) => string }) {
+  const alto = Math.max(160, data.length * 44 + 56);
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-        <XAxis
-          dataKey="name"
-          tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-          interval={0}
-          angle={-12}
-          textAnchor="end"
-          height={46}
-        />
-        <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={44} />
-        <Tooltip contentStyle={tooltipStyle} formatter={(v) => money(Number(v))} cursor={{ fill: 'hsl(var(--accent) / 0.4)' }} />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Bar dataKey="Invertido" fill={GOLD} radius={[4, 4, 0, 0]} />
-        <Bar dataKey="Vendido" fill={GREEN} radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div style={{ height: alto }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+          <XAxis type="number" tick={tick} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={112}
+            interval={0}
+            // Tick propio en UN renglón: el de Recharts parte el texto al ancho del
+            // eje y dejaba "Materializa tu / …" en dos líneas.
+            tick={(props) => (
+              <text x={props.x} y={props.y} dy={4} textAnchor="end" fontSize={tick.fontSize} fill={tick.fill}>
+                {String(props.payload?.value ?? '')}
+              </text>
+            )}
+          />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            formatter={(v) => money(Number(v))}
+            labelFormatter={(_label, payload) => (payload?.[0]?.payload as Datum | undefined)?.fullName ?? _label}
+            cursor={{ fill: 'hsl(var(--accent) / 0.4)' }}
+          />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Bar dataKey="Invertido" fill={GOLD} radius={[0, 4, 4, 0]} barSize={12} />
+          <Bar dataKey="Vendido" fill={GREEN} radius={[0, 4, 4, 0]} barSize={12} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
+
+/** Nombre corto para el eje: entra en ~112 px a 11 px. */
+const corto = (s: string) => (s.length > 16 ? `${s.slice(0, 15)}…` : s);
 
 /** Comparador visual: inversión vs vendido por campaña y por plataforma. */
 export function CampaignCharts({
@@ -63,7 +89,8 @@ export function CampaignCharts({
     .sort((a, b) => b.stats.revenue - a.stats.revenue)
     .slice(0, 8)
     .map((c) => ({
-      name: c.name.length > 14 ? `${c.name.slice(0, 13)}…` : c.name,
+      name: corto(c.name),
+      fullName: c.name,
       Invertido: c.stats.invested,
       Vendido: c.stats.revenue,
     }));
@@ -71,7 +98,7 @@ export function CampaignCharts({
   const platMap = new Map<string, Datum>();
   for (const c of campaigns) {
     const k = PLATFORM_LABELS[c.platform];
-    const e = platMap.get(k) ?? { name: k, Invertido: 0, Vendido: 0 };
+    const e = platMap.get(k) ?? { name: corto(k), fullName: k, Invertido: 0, Vendido: 0 };
     e.Invertido += c.stats.invested;
     e.Vendido += c.stats.revenue;
     platMap.set(k, e);
@@ -86,7 +113,7 @@ export function CampaignCharts({
         <CardHeader>
           <CardTitle>Inversión vs vendido por campaña</CardTitle>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent>
           <Bars data={byCampaign} money={money} />
         </CardContent>
       </Card>
@@ -94,7 +121,7 @@ export function CampaignCharts({
         <CardHeader>
           <CardTitle>Por plataforma</CardTitle>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent>
           <Bars data={byPlatform} money={money} />
         </CardContent>
       </Card>

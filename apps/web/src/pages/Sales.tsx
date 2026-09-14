@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, ShoppingCart, Trash2, Wand2 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
-import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, Select, Stat, TableSkeleton, FieldGrid } from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Field, FilterBar, Input, NumberInput, Select, Stat, TableSkeleton, FieldGrid } from '@/components/ui';
 import { Dialog, useConfirm, Tooltip } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
@@ -58,10 +58,15 @@ export function SalesPage() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <DateRangePicker range={range} />
-        <div className="flex gap-3">
-          <Stat label="Total del periodo" value={money(total)} accent="yellow" className="min-w-[150px]" />
-          <Stat label="De encargos" value={money(encargos)} className="min-w-[150px]" />
+        <FilterBar className="w-full sm:w-auto">
+          <div className="col-span-full sm:col-span-1">
+            <DateRangePicker range={range} />
+          </div>
+        </FilterBar>
+        {/* En el teléfono los totales se reparten el ancho en vez de desbordar. */}
+        <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto">
+          <Stat label="Total del periodo" value={money(total)} accent="yellow" className="sm:min-w-[150px]" />
+          <Stat label="De encargos" value={money(encargos)} className="sm:min-w-[150px]" />
         </div>
       </div>
 

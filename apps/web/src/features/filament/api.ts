@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   FilamentPurchase,
+  MaterialStatus,
   RestockGroup,
   StockCountRow,
   StockMonthCloseDto,
@@ -89,6 +90,8 @@ export function useFilamentMonthStatus(month: string) {
  * "pendiente" hasta que llegan los datos nuevos (evita un doble clic que
  * mande un segundo cierre y choque 409 contra el servidor) y nunca se llega a
  * ver "Cerrado" con las filas viejas todavía en pantalla.
+ * También `materials`: el aviso «0 al cierre» de la calculadora depende del
+ * último mes cerrado.
  */
 function useInvalidarStock() {
   const qc = useQueryClient();
@@ -96,6 +99,7 @@ function useInvalidarStock() {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ['filament-stock'] }),
       qc.invalidateQueries({ queryKey: ['filament-summary'] }),
+      qc.invalidateQueries({ queryKey: ['materials'] }),
     ]);
     await qc.invalidateQueries({ queryKey: ['filament-month-status'] });
   };
@@ -120,6 +124,55 @@ export function useReopenStockMonth() {
     mutationFn: async (month: string) => {
       const { data } = await api.post<StockMonthStatus>('/filament/stock/reopen', { month });
       return data;
+    },
+    onSuccess: invalidar,
+  });
+}
+
+/**
+ * Tras corregir, descontinuar o borrar una ficha cambian el catálogo (calculadora
+ * y Gastos), el conteo, la reposición y los nombres en Compras.
+ */
+function useInvalidarFichas() {
+  const qc = useQueryClient();
+  return () =>
+    Promise.all(
+      ['materials', 'filament-stock', 'filament-summary', 'filament-purchases'].map((key) =>
+        qc.invalidateQueries({ queryKey: [key] }),
+      ),
+    );
+}
+
+/** Corregir tipeos de una ficha: solo nombre y color (el precio sale de la compra). */
+export function useCorrectMaterial() {
+  const invalidar = useInvalidarFichas();
+  return useMutation({
+    mutationFn: async ({ id, name, color }: { id: string; name: string; color: string | null }) => {
+      const { data } = await api.patch(`/materials/${id}`, { name, color });
+      return data;
+    },
+    onSuccess: invalidar,
+  });
+}
+
+/** Descontinuar o reactivar una ficha. La reposición depende del estado. */
+export function useSetMaterialStatus() {
+  const invalidar = useInvalidarFichas();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: MaterialStatus }) => {
+      const { data } = await api.patch(`/materials/${id}/status`, { status });
+      return data;
+    },
+    onSuccess: invalidar,
+  });
+}
+
+/** Solo anda con una ficha sin compras ni conteos (`canDelete`); si no, la API da 409. */
+export function useDeleteMaterial() {
+  const invalidar = useInvalidarFichas();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/materials/${id}`);
     },
     onSuccess: invalidar,
   });

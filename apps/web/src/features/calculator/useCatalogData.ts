@@ -8,6 +8,8 @@ export interface MaterialItem {
   rollPrice: string;
   rollGrams: number;
   status: MaterialStatus;
+  /** `AAAA-MM` si cerró ese mes (el último cerrado) en 0 y no se volvió a comprar; si no, null. */
+  outAtLastClose: string | null;
 }
 export interface PrinterItem {
   id: string;

@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, ArchiveRestore, Inbox, Pencil, Plus, Trash2 } from 'lucide-react';
-import type { MaterialStatus } from '@calc3d/shared';
+import { Inbox, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
 import {
@@ -13,18 +12,17 @@ import {
   Card,
   CardContent,
   Field,
+  FilterBar,
   Input,
   NumberInput,
   SearchInput,
   Select,
   TableSkeleton,
 } from '@/components/ui';
-import { usePersistentState } from '@/lib/usePersistentState';
 import { Dialog, useConfirm, Tooltip } from '@/components/overlays';
 import { Combobox } from '@/components/Combobox';
 import { notify } from '@/components/toast';
 import { catalogs, type CatalogConfig, type CatalogField } from '@/features/catalogs/config';
-import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 
 type Row = Record<string, unknown> & { id: string };
 
@@ -64,52 +62,6 @@ function CatalogView({ config }: { config: CatalogConfig }) {
     onError: (error) => notify.error(apiErrorMessage(error)),
   });
 
-  // Arranca en Activas: una ficha descontinuada no se maneja día a día.
-  const [statusRaw, setStatusF] = usePersistentState(`catalog:${config.route}:status`, 'ACTIVE');
-  // Un valor viejo o raro en localStorage dejaría la lista vacía y el selector en blanco.
-  const statusF = ['ACTIVE', 'DISCONTINUED', ''].includes(statusRaw) ? statusRaw : 'ACTIVE';
-
-  // Descontinuar / reactivar (solo catálogos con `statusToggle`). La reposición
-  // del stock depende del estado, por eso se refrescan también esas consultas.
-  const setStatus = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: MaterialStatus }) =>
-      api.patch(`/${config.endpoint}/${id}/status`, { status }),
-    onSuccess: (_data, { status }) => {
-      for (const key of [config.endpoint, 'filament-stock', 'filament-summary']) {
-        qc.invalidateQueries({ queryKey: [key] });
-      }
-      if (status === 'DISCONTINUED') {
-        notify.success(
-          'Ficha descontinuada',
-          statusF === 'ACTIVE' ? 'No se borró: la ves en Estado → Descontinuadas.' : undefined,
-        );
-      } else {
-        notify.success('Ficha reactivada');
-      }
-    },
-    onError: (error) => notify.error(apiErrorMessage(error)),
-  });
-
-  const toggleStatus = async (row: Row) => {
-    const nombre = String(row.name ?? '');
-    const descontinuar = row.status !== 'DISCONTINUED';
-    const ok = await confirm(
-      descontinuar
-        ? {
-            title: `¿Descontinuar «${nombre}»?`,
-            description:
-              'Deja de aparecer al cotizar y en la reposición. Sus compras y conteos no se tocan. Se reactiva sola al registrar una compra con rollos, o con «Reactivar».',
-            confirmLabel: 'Descontinuar',
-          }
-        : {
-            title: `¿Reactivar «${nombre}»?`,
-            description: 'Vuelve a aparecer al cotizar y en la reposición.',
-            confirmLabel: 'Reactivar',
-          },
-    );
-    if (ok) setStatus.mutate({ id: row.id, status: descontinuar ? 'DISCONTINUED' : 'ACTIVE' });
-  };
-
   const startCreate = () => {
     setEditing(null);
     setOpen(true);
@@ -128,49 +80,14 @@ function CatalogView({ config }: { config: CatalogConfig }) {
     return String(value);
   };
 
-  // --- Filtros (marca / tipo / color / fecha de compra) — solo si la config los pide ---
-  const filters = config.filters ?? [];
-  const range = useDateRange('ALL', `catalog:${config.route}`);
-  const [brandF, setBrandF] = usePersistentState(`catalog:${config.route}:brand`, '');
-  const [typeF, setTypeF] = usePersistentState(`catalog:${config.route}:type`, '');
-  const [colorF, setColorF] = usePersistentState(`catalog:${config.route}:color`, '');
   const [search, setSearch] = useState('');
-
-  type PurchaseLite = { quantity: number | null; date: string };
-  const purchasesOf = (r: Row): PurchaseLite[] =>
-    Array.isArray(r.expenses) ? (r.expenses as PurchaseLite[]) : [];
-  const rollsOf = (r: Row) => purchasesOf(r).reduce((s, e) => s + (e.quantity || 0), 0);
-
-  const distinct = (key: string) =>
-    [...new Set(items.map((r) => String(r[key] ?? '')).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b),
-    );
-  const brands = useMemo(() => distinct('brand'), [items]);
-  const types = useMemo(() => distinct('type'), [items]);
-  const colors = useMemo(() => distinct('color'), [items]);
-
-  const matchesDate = (r: Row) => {
-    if (!filters.includes('date') || (!range.from && !range.to)) return true;
-    return purchasesOf(r).some((p) => {
-      const d = String(p.date).slice(0, 10);
-      return (!range.from || d >= range.from) && (!range.to || d <= range.to);
-    });
-  };
   const q = search.trim().toLowerCase();
-  const matchesSearch = (r: Row) =>
-    !q ||
-    String(r.name ?? '').toLowerCase().includes(q) ||
-    config.columns.some((c) => String(r[c.key] ?? '').toLowerCase().includes(q));
   const visible = items.filter(
     (r) =>
-      (!filters.includes('status') || !statusF || String(r.status ?? 'ACTIVE') === statusF) &&
-      (!brandF || String(r.brand ?? '') === brandF) &&
-      (!typeF || String(r.type ?? '') === typeF) &&
-      (!colorF || String(r.color ?? '') === colorF) &&
-      matchesSearch(r) &&
-      matchesDate(r),
+      !q ||
+      String(r.name ?? '').toLowerCase().includes(q) ||
+      config.columns.some((c) => String(r[c.key] ?? '').toLowerCase().includes(q)),
   );
-  const ocultasDescontinuadas = items.filter((r) => r.status === 'DISCONTINUED').length;
 
   return (
     <div className="space-y-5">
@@ -190,52 +107,14 @@ function CatalogView({ config }: { config: CatalogConfig }) {
       </div>
 
       {items.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <FilterBar>
           <SearchInput
             value={search}
             onChange={setSearch}
             placeholder={`Buscar ${config.title.toLowerCase()}…`}
-            className="w-full sm:w-64"
+            className="col-span-full w-full sm:w-64"
           />
-          {filters.includes('status') && (
-            <Select className="w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-              <option value="ACTIVE">Activas</option>
-              <option value="DISCONTINUED">Descontinuadas</option>
-              <option value="">Todas</option>
-            </Select>
-          )}
-          {filters.includes('brand') && (
-            <Select className="w-44" value={brandF} onChange={(e) => setBrandF(e.target.value)}>
-              <option value="">Todas las marcas</option>
-              {brands.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </Select>
-          )}
-          {filters.includes('type') && (
-            <Select className="w-40" value={typeF} onChange={(e) => setTypeF(e.target.value)}>
-              <option value="">Todos los tipos</option>
-              {types.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </Select>
-          )}
-          {filters.includes('color') && (
-            <Select className="w-44" value={colorF} onChange={(e) => setColorF(e.target.value)}>
-              <option value="">Todos los colores</option>
-              {colors.map((cl) => (
-                <option key={cl} value={cl}>
-                  {cl}
-                </option>
-              ))}
-            </Select>
-          )}
-          {filters.includes('date') && <DateRangePicker range={range} />}
-        </div>
+        </FilterBar>
       )}
 
       <Card>
@@ -259,14 +138,7 @@ function CatalogView({ config }: { config: CatalogConfig }) {
               )}
             </div>
           ) : visible.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-muted-foreground">
-              <p>Ningún resultado con los filtros actuales.</p>
-              {filters.includes('status') && statusF === 'ACTIVE' && ocultasDescontinuadas > 0 && (
-                <Button variant="outline" size="sm" onClick={() => setStatusF('DISCONTINUED')}>
-                  Ver {ocultasDescontinuadas} descontinuada{ocultasDescontinuadas === 1 ? '' : 's'}
-                </Button>
-              )}
-            </div>
+            <p className="p-8 text-center text-sm text-muted-foreground">Ningún resultado con la búsqueda.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -286,14 +158,9 @@ function CatalogView({ config }: { config: CatalogConfig }) {
                       key={row.id}
                       className="border-b border-border/70 transition-colors last:border-0 hover:bg-muted/40"
                     >
-                      {config.columns.map((col, i) => (
+                      {config.columns.map((col) => (
                         <td key={col.key} className="px-4 py-3">
-                          {col.computed === 'rolls' ? rollsOf(row) : fmt(row[col.key], col.kind)}
-                          {i === 0 && row.status === 'DISCONTINUED' && (
-                            <Badge variant="outline" className="ml-2 text-[10px]">
-                              descontinuado
-                            </Badge>
-                          )}
+                          {fmt(row[col.key], col.kind)}
                         </td>
                       ))}
                       <td className="px-4 py-3">
@@ -303,23 +170,6 @@ function CatalogView({ config }: { config: CatalogConfig }) {
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Tooltip>
-                          {config.statusToggle && (
-                            <Tooltip label={row.status === 'DISCONTINUED' ? 'Reactivar' : 'Descontinuar'}>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={setStatus.isPending}
-                                onClick={() => toggleStatus(row)}
-                                aria-label={`${row.status === 'DISCONTINUED' ? 'Reactivar' : 'Descontinuar'} ${String(row.name ?? '')}`}
-                              >
-                                {row.status === 'DISCONTINUED' ? (
-                                  <ArchiveRestore className="h-4 w-4" />
-                                ) : (
-                                  <Archive className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </Tooltip>
-                          )}
                           <Tooltip label="Eliminar">
                             <Button
                               variant="ghost"

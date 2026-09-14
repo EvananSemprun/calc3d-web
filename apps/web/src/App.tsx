@@ -124,6 +124,8 @@ export function App() {
         <Route path="/filament/stock" element={<FilamentStockPage />} />
         <Route path="/filament/compras" element={<FilamentPurchasesPage />} />
         <Route path="/filament/analisis" element={<FilamentAnalysisPage />} />
+        {/* Materiales ya no tiene página (2026-09-14): la ficha vive en Stock del mes. */}
+        <Route path="/catalogs/materials" element={<Navigate to="/filament/stock" replace />} />
         <Route path="/catalogs/:resource" element={<CatalogPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

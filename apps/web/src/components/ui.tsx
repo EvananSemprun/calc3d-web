@@ -285,6 +285,35 @@ export function FieldGrid({
   );
 }
 
+/**
+ * BARRA DE FILTROS — la de TODA lista con filtros (desde el 2026-09-14, decisión
+ * del dueño). Antes cada página ponía sus controles en un `flex-wrap` con anchos
+ * fijos (`w-40`, `w-44`…): en un teléfono quedaba un control por fila, cada uno
+ * de un ancho distinto y con media pantalla vacía al lado.
+ *
+ * - **Teléfono**: grilla `auto-fit` de columnas de `min` (dos por fila en uno de
+ *   ~375 px). El buscador, el filtro de fechas y un control que quede solo van
+ *   a todo el ancho con `col-span-full`.
+ * - **Desde `sm`**: en línea (`flex-wrap`), cada control con su ancho.
+ *
+ * Los controles van con `w-full sm:w-XX` para llenar su celda en el teléfono;
+ * el `DateRangePicker` envuelto en `<div className="col-span-full sm:col-span-1">`.
+ */
+export function FilterBar({
+  min = '9rem',
+  className,
+  style,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { min?: string }) {
+  return (
+    <div
+      className={cn('grid gap-2 sm:flex sm:flex-wrap sm:items-center', className)}
+      style={{ gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${min}), 1fr))`, ...style }}
+      {...props}
+    />
+  );
+}
+
 /** Etiqueta "Obligatorio" para los datos del trabajo (cantidad, gramos, horas). */
 export function RequiredTag() {
   return (
@@ -550,7 +579,9 @@ export function Stat({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-xl border p-4 shadow-sm backdrop-blur-[2px] transition-transform duration-200 hover:-translate-y-0.5',
+        // `container-type`: el tamaño de la cifra se calcula sobre el ancho de ESTA
+        // tarjeta (ver el valor más abajo), no el de la ventana.
+        'relative overflow-hidden rounded-xl border p-4 shadow-sm backdrop-blur-[2px] transition-transform duration-200 [container-type:inline-size] hover:-translate-y-0.5',
         frame,
         className,
       )}
@@ -564,7 +595,15 @@ export function Stat({
       <div className="relative text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
-      <div className={cn('relative mt-1 font-display text-2xl font-bold tabular sm:text-3xl', valueColor)}>
+      {/*
+        La cifra escala con el ancho de la tarjeta: con `text-2xl` fijo, "$103.56"
+        se cortaba en una tarjeta de media pantalla de teléfono. Entre 18 px (tarjeta
+        angosta) y 30 px (el `text-3xl` de siempre, cuando hay lugar).
+      */}
+      <div
+        className={cn('relative mt-1 whitespace-nowrap font-display font-bold leading-tight tabular', valueColor)}
+        style={{ fontSize: 'clamp(1.125rem, 13cqi, 1.875rem)' }}
+      >
         {value}
       </div>
       {sub && <div className="relative mt-0.5 text-xs text-muted-foreground">{sub}</div>}

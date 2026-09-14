@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   Activity,
@@ -66,13 +66,12 @@ const navGroups: { heading?: string; items: { to: string; label: string; icon: t
   },
   {
     // Categoría propia (2026-09-13): antes era una sola página con pestañas en
-    // Definiciones. Materiales va acá porque es el catálogo de esos rollos.
+    // Definiciones. Sin "Materiales" desde 2026-09-14: la ficha vive en Stock del mes.
     heading: 'Filamento',
     items: [
       { to: '/filament/stock', label: 'Stock del mes', icon: Disc3 },
       { to: '/filament/compras', label: 'Compras', icon: ShoppingCart },
       { to: '/filament/analisis', label: 'Análisis', icon: PieChart },
-      { to: '/catalogs/materials', label: 'Materiales', icon: Box },
     ],
   },
   {
@@ -155,37 +154,64 @@ function PendingStoreBadge() {
   );
 }
 
-const COLLAPSE_KEY = 'nav-collapsed';
-const loadCollapsed = (): Set<string> => {
+const OPEN_GROUP_KEY = 'nav-open-group';
+
+/** El grupo con encabezado que contiene la página actual, o null (Calculadora, Configuración). */
+function groupOf(pathname: string): string | null {
+  const grupo = navGroups.find(
+    (g) =>
+      g.heading &&
+      g.items.some((i) => (i.end ? pathname === i.to : pathname === i.to || pathname.startsWith(`${i.to}/`))),
+  );
+  return grupo?.heading ?? null;
+}
+
+/** Al abrir: el grupo de la página actual; si no hay, el último que quedó abierto. */
+function loadOpenGroup(pathname: string): string | null {
+  const actual = groupOf(pathname);
+  if (actual) return actual;
   try {
-    const saved = localStorage.getItem(COLLAPSE_KEY);
-    // Primera vez (sin preferencia guardada): todos los grupos con encabezado
-    // arrancan CERRADOS para que el menú no se vea saturado.
-    if (saved === null) {
-      return new Set(navGroups.filter((g) => g.heading).map((g) => g.heading as string));
-    }
-    return new Set(JSON.parse(saved) as string[]);
+    const saved = localStorage.getItem(OPEN_GROUP_KEY);
+    return saved && navGroups.some((g) => g.heading === saved) ? saved : null;
   } catch {
-    return new Set();
+    // Sin almacenamiento (modo privado): arranca con todo cerrado.
+    return null;
   }
-};
+}
+
+function saveOpenGroup(heading: string | null) {
+  try {
+    if (heading) localStorage.setItem(OPEN_GROUP_KEY, heading);
+    else localStorage.removeItem(OPEN_GROUP_KEY);
+  } catch {
+    // Sin almacenamiento: el grupo abierto se recuerda solo mientras dure la página.
+  }
+}
 
 /** Contenido del menú lateral, reutilizado en escritorio (fijo) y móvil (drawer).
- *  Los grupos con encabezado son colapsables (estado en localStorage) para que el
- *  menú no se vea saturado. Los grupos sin encabezado (Calculadora, Configuración)
- *  quedan siempre visibles. */
+ *  Los grupos con encabezado son un ACORDEÓN (decisión del dueño, 2026-09-14):
+ *  abrir uno cierra el que estaba abierto, y tocar el abierto lo cierra. El grupo
+ *  de la página actual se abre solo. Los grupos sin encabezado (Calculadora,
+ *  Configuración) quedan siempre visibles. */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth();
-  const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+  const { pathname } = useLocation();
+  const [openGroup, setOpenGroup] = useState<string | null>(() => loadOpenGroup(pathname));
 
-  const toggle = (heading: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(heading)) next.delete(heading);
-      else next.add(heading);
-      localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next]));
-      return next;
-    });
+  const toggle = (heading: string) => {
+    const next = openGroup === heading ? null : heading;
+    setOpenGroup(next);
+    saveOpenGroup(next);
+  };
+
+  // Al llegar a una página de otro grupo (buscador Ctrl-K, un enlace), se abre ese
+  // grupo para que siempre se vea dónde estás.
+  useEffect(() => {
+    const actual = groupOf(pathname);
+    if (!actual) return;
+    setOpenGroup(actual);
+    saveOpenGroup(actual);
+  }, [pathname]);
 
   return (
     <>
@@ -224,7 +250,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               </div>
             );
           }
-          const isOpen = !collapsed.has(group.heading);
+          const isOpen = openGroup === group.heading;
           return (
             <div key={gi} className="space-y-1">
               <button

@@ -99,9 +99,11 @@ export function useDateRange(initial: RangePreset = 'MONTH', persistKey?: string
 
 export function DateRangePicker({ range }: { range: ReturnType<typeof useDateRange> }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // En el teléfono cada control ocupa el ancho disponible (y el rango, las dos
+    // fechas repartidas en una fila); desde `sm` vuelven a su ancho fijo en línea.
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <Select
-        className="w-44"
+        className="w-full sm:w-44"
         value={range.preset}
         onChange={(e) => range.setPreset(e.target.value as RangePreset)}
       >
@@ -114,7 +116,7 @@ export function DateRangePicker({ range }: { range: ReturnType<typeof useDateRan
       {range.preset === 'DAY' && (
         <Input
           type="date"
-          className="w-44"
+          className="w-full sm:w-44"
           value={range.day}
           onChange={(e) => range.setDay(e.target.value)}
         />
@@ -123,14 +125,14 @@ export function DateRangePicker({ range }: { range: ReturnType<typeof useDateRan
         <>
           <Input
             type="date"
-            className="w-40"
+            className="min-w-0 flex-1 sm:w-40 sm:flex-none"
             value={range.customFrom}
             onChange={(e) => range.setCustomFrom(e.target.value)}
           />
           <span className="text-sm text-muted-foreground">a</span>
           <Input
             type="date"
-            className="w-40"
+            className="min-w-0 flex-1 sm:w-40 sm:flex-none"
             value={range.customTo}
             onChange={(e) => range.setCustomTo(e.target.value)}
           />

@@ -55,8 +55,34 @@ Vite importa.
     WebGL** a propósito (no castigar el móvil). Se reduce solo en móvil (menos
     partículas, sin líneas), se apaga con `prefers-reduced-motion` y se pausa con
     la pestaña oculta. Montado en `AppLayout` y `AuthShell` (`fixed inset-0 -z-10`).
-  - **UI / navegación** — sidebar con grupos COLAPSABLES (`AppLayout`, estado en
-    localStorage `nav-collapsed`).
+  - **UI / navegación** — sidebar con grupos en ACORDEÓN (`AppLayout`, desde el
+    2026-09-14, decisión del dueño): abrir un grupo cierra el que estaba abierto y
+    tocar el abierto lo cierra. El grupo de la página actual se abre solo (también
+    al llegar por el buscador o un enlace), y el último abierto se recuerda en
+    localStorage `nav-open-group` (la clave vieja `nav-collapsed` ya no se usa).
+  - **Barras de filtros: SIEMPRE `FilterBar`** (`components/ui.tsx`, desde el
+    2026-09-14, decisión del dueño). Toda lista con filtros —las que existen y las
+    que se hagan— los pone dentro de `<FilterBar>`, NUNCA en un `flex-wrap` suelto
+    con anchos fijos: en el teléfono quedaba un control por fila, cada uno de un
+    ancho distinto. En el teléfono es una grilla `auto-fit` de ~9rem por columna
+    (dos por fila); desde `sm`, en línea. Reglas: cada control con
+    `w-full sm:w-XX`; el buscador, un control que quede solo en su fila y el
+    `DateRangePicker` (envuelto en `<div className="col-span-full sm:col-span-1">`)
+    van con `col-span-full`. `DateRangePicker` ya ocupa el ancho disponible hasta
+    `sm`. Si la fila también lleva `Stat` de totales, van en
+    `grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto`. Usan `FilterBar`:
+    Catálogos, Ventas, Gastos, Compras de filamento, Publicidad y Stock del mes.
+  - **KPIs que no se cortan** (2026-09-14) — la cifra de `Stat` escala con el ancho
+    de SU tarjeta (`container-type: inline-size` + `font-size: clamp(1.125rem,
+    13cqi, 1.875rem)`), no con la ventana: con `text-2xl` fijo, "$103.56" se cortaba
+    en una tarjeta de media pantalla de teléfono. No volver a ponerle un tamaño fijo.
+  - **Gráficos con nombres largos: barras HORIZONTALES** (`CampaignCharts`,
+    2026-09-14) — el nombre va a la izquierda en un renglón (tick propio: el de
+    Recharts parte el texto al ancho del eje), cortado a 16 letras con el nombre
+    entero en el tooltip, y el alto crece con las filas. En vertical los nombres
+    se inclinaban y se encimaban en el teléfono. Un texto de opción de filtro
+    tiene que entrar en media fila de teléfono: "Plataforma: todas", no "Todas las
+    plataformas".
 
 ### Fechas: guardar en UTC, preguntar "qué día es hoy" en LOCAL
 
@@ -232,8 +258,8 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 
 - **Categoría propia del menú, "Filamento"** (2026-09-13), con TRES páginas y
   su propia dirección: **Stock del mes** (`/filament/stock`), **Compras**
-  (`/filament/compras`) y **Análisis** (`/filament/analisis`), más **Materiales**
-  (`/catalogs/materials`, el catálogo de esas fichas). Antes eran pestañas de una
+  (`/filament/compras`) y **Análisis** (`/filament/analisis`). **Materiales ya no
+  tiene página** (2026-09-14): `/catalogs/materials` redirige a Stock. Antes eran pestañas de una
   sola página en Definiciones: no se podía enlazar a una ni volver con "atrás".
   `/filament` sola redirige a Stock, para no romper enlaces viejos. Las tres
   comparten encabezado (`FilamentShell` en `pages/Filament.tsx`) y reusan los
@@ -252,6 +278,13 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 - **Stock del mes** (`StockTab`): conteo MANUAL al cierre de mes. Filas agrupadas
   por **tipo + color** (como la hoja), con una fila por MARCA dentro de cada grupo.
   Tres casillas (Sin abrir / En uso / Por acabarse) y el total derivado.
+  **Filtros** (2026-09-14): Buscar (color o marca, sin acentos), Tipo y Estado
+  (arranca en **Todas**; `filament:stock:q|type|status`). ⚠️ Solo cambian lo que
+  SE VE: cerrar el mes guarda TODAS las fichas. Con fichas ocultas hay aviso
+  ("Se ven X de Y… Quitar filtros") y la confirmación de cierre lo repite; no
+  arrancar en "Activas": una descontinuada con rollos se cerraría en 0 sin verla.
+  La cabecera de cada color suma TODAS sus marcas aunque el filtro oculte
+  algunas ("1 de 3 marca(s)").
 - **El mes se CIERRA, no se guarda casilla por casilla** (2026-09-13, shared
   0.13.0). Lo escrito vive en un borrador del navegador
   (`filament:stock:draft:AAAA-MM`) hasta tocar **"Guardar y cerrar"**, que manda
@@ -276,7 +309,7 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   (los colores comprados MÁS que el promedio por color, con 1 rollo o menos —
   decisión del dueño). La tarjeta "Hay que reponer" cuenta solo las dos
   primeras y anuncia las sugeridas aparte. Los descontinuados nunca entran.
-  Se descontinúan desde Materiales.
+  Se descontinúan desde la ficha (tocando la marca en Stock del mes).
 - Los **rollos por identificar** (`needsBrandCheck`, los que vinieron del Excel sin
   marca) se listan aparte; el aviso se apaga al CERRAR el mes (el cierre escribe
   `needsBrandCheck: false` en todas las fichas), no al contarlos a mano.
@@ -469,18 +502,30 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   (Filamento/Impresora/Componente/Empaque/Mantenimiento/General/Publicidad) y, si mapea
   a catálogo, deja **reusar** un item existente o **crearlo inline** (reusa
   `features/catalogs/config.ts`) → crea catálogo + gasto enlazado en una acción. Check
-  "usar como precio de referencia" → `PATCH` PARCIAL al item. El tipo **Publicidad** con
+  "usar como precio de referencia" → `PATCH` PARCIAL al item (**no en Filamento**: el
+  precio del rollo sale de monto ÷ rollos, lo fija el servidor, y el formulario de
+  ficha nueva no pide precio; en su lugar se ve "El precio del rollo para cotizar
+  queda en $X"). El tipo **Publicidad** con
   "pagué en bolívares" elige una tasa VES + monto Bs y guarda `amount` en USD base
   (= Bs ÷ tasa) + `rate`/`currencyCode='VES'` para presentación.
-- **Activo / Descontinuado** (2026-09-13, shared 0.14.0): en Materiales, filtro
-  **Estado** que arranca en Activas (`catalog:materials:status`), insignia
-  "descontinuado" y botón **Descontinuar / Reactivar** por fila con confirmación
-  (`statusToggle` en `config.ts`, `PATCH /materials/:id/status`). El formulario
-  de la ficha NO tiene estado. La **calculadora no ofrece** fichas descontinuadas
-  (lo ya cotizado no cambia: se copian precio y gramos). En **Gastos** siguen
-  visibles con "(descontinuado)" y **registrar una compra con rollos la
-  reactiva** (lo hace el servidor). Cambiar el estado refresca también el stock
-  y el resumen de filamento, porque la reposición depende de él.
+- **La ficha de un filamento vive en Stock del mes** (2026-09-14, shared 0.15.0;
+  antes era la página Materiales, que se quitó por decisión del dueño). Tocar la
+  marca de una fila abre `FichaDialog` (`features/filament/FichaDialog.tsx`):
+  **corregir SOLO nombre y color** (`PATCH /materials/:id`; marca, tipo, gramos y
+  precio quedan como nacieron; `<form>` con Enter=Guardar y `autoFocus`),
+  **Descontinuar / Reactivar** con confirmación (`PATCH /materials/:id/status`) y
+  **Borrar** solo si `canDelete` (sin compras ni conteos; si no, la API da 409).
+  Cada acción invalida `materials`, `filament-stock`, `filament-summary` y
+  `filament-purchases`; cerrar o reabrir un mes también invalida `materials`. La
+  **calculadora no ofrece** descontinuadas y pone **al final** las que cerraron el
+  último mes en 0 sin compra posterior, con "— 0 al cierre de agosto"
+  (`outAtLastClose`, `quotableMaterials`/`materialLabel` en
+  `features/calculator/materialOptions.ts`; lo ya cotizado no cambia: se copian
+  precio y gramos). En **Gastos** las descontinuadas siguen visibles con
+  "(descontinuado)" y **registrar una compra con rollos la reactiva** (lo hace el
+  servidor). `features/catalogs/config.ts` conserva `materials` SOLO para el alta de
+  ficha en Gastos (sin `rollPrice`, `columns: []`). Spec:
+  `calc3d-api/docs/superpowers/specs/2026-09-14-quitar-pagina-materiales-design.md`.
 
 ### Cotizar a un cliente (ya NO hay Presupuestos)
 

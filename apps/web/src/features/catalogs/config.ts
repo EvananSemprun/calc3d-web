@@ -24,8 +24,6 @@ export interface CatalogColumn {
   key: string;
   label: string;
   kind?: 'money' | 'number' | 'text';
-  /** Columna calculada (no es un campo del registro). 'rolls' = nº de rollos comprados. */
-  computed?: 'rolls';
 }
 
 export interface CatalogConfig {
@@ -40,13 +38,12 @@ export interface CatalogConfig {
   columns: CatalogColumn[];
   /** true = definición de costo: se crea SOLO vía gasto (sin "Agregar" suelto). */
   costDefinition?: boolean;
-  /** Filtros a mostrar en la página (solo materiales por ahora). */
-  filters?: Array<'status' | 'brand' | 'type' | 'color' | 'date'>;
-  /** true = botón Descontinuar / Reactivar por fila (`PATCH /:endpoint/:id/status`). */
-  statusToggle?: boolean;
 }
 
 export const catalogs: Record<string, CatalogConfig> = {
+  // Sin página propia desde 2026-09-14 (`/catalogs/materials` redirige a Stock del
+  // mes). Esta entrada solo arma el alta de ficha en Gastos → Filamento, y sin
+  // "Precio del rollo": lo fija el servidor con monto ÷ rollos.
   materials: {
     route: 'materials',
     endpoint: 'materials',
@@ -57,21 +54,11 @@ export const catalogs: Record<string, CatalogConfig> = {
       { name: 'name', label: 'Nombre', type: 'text' },
       { name: 'brand', label: 'Marca', type: 'combobox', optionsKind: 'MATERIAL_BRAND', optional: true },
       { name: 'type', label: 'Tipo (PLA, PETG…)', type: 'combobox', optionsKind: 'MATERIAL_TYPE', optional: true },
-      { name: 'rollPrice', label: 'Precio del rollo', type: 'number', step: '0.01' },
       { name: 'rollGrams', label: 'Gramos del rollo', type: 'number', step: '1', hint: 'Ej. 1000' },
       { name: 'color', label: 'Color', type: 'combobox', optionsKind: 'MATERIAL_COLOR', optional: true },
     ],
-    columns: [
-      { key: 'brand', label: 'Marca' },
-      { key: 'type', label: 'Tipo' },
-      { key: 'rollPrice', label: 'Precio rollo', kind: 'money' },
-      { key: 'rollGrams', label: 'Gramos', kind: 'number' },
-      { key: 'color', label: 'Color' },
-      { key: 'rolls', label: 'Rollos', computed: 'rolls' },
-    ],
+    columns: [],
     costDefinition: true,
-    filters: ['status', 'brand', 'type', 'color', 'date'],
-    statusToggle: true,
   },
   printers: {
     route: 'printers',

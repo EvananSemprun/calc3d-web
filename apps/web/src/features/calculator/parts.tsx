@@ -67,9 +67,12 @@ export function LineGroup({
 export function CatalogSelect<T extends { id: string; name: string }>({
   items,
   onPick,
+  labelOf = (item) => item.name,
 }: {
   items: T[] | undefined;
   onPick: (item: T) => void;
+  /** Texto de cada opción; por defecto, el nombre. */
+  labelOf?: (item: T) => string;
 }) {
   return (
     <Select
@@ -83,7 +86,7 @@ export function CatalogSelect<T extends { id: string; name: string }>({
       <option value="">Elegir del catálogo…</option>
       {items?.map((x) => (
         <option key={x.id} value={x.id}>
-          {x.name}
+          {labelOf(x)}
         </option>
       ))}
     </Select>

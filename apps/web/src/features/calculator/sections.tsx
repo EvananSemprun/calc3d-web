@@ -4,6 +4,7 @@ import { Field, FieldGrid, Input, NumberInput, REQUIRED_INPUT, Select, Switch } 
 import { useMoney } from '@/features/settings/useSettings';
 import { useCalculator, removeAt, updateAt } from '@/features/calculator/CalculatorProvider';
 import { CatalogSelect, LineGroup, MiniField } from '@/features/calculator/parts';
+import { materialLabel, quotableMaterials } from '@/features/calculator/materialOptions';
 
 /**
  * Las secciones de entrada, en el MISMO orden que la hoja "Costeo" del Excel.
@@ -120,9 +121,11 @@ export function SectionFilamento() {
       action={
         <div className="w-full sm:w-44">
           <CatalogSelect
-            // Una ficha descontinuada no se ofrece al cotizar. Lo ya cotizado no
+            // Sin descontinuadas; las que cerraron el último mes en 0 (y no se
+            // volvieron a comprar) van al final, avisadas. Lo ya cotizado no
             // cambia: elegir una ficha COPIA precio y gramos al trabajo.
-            items={c.catalogs.materials.data?.filter((m) => m.status !== 'DISCONTINUED')}
+            items={quotableMaterials(c.catalogs.materials.data)}
+            labelOf={materialLabel}
             onPick={(m) =>
               c.setFilament((f) => ({
                 ...f,

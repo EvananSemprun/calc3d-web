@@ -35,7 +35,7 @@ export function OnboardingChecklist() {
   const sales = useCount('sales', '/sales');
 
   const steps: Step[] = [
-    { done: materials > 0, label: 'Agrega tu primer material', hint: 'Filamento con su precio por kilo.', to: '/catalogs/materials' },
+    { done: materials > 0, label: 'Registra tu primera compra de filamento', hint: 'En Gastos, tipo Filamento: la ficha se crea con el precio de la compra.', to: '/expenses' },
     { done: printers > 0, label: 'Agrega una impresora', hint: 'Para calcular desgaste y electricidad.', to: '/catalogs/printers' },
     { done: quotes > 0, label: 'Crea tu primer presupuesto', hint: 'Desde la calculadora, con tus datos del trabajo.', to: '/' },
     { done: orders > 0 || sales > 0, label: 'Registra una venta o pedido', hint: 'Empieza a medir ingresos y ganancia.', to: '/orders' },
