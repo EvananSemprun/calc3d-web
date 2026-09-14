@@ -75,7 +75,7 @@ export function ProductionPage() {
             accent={t.failureRate != null && t.failureRate > MERMA_ASUMIDA ? 'yellow' : 'plain'}
           />
           <Stat
-            label="Pedidos con fallos anotados"
+            label="Encargos con fallos anotados"
             value={`${t.measuredJobs} de ${t.jobs}`}
             sub={
               t.measuredJobs < 5
@@ -101,7 +101,7 @@ export function ProductionPage() {
                   <h2 className="font-display text-lg font-bold">{p.name}</h2>
                   <span className="text-sm text-muted-foreground">
                     {p.hoursThisMonth != null && `${p.hoursThisMonth} h este mes · `}
-                    {p.jobs} {p.jobs === 1 ? 'pedido' : 'pedidos'} asignados
+                    {p.jobs} {p.jobs === 1 ? 'encargo asignado' : 'encargos asignados'}
                   </span>
                 </div>
 

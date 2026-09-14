@@ -98,5 +98,6 @@ export const LINK_KIND_LABELS: Record<Exclude<LinkKind, null>, string> = {
 
 export const SALE_KIND_LABELS: Record<SaleRow['kind'], string> = {
   COUNTER: 'Mostrador',
-  ENCARGO: 'Encargo',
+  // Historial semanal del Excel, sin detalle. Los encargos nuevos son pedidos.
+  ENCARGO: 'Encargo anterior',
 };

@@ -169,7 +169,7 @@ export function CampaignsPage() {
                       <th className="px-4 py-2.5 font-semibold">Salud</th>
                       <SortHeader<CampaignRow> label="Invertido" sortKey="invested" sort={sort} className="text-right" />
                       <SortHeader<CampaignRow> label="Vendido" sortKey="revenue" sort={sort} className="text-right" />
-                      <SortHeader<CampaignRow> label="Pedidos" sortKey="orders" sort={sort} className="text-right" />
+                      <SortHeader<CampaignRow> label="Encargos" sortKey="orders" sort={sort} className="text-right" />
                       <SortHeader<CampaignRow> label="ROAS" sortKey="roasVal" sort={sort} className="text-right" />
                       <th className="px-4 py-2.5" />
                     </tr>
@@ -210,7 +210,7 @@ export function CampaignsPage() {
                                     await confirm({
                                       title: `¿Eliminar la campaña "${c.name}"?`,
                                       description:
-                                        'Las ventas, pedidos y gastos NO se borran: solo dejan de estar atribuidos.',
+                                        'Las ventas, encargos y gastos NO se borran: solo dejan de estar atribuidos.',
                                       confirmLabel: 'Eliminar',
                                       tone: 'destructive',
                                     })

@@ -667,7 +667,7 @@ function DataSettings() {
     { entity: 'sales', label: 'Ventas' },
     { entity: 'expenses', label: 'Gastos' },
     { entity: 'products', label: 'Productos' },
-    { entity: 'orders', label: 'Pedidos' },
+    { entity: 'orders', label: 'Encargos' },
   ];
 
   return (

@@ -150,6 +150,13 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 - **Dialog** — limita el alto a `100dvh` y scrollea el cuerpo (los modales no se
   salen de pantalla). Modales con `<form onSubmit>` + botón `type="submit"` dan
   **Enter=Guardar**; el primer input lleva `autoFocus`.
+- **Encargo = pedido (2026-09-14, shared 0.16.0)** — la pantalla `/orders` se
+  llama **Encargos** en todo el panel (menú, títulos, botones, Dashboard,
+  Calendario, Por cobrar, Campañas, Producción, bandeja de la tienda). Ventas es
+  SOLO mostrador: el formulario ya no tiene "Tipo" y la API rechaza `ENCARGO`. Su
+  tarjeta "Cobrado de encargos" = abonos del periodo + ventas ENCARGO viejas
+  ("Encargo anterior": historial semanal del Excel, sin detalle). No volver a
+  ofrecer "encargo" como tipo de venta: se contaba dos veces con el pedido.
 - **Filtros = SELECTS, no buscador de texto** (decisión del dueño, 2026-09-14). Las
   listas filtran con `Select` sobre valores cerrados (Pedidos: Estado/Cliente;
   Contactos: Tipo/Ciudad; Catálogo: Nombre; Tienda: Categoría/Estado; Compras de

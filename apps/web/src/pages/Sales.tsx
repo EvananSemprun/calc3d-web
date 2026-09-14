@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
@@ -8,6 +9,7 @@ import { Dialog, useConfirm, Tooltip } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { SALE_KIND_LABELS, useSales } from '@/features/finance/api';
+import { useOrderPayments } from '@/features/orders/api';
 import { AttributionPicker, EMPTY_ATTRIBUTION, type Attribution } from '@/features/campaigns/AttributionPicker';
 
 const todayIso = () => {
@@ -33,8 +35,13 @@ export function SalesPage() {
     onError: (error) => notify.error(apiErrorMessage(error)),
   });
 
-  const total = sales.reduce((s, r) => s + r.amount, 0);
-  const encargos = sales.filter((s) => s.kind === 'ENCARGO').reduce((s, r) => s + r.amount, 0);
+  // Encargo = pedido (2026-09-14): lo cobrado de encargos son los ABONOS del
+  // periodo. Las ventas ENCARGO que quedan son el historial semanal del Excel, sin
+  // detalle; también es plata que entró, así que se suma a lo cobrado.
+  const payments = useOrderPayments(range);
+  const mostrador = sales.filter((s) => s.kind === 'COUNTER').reduce((s, r) => s + r.amount, 0);
+  const encargosAnteriores = sales.filter((s) => s.kind === 'ENCARGO').reduce((s, r) => s + r.amount, 0);
+  const abonos = (payments.data ?? []).reduce((s, p) => s + p.amount, 0);
 
   return (
     <div className="space-y-5">
@@ -43,7 +50,13 @@ export function SalesPage() {
           <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
           <div>
             <h1 className="font-display text-2xl font-bold">Ventas</h1>
-            <p className="text-sm text-muted-foreground">Registra cada venta; el total se calcula solo.</p>
+            <p className="text-sm text-muted-foreground">
+              Ventas de mostrador. Los encargos se registran en{' '}
+              <Link to="/orders" className="font-medium text-foreground underline underline-offset-4">
+                Encargos
+              </Link>
+              .
+            </p>
           </div>
         </div>
         <Button variant="accent" className="w-full sm:w-auto" onClick={() => setOpenManual(true)}>
@@ -59,8 +72,13 @@ export function SalesPage() {
         </FilterBar>
         {/* En el teléfono los totales se reparten el ancho en vez de desbordar. */}
         <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto">
-          <Stat label="Total del periodo" value={money(total)} accent="yellow" className="sm:min-w-[150px]" />
-          <Stat label="De encargos" value={money(encargos)} className="sm:min-w-[150px]" />
+          <Stat label="Mostrador" value={money(mostrador)} accent="yellow" className="sm:min-w-[150px]" />
+          <Stat
+            label="Cobrado de encargos"
+            value={money(abonos + encargosAnteriores)}
+            sub={encargosAnteriores > 0 ? `incluye ${money(encargosAnteriores)} anteriores sin detalle` : 'abonos del periodo'}
+            className="sm:min-w-[150px]"
+          />
         </div>
       </div>
 
@@ -143,7 +161,7 @@ function ManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
     queryKey: ['clients'],
     queryFn: async () => (await api.get<{ id: string; name: string }[]>('/clients')).data,
   });
-  const [form, setForm] = useState({ date: todayIso(), amount: 0, kind: 'COUNTER', clientId: '', note: '' });
+  const [form, setForm] = useState({ date: todayIso(), amount: 0, clientId: '', note: '' });
   const [attr, setAttr] = useState<Attribution>(EMPTY_ATTRIBUTION);
   const [saving, setSaving] = useState(false);
 
@@ -153,7 +171,8 @@ function ManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
       await api.post('/sales', {
         date: form.date,
         amount: form.amount,
-        kind: form.kind,
+        // Siempre mostrador: la API rechaza ventas ENCARGO nuevas (encargo = pedido).
+        kind: 'COUNTER',
         clientId: form.clientId || null,
         note: form.note || null,
         originChannel: attr.originChannel,
@@ -173,6 +192,7 @@ function ManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         if (!next) onClose();
       }}
       title="Registrar venta"
+      description="Venta de mostrador. Un encargo va en Encargos, con su cliente y sus abonos."
     >
       <div className="space-y-3">
         <FieldGrid min="11rem" className="gap-3">
@@ -183,12 +203,6 @@ function ManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
             <NumberInput step="0.01" value={form.amount} onChange={(n) => setForm({ ...form, amount: n })} />
           </Field>
         </FieldGrid>
-        <Field label="Tipo">
-          <Select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
-            <option value="COUNTER">Mostrador</option>
-            <option value="ENCARGO">Encargo</option>
-          </Select>
-        </Field>
         <Field label="Cliente (opcional)">
           <Select value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
             <option value="">Sin cliente</option>

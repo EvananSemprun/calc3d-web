@@ -65,7 +65,7 @@ export function CalendarPage() {
           <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
           <div>
             <h1 className="font-display text-2xl font-bold">Calendario de entregas</h1>
-            <p className="text-sm text-muted-foreground">Tus pedidos por fecha de entrega.</p>
+            <p className="text-sm text-muted-foreground">Tus encargos por fecha de entrega.</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -133,7 +133,7 @@ export function CalendarPage() {
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <CalendarDays className="h-8 w-8 text-brand-blue-bright" />
             <p className="text-sm text-muted-foreground">
-              Ningún pedido tiene fecha de entrega todavía. Agrégala en el detalle del pedido.
+              Ningún encargo tiene fecha de entrega todavía. Agrégala en el detalle del encargo.
             </p>
           </CardContent>
         </Card>

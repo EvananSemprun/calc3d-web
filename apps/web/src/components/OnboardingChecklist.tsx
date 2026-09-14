@@ -39,7 +39,7 @@ export function OnboardingChecklist() {
     { done: materials > 0, label: 'Registra tu primera compra de filamento', hint: 'En Gastos, tipo Filamento: la ficha se crea con el precio de la compra.', to: '/expenses' },
     { done: printers > 0, label: 'Agrega una impresora', hint: 'Para calcular desgaste y electricidad.', to: '/catalogs/printers' },
     { done: rates > 0, label: 'Carga las tasas de cambio', hint: 'En Configuración → Moneda, para ver los precios en bolívares.', to: '/settings?seccion=moneda' },
-    { done: orders > 0 || sales > 0, label: 'Registra una venta o pedido', hint: 'Empieza a medir ingresos y ganancia.', to: '/orders' },
+    { done: orders > 0 || sales > 0, label: 'Registra una venta o un encargo', hint: 'Empieza a medir ingresos y ganancia.', to: '/orders' },
   ];
 
   const doneCount = steps.filter((s) => s.done).length;

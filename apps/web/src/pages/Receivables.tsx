@@ -48,7 +48,7 @@ export function ReceivablesPage() {
           accent="yellow"
           sub={moneyAlt ? `≈ ${moneyAlt(totalPending)}` : undefined}
         />
-        <Stat label="Pedidos con saldo" value={String(pending.length)} />
+        <Stat label="Encargos con saldo" value={String(pending.length)} />
         <Stat label="Más antiguo" value={pending.length ? `${pending[0].age} días` : '—'} />
       </div>
 
@@ -59,7 +59,7 @@ export function ReceivablesPage() {
           ) : pending.length === 0 ? (
             <div className="flex flex-col items-center gap-3 p-12 text-center">
               <HandCoins className="h-8 w-8 text-success" />
-              <p className="text-sm text-muted-foreground">Nadie te debe. Todos los pedidos están saldados.</p>
+              <p className="text-sm text-muted-foreground">Nadie te debe. Todos los encargos están saldados.</p>
             </div>
           ) : (
             <table className="w-full min-w-[680px] text-sm">

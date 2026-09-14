@@ -136,14 +136,14 @@ export function ContactDetailPage() {
       {/* Historial */}
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Presupuestos" value={String(history.quotes.length)} />
-        <Stat label="Pedidos" value={String(history.orders.length)} accent="yellow" />
+        <Stat label="Encargos" value={String(history.orders.length)} accent="yellow" />
         <Stat label="Ventas" value={String(history.sales.length)} accent="success" />
       </div>
 
       {history.orders.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Pedidos</CardTitle>
+            <CardTitle>Encargos</CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto p-0">
             <table className="w-full text-sm">

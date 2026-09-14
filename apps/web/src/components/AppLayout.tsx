@@ -48,7 +48,7 @@ const navGroups: { heading?: string; items: { to: string; label: string; icon: t
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/sales', label: 'Ventas', icon: TrendingUp },
       { to: '/expenses', label: 'Gastos', icon: Receipt },
-      { to: '/orders', label: 'Pedidos', icon: Package },
+      { to: '/orders', label: 'Encargos', icon: Package },
       { to: '/calendar', label: 'Calendario', icon: CalendarDays },
       { to: '/receivables', label: 'Por cobrar', icon: HandCoins },
       { to: '/loans', label: 'Deuda', icon: Landmark },

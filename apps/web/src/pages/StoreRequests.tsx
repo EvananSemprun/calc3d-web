@@ -74,7 +74,7 @@ export function StoreRequestsPage() {
     if (!ok) return;
     try {
       const res = await confirmMut.mutateAsync(r.id);
-      notify.success(`Pedido #${res.orderCode} creado`);
+      notify.success(`Encargo #${res.orderCode} creado`);
       navigate(`/orders/${res.orderId}`);
     } catch (e) {
       notify.error(apiErrorMessage(e));
@@ -254,7 +254,7 @@ function RequestCard({
           {esNueva ? (
             <>
               <Button onClick={onConfirmar} disabled={trabajando}>
-                <Check className="size-4" /> Confirmar y crear pedido
+                <Check className="size-4" /> Confirmar y crear encargo
               </Button>
               <Button variant="ghost" onClick={onDescartar} disabled={trabajando}>
                 <X className="size-4" /> Descartar
@@ -264,7 +264,7 @@ function RequestCard({
             <>
               {r.order && (
                 <Button variant="secondary" onClick={onVerPedido}>
-                  Ver pedido #{r.order.code}
+                  Ver encargo #{r.order.code}
                 </Button>
               )}
               <Button variant="ghost" onClick={onBorrar}>

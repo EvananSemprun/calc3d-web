@@ -125,7 +125,7 @@ export function OrderDetailPage() {
   return (
     <div className="space-y-5">
       <Link to="/orders" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Pedidos
+        <ArrowLeft className="h-4 w-4" /> Encargos
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -133,7 +133,7 @@ export function OrderDetailPage() {
           <span aria-hidden className="h-9 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
           <div>
             <h1 className="font-display text-2xl font-bold">
-              Pedido #{order.code} · {order.client?.name}
+              Encargo #{order.code} · {order.client?.name}
             </h1>
             <p className="text-sm text-muted-foreground">
               {order.client?.phone ? `${order.client.phone} · ` : ''}
@@ -306,7 +306,7 @@ export function OrderDetailPage() {
             )}
             {order.balance <= 0 && order.total > 0 && (
               <Badge variant="success" className="mt-1">
-                Pedido saldado
+                Encargo saldado
               </Badge>
             )}
           </CardContent>
@@ -318,14 +318,14 @@ export function OrderDetailPage() {
         <Button
           variant="outline"
           onClick={async () => {
-            if (await confirm({ title: `¿Eliminar el pedido #${order.code}?` })) {
+            if (await confirm({ title: `¿Eliminar el encargo #${order.code}?` })) {
               await api.delete(`/orders/${id}`);
               qc.invalidateQueries({ queryKey: ['orders'] });
               navigate('/orders');
             }
           }}
         >
-          <Trash2 className="h-4 w-4" /> Eliminar pedido
+          <Trash2 className="h-4 w-4" /> Eliminar encargo
         </Button>
       </div>
 

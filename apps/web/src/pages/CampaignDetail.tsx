@@ -26,7 +26,7 @@ const HEALTH: Record<CampaignHealth, { label: string; variant: 'success' | 'warn
   PROFITABLE: { label: 'Rentable', variant: 'success', note: 'La ganancia supera lo invertido en publicidad.' },
   AT_RISK: { label: 'En riesgo', variant: 'warning', note: 'Vendió, pero la ganancia no cubre la publicidad.' },
   LOSS: { label: 'Pérdida', variant: 'outline', note: 'La publicidad cuesta más de lo que deja.' },
-  NO_DATA: { label: 'Sin datos', variant: 'outline', note: 'Aún no hay ventas ni pedidos atribuidos.' },
+  NO_DATA: { label: 'Sin datos', variant: 'outline', note: 'Aún no hay ventas ni encargos atribuidos.' },
 };
 
 /** Estilo del banner de recomendación por acción sugerida. */
@@ -155,9 +155,9 @@ export function CampaignDetailPage() {
             <dl className="space-y-2.5 text-sm tabular">
               <Row label="Ventas atribuidas" value={String(s.sales)} />
               <Row label="Ticket promedio" value={s.sales > 0 ? money(s.revenue / s.sales) : '—'} />
-              <Row label="Pedidos atribuidos" value={`${s.orders}  (${money(s.ordersTotal)})`} />
+              <Row label="Encargos atribuidos" value={`${s.orders}  (${money(s.ordersTotal)})`} />
               <Row label="Cotizaciones atribuidas" value={String(s.quotes)} />
-              <Row label="Costo por pedido" value={costPer(s.invested, s.orders) == null ? '—' : money(costPer(s.invested, s.orders)!)} />
+              <Row label="Costo por encargo" value={costPer(s.invested, s.orders) == null ? '—' : money(costPer(s.invested, s.orders)!)} />
               <Row
                 label="Costo por cotización"
                 value={costPer(s.invested, s.quotes) == null ? '—' : money(costPer(s.invested, s.quotes)!)}
@@ -225,7 +225,7 @@ export function CampaignDetailPage() {
       <p className="text-xs text-muted-foreground">
         La <strong>ganancia</strong> y el <strong>ROI</strong> solo se calculan con las ventas que traen costo
         (las que vienen de una cotización/producto). Las ventas de mostrador sueltas cuentan para ingresos y ROAS,
-        pero no para ganancia. Para atribuir una venta o pedido a esta campaña, elige el origen al crearlos.
+        pero no para ganancia. Para atribuir una venta o un encargo a esta campaña, elige el origen al crearlos.
       </p>
     </div>
   );

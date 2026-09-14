@@ -55,14 +55,14 @@ export function OrdersPage() {
         <div className="flex items-center gap-3">
           <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
           <div>
-            <h1 className="font-display text-2xl font-bold">Pedidos</h1>
+            <h1 className="font-display text-2xl font-bold">Encargos</h1>
             <p className="text-sm text-muted-foreground">
               Encargos con fecha de entrega, abonos y saldo. Por cobrar: {money(pendiente)}.
             </p>
           </div>
         </div>
         <Button variant="accent" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4" /> Nuevo pedido
+          <Plus className="h-4 w-4" /> Nuevo encargo
         </Button>
       </div>
 
@@ -94,15 +94,15 @@ export function OrdersPage() {
           ) : orders.length === 0 ? (
             <EmptyState
               icon={Package}
-              description="Sin pedidos todavía. Crea el primero para sacar los encargos de WhatsApp."
+              description="Sin encargos todavía. Crea el primero para dejar de llevarlos por WhatsApp."
               action={
                 <Button variant="accent" onClick={() => setOpen(true)}>
-                  <Plus className="h-4 w-4" /> Nuevo pedido
+                  <Plus className="h-4 w-4" /> Nuevo encargo
                 </Button>
               }
             />
           ) : sorted.length === 0 ? (
-            <EmptyState icon={Package} description="Ningún pedido coincide con los filtros." />
+            <EmptyState icon={Package} description="Ningún encargo coincide con los filtros." />
           ) : (
             <>
               {/* Desktop: tabla ordenable */}
@@ -253,7 +253,7 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
   };
 
   return (
-    <Dialog open onOpenChange={(n) => !n && onClose()} title="Nuevo pedido">
+    <Dialog open onOpenChange={(n) => !n && onClose()} title="Nuevo encargo">
       <div className="space-y-3">
         <FieldGrid min="11rem" className="gap-3">
           <Field label="Cliente" required>
@@ -335,7 +335,7 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
             Cancelar
           </Button>
           <Button variant="accent" onClick={save} disabled={saving || !clientId}>
-            {saving ? 'Guardando…' : 'Crear pedido'}
+            {saving ? 'Guardando…' : 'Crear encargo'}
           </Button>
         </div>
       </div>

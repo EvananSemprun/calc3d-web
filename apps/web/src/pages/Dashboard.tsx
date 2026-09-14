@@ -196,9 +196,9 @@ export function DashboardPage() {
           sub={`${agg.numVentas} mostrador/encargo`}
         />
         <Stat
-          label="Abonos de pedidos"
+          label="Cobrado de encargos"
           value={<NumberTicker value={agg.abonos} format={money} />}
-          sub={moneyAlt ? `≈ ${moneyAlt(agg.abonos)}` : 'dinero de encargos'}
+          sub={moneyAlt ? `≈ ${moneyAlt(agg.abonos)}` : 'abonos del periodo'}
         />
         <Stat
           label="Gastos"

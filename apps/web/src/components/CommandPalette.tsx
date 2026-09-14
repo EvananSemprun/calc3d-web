@@ -41,7 +41,7 @@ const PAGES: Cmd[] = [
   { key: 'p-dash', group: 'Ir a', label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
   { key: 'p-sales', group: 'Ir a', label: 'Ventas', to: '/sales', icon: TrendingUp },
   { key: 'p-exp', group: 'Ir a', label: 'Gastos', to: '/expenses', icon: Receipt },
-  { key: 'p-orders', group: 'Ir a', label: 'Pedidos', to: '/orders', icon: Package },
+  { key: 'p-orders', group: 'Ir a', label: 'Encargos', to: '/orders', icon: Package },
   { key: 'p-cal', group: 'Ir a', label: 'Calendario', to: '/calendar', icon: CalendarDays },
   { key: 'p-recv', group: 'Ir a', label: 'Por cobrar', to: '/receivables', icon: HandCoins },
   { key: 'p-camp', group: 'Ir a', label: 'Publicidad', to: '/campaigns', icon: Megaphone },
@@ -125,7 +125,7 @@ export function CommandPalette() {
     for (const c of clients.data ?? [])
       items.push({ key: `c-${c.id}`, group: 'Contactos', label: c.name, sub: c.phone ?? undefined, to: `/contacts/${c.id}`, icon: Users });
     for (const o of orders.data ?? [])
-      items.push({ key: `o-${o.id}`, group: 'Pedidos', label: `#${o.code} · ${o.client?.name ?? 'Sin cliente'}`, sub: o.status, to: `/orders/${o.id}`, icon: Package });
+      items.push({ key: `o-${o.id}`, group: 'Encargos', label: `#${o.code} · ${o.client?.name ?? 'Sin cliente'}`, sub: o.status, to: `/orders/${o.id}`, icon: Package });
     for (const p of products.data ?? [])
       items.push({ key: `pr-${p.id}`, group: 'Productos', label: p.name, to: `/store/${p.id}`, icon: Boxes });
     for (const c of campaigns.data ?? [])
@@ -207,7 +207,7 @@ export function CommandPalette() {
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar páginas, contactos, pedidos, presupuestos…"
+                placeholder="Buscar páginas, contactos, encargos…"
                 aria-label="Buscar en toda la app"
                 role="combobox"
                 aria-expanded
