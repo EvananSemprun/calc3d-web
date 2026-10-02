@@ -320,14 +320,14 @@ export function ProductionCard() {
           Producción
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Las horas de máquina son las que cuestan; la entrega es lo que le prometes al cliente.
+          Las horas de máquina cuentan placas enteras (la última corre aunque vaya a medias); la entrega es lo que le prometes al cliente.
         </p>
       </CardHeader>
       <CardContent>
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Metric label="Tandas" value={String(p.batches)} hint={`${p.piecesPerBatch} pzs c/u`} />
           <Metric label="Filamento total" value={`${p.totalGrams} g`} />
-          <Metric label="Horas de máquina" value={formatHM(p.machineHours)} hint="lo que desgasta" />
+          <Metric label="Horas de máquina" value={formatHM(p.machineHours)} hint="placas enteras" />
           <Metric
             label="Entrega estimada"
             value={formatHM(p.deliveryHours)}

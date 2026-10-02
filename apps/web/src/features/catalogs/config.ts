@@ -71,7 +71,15 @@ export const catalogs: Record<string, CatalogConfig> = {
       { name: 'price', label: 'Precio', type: 'number', step: '0.01' },
       { name: 'lifetimeHours', label: 'Vida útil (horas)', type: 'number', step: '1', hint: 'Ej. 5000' },
       { name: 'powerKw', label: 'Potencia (kW)', type: 'number', step: '0.01', hint: 'Ej. 0.12' },
-      { name: 'maintPerHour', label: 'Mantenimiento por hora', type: 'number', step: '0.01', optional: true },
+      {
+        name: 'maintPerHour',
+        label: 'Mantenimiento por hora (manual)',
+        type: 'number',
+        step: '0.01',
+        optional: true,
+        // Con lecturas del contador, la API lo DERIVA (repuestos ÷ horas) e ignora este valor.
+        hint: 'Solo se usa si todavía no hay lecturas de horas: con lecturas se calcula solo',
+      },
     ],
     columns: [
       { key: 'name', label: 'Nombre' },

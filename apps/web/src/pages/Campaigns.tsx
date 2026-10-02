@@ -272,6 +272,7 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
     reach: campaign?.reach ?? 0,
     conversations: campaign?.conversations ?? 0,
     profileVisits: campaign?.profileVisits ?? 0,
+    followers: campaign?.followers ?? 0,
     notes: campaign?.notes ?? '',
   });
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -292,6 +293,7 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
         reach: form.reach || null,
         conversations: form.conversations || null,
         profileVisits: form.profileVisits || null,
+        followers: form.followers || null,
         notes: form.notes || null,
       },
       {
@@ -347,6 +349,9 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
           </Field>
           <Field label="Visitas al perfil">
             <NumberInput value={form.profileVisits} onChange={(v) => set({ profileVisits: v })} />
+          </Field>
+          <Field label="Seguidores ganados">
+            <NumberInput value={form.followers} onChange={(v) => set({ followers: v })} />
           </Field>
           <Field label="Estado">
             <Select value={form.status} onChange={(e) => set({ status: e.target.value as typeof form.status })}>

@@ -27,6 +27,8 @@ import {
   expenseLink,
   useExpenses,
   type ExpenseRow,
+  PAID_BY_LABELS,
+  type PaidBy,
 } from '@/features/finance/api';
 import { catalogs } from '@/features/catalogs/config';
 import { Combobox } from '@/components/Combobox';
@@ -65,6 +67,7 @@ const EXPENSE_TYPES: ExpenseType[] = [
   { key: 'component', label: 'Insumo', catalog: 'components', endpoint: 'components', linkField: 'componentId', priceField: 'packagePrice', perUnit: true, category: 'CONSUMABLE' },
   { key: 'maintenance', label: 'Mantenimiento', linkField: 'printerId', category: 'MAINTENANCE' },
   { key: 'general', label: 'General (envío, renta…)', category: 'OTHER' },
+  { key: 'design', label: 'Diseño', category: 'DESIGN' },
   { key: 'advertising', label: 'Publicidad', category: 'ADVERTISING' },
 ];
 
@@ -91,8 +94,10 @@ export function ExpensesPage() {
       case 'component': return !!e.component;
       case 'maintenance': return e.category === 'MAINTENANCE';
       case 'advertising': return e.category === 'ADVERTISING';
+      case 'design': return e.category === 'DESIGN';
+      case 'owner': return e.paidBy === 'OWNER';
       case 'investment': return e.isInvestment;
-      case 'general': return !e.material && !e.printer && !e.component && e.category !== 'MAINTENANCE' && e.category !== 'ADVERTISING';
+      case 'general': return !e.material && !e.printer && !e.component && e.category !== 'MAINTENANCE' && e.category !== 'ADVERTISING' && e.category !== 'DESIGN';
       default: return true;
     }
   };
@@ -105,6 +110,18 @@ export function ExpensesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       notify.success('Gasto eliminado');
+    },
+    onError: (error) => notify.error(apiErrorMessage(error)),
+  });
+
+  // Quién lo pagó se corrige desde la tabla: los gastos viejos nacieron todos
+  // como "Negocio" y la Caja depende de que esto esté bien.
+  const cambiarPagador = useMutation({
+    mutationFn: ({ id, paidBy }: { id: string; paidBy: PaidBy }) =>
+      api.patch(`/expenses/${id}`, { paidBy }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['cash'] });
     },
     onError: (error) => notify.error(apiErrorMessage(error)),
   });
@@ -149,7 +166,9 @@ export function ExpensesPage() {
             <option value="component">Insumos</option>
             <option value="maintenance">Mantenimiento</option>
             <option value="advertising">Publicidad</option>
+            <option value="design">Diseño</option>
             <option value="investment">Inversión</option>
+            <option value="owner">Pagados por Vanan</option>
             <option value="general">General</option>
           </Select>
         </FilterBar>
@@ -202,6 +221,7 @@ export function ExpensesPage() {
                     <th className="px-4 py-3 font-semibold">Descripción</th>
                     <th className="px-4 py-3 text-right font-semibold">Cant.</th>
                     <th className="px-4 py-3 text-right font-semibold">Monto</th>
+                    <th className="px-4 py-3 font-semibold">Pagó</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -237,6 +257,22 @@ export function ExpensesPage() {
                         </td>
                         <td className="px-4 py-3 text-right tabular">{e.quantity ?? '—'}</td>
                         <td className="px-4 py-3 text-right tabular font-semibold">{money(e.amount)}</td>
+                        <td className="px-4 py-3">
+                          <Select
+                            className="h-8 w-[7.5rem] text-xs"
+                            value={e.paidBy}
+                            aria-label={`Quién pagó: ${e.description}`}
+                            onChange={(ev) =>
+                              cambiarPagador.mutate({ id: e.id, paidBy: ev.target.value as PaidBy })
+                            }
+                          >
+                            {(Object.keys(PAID_BY_LABELS) as PaidBy[]).map((k) => (
+                              <option key={k} value={k}>
+                                {PAID_BY_LABELS[k]}
+                              </option>
+                            ))}
+                          </Select>
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <Tooltip label="Eliminar gasto">
                             <Button
@@ -306,6 +342,8 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const [updatePrice, setUpdatePrice] = useState(true);
   const [catForm, setCatForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
+  // Por defecto lo paga el negocio; si lo pagó Vanan, la Caja lo cuenta como aporte.
+  const [paidBy, setPaidBy] = useState<PaidBy>('BUSINESS');
 
   const type = EXPENSE_TYPES.find((t) => t.key === typeKey)!;
   const linksCatalog = !!type.catalog;
@@ -369,6 +407,7 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
             isInvestment: !!type.investment,
             quantity: type.perUnit ? quantity : null,
             providerId: providerId || null,
+            paidBy,
           },
           link: {
             kind,
@@ -398,6 +437,7 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           category: type.category,
           isInvestment: !!type.investment,
           quantity: type.perUnit ? quantity : null,
+          paidBy,
         };
         const payload: Record<string, unknown> = { ...base, description, endDate: endDate || null, providerId: providerId || null };
         if (type.key === 'maintenance' && selectedId) payload.printerId = selectedId;
@@ -627,6 +667,17 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
               {p.name}
             </option>
           ))}
+        </Select>
+      </Field>
+
+      <Field
+        label="¿Quién lo pagó?"
+        hint="Si lo pagaste de tu bolsillo, la Caja lo cuenta como aporte que el negocio te debe."
+      >
+        <Select value={paidBy} onChange={(e) => setPaidBy(e.target.value as PaidBy)}>
+          <option value="BUSINESS">La caja del negocio</option>
+          <option value="OWNER">Vanan, de su bolsillo</option>
+          <option value="LOAN">El préstamo</option>
         </Select>
       </Field>
 

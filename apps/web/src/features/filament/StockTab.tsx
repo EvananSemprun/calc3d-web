@@ -6,7 +6,9 @@ import {
   HelpCircle,
   Lock,
   LockOpen,
+  Minus,
   PackageCheck,
+  Plus,
 } from 'lucide-react';
 import {
   BUSINESS_TIME_ZONE,
@@ -121,30 +123,39 @@ export function StockTab() {
   // Un valor viejo o raro en localStorage dejaría la grilla vacía y el selector en blanco.
   const estadoF = ESTADOS.includes(estadoRaw) ? estadoRaw : '';
 
-  const tipos = useMemo(() => uniqueSorted(filas.map((f) => f.type)), [filas]);
+  // Solo salen las que HAY: las que tenían rollos al cierre del mes anterior o
+  // se compraron en este (decisión del dueño, 2026-10-01). El resto no sale. Al cerrar quedan en 0, que es lo
+  // que son. Una a la que ya se le escribieron rollos nunca se esconde.
+  const [verAgotadas, setVerAgotadas] = useState(false);
+  const esconder = (f: StockCountRow) =>
+    !verAgotadas && f.exhausted && stockTotal(draft[f.materialId] ?? CERO) === 0;
+  const agotadas = useMemo(() => filas.filter((f) => f.exhausted), [filas]);
+  const filasBase = useMemo(() => filas.filter((f) => !esconder(f)), [filas, verAgotadas, draft]);
+
+  const tipos = useMemo(() => uniqueSorted(filasBase.map((f) => f.type)), [filasBase]);
   // Un valor guardado que ya no existe (cambió de mes, se corrigió la ficha o
   // cambió el Tipo) dejaría el Select en blanco y la grilla vacía, igual que `estadoF`.
   const tipoSeguro = tipos.includes(tipoF) ? tipoF : '';
   // Los colores se acotan al Tipo elegido: con "PETG" no se ofrecen colores que solo hay en PLA.
   const colores = useMemo(
-    () => uniqueSorted(filas.filter((f) => !tipoSeguro || f.type === tipoSeguro).map((f) => f.color)),
-    [filas, tipoSeguro],
+    () => uniqueSorted(filasBase.filter((f) => !tipoSeguro || f.type === tipoSeguro).map((f) => f.color)),
+    [filasBase, tipoSeguro],
   );
   const colorSeguro = colores.includes(colorF) ? colorF : '';
-  const marcas = useMemo(() => uniqueSorted(filas.map((f) => f.brand)), [filas]);
+  const marcas = useMemo(() => uniqueSorted(filasBase.map((f) => f.brand)), [filasBase]);
   const marcaSegura = marcas.includes(marcaF) ? marcaF : '';
   const filasVisibles = useMemo(
     () =>
-      filas.filter(
+      filasBase.filter(
         (f) =>
           (!tipoSeguro || f.type === tipoSeguro) &&
           (!colorSeguro || f.color === colorSeguro) &&
           (!marcaSegura || f.brand === marcaSegura) &&
           (!estadoF || f.status === estadoF),
       ),
-    [filas, tipoSeguro, colorSeguro, marcaSegura, estadoF],
+    [filasBase, tipoSeguro, colorSeguro, marcaSegura, estadoF],
   );
-  const hayOcultas = filasVisibles.length < filas.length;
+  const hayOcultas = filasVisibles.length < filasBase.length;
   const quitarFiltros = () => {
     setColorF('');
     setMarcaF('');
@@ -157,7 +168,7 @@ export function StockTab() {
   // el filtro oculte alguna: el dueño decide reposición por el total real del
   // color, no por lo que quedó visible.
   const gruposCompletos = useMemo(
-    () => new Map(agruparPorColor(filas).map((g) => [g.clave, g.filas])),
+    () => new Map(agruparPorColor(filasBase).map((g) => [g.clave, g.filas])),
     [filas],
   );
 
@@ -174,6 +185,31 @@ export function StockTab() {
     guardarBorrador(claveBorrador, next, estado?.reopenedAt ?? null);
   };
 
+  // Lo del mes anterior, de referencia (2026-10-01, decisión del dueño): se COPIA
+  // a pedido, no se precarga — si no, una ficha que no se miró se cerraría con
+  // el número viejo como si se hubiera contado.
+  const mesAnterior = etiquetaMes(previousMonth(month)).replace(/ de \d{4}$/, '');
+  const mesCapital = mesAnterior[0].toUpperCase() + mesAnterior.slice(1);
+  const mesCorto = `${mesAnterior.slice(0, 3)}.`;
+  const conAnterior = filasBase.filter((f) => f.previous);
+  const copiarAnterior = (f: StockCountRow) => f.previous && set(f.materialId, { ...f.previous });
+  const copiarTodo = async () => {
+    const hayEscrito = conAnterior.some((f) => stockTotal(draft[f.materialId] ?? CERO) > 0);
+    if (hayEscrito) {
+      const ok = await confirm({
+        title: `¿Copiar todo ${mesAnterior}?`,
+        description: `Las casillas que ya llenaste se reemplazan por lo que cerró ${mesAnterior}.`,
+        confirmLabel: 'Copiar',
+      });
+      if (!ok) return;
+    }
+    const next = { ...draft };
+    for (const f of conAnterior) next[f.materialId] = { ...(f.previous as Partes) };
+    setDraft(next);
+    guardarBorrador(claveBorrador, next, estado?.reopenedAt ?? null);
+    notify.success(`Copiado lo de ${mesAnterior}: corregí lo que cambió`);
+  };
+
   const cerrarMes = async () => {
     const counts = filas.map((f) => ({ materialId: f.materialId, ...(draft[f.materialId] ?? CERO) }));
     const rollos = counts.reduce((s, c) => s + stockTotal(c), 0);
@@ -181,9 +217,10 @@ export function StockTab() {
       filas.filter((f) => stockTotal(draft[f.materialId] ?? CERO) > 0).map(claveDeColor),
     ).size;
     const mes = etiquetaMes(month);
-    const avisoOcultas = hayOcultas
-      ? ' Se guardan TODAS las fichas, también las que ocultan los filtros.'
-      : '';
+    const escondidas = filas.length - filasBase.length;
+    const avisoOcultas =
+      (hayOcultas ? ' Se guardan TODAS las fichas, también las que ocultan los filtros.' : '') +
+      (escondidas > 0 ? ` Las ${escondidas} que no había el mes pasado quedan en 0.` : '');
     const ok = await confirm(
       rollos === 0
         ? {
@@ -391,6 +428,34 @@ export function StockTab() {
               </button>
             </p>
           )}
+          {!cerrado && conAnterior.length > 0 && (
+            <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              Debajo de cada marca ves cómo cerró {mesAnterior}.
+              <button
+                type="button"
+                onClick={copiarTodo}
+                disabled={cerrar.isPending}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Copiar todo {mesAnterior}
+              </button>
+            </p>
+          )}
+          {agotadas.length > 0 && (
+            <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              {verAgotadas
+                ? `Se ven también las ${agotadas.length} ficha(s) que no había al cierre de ${etiquetaMes(previousMonth(month))} y no se compraron en ${etiquetaMes(month)}.`
+                : `${agotadas.length} ficha(s) no había al cierre de ${etiquetaMes(previousMonth(month))} y no se compraron en ${etiquetaMes(month)}: no se muestran y al cerrar quedan en 0.`}
+              <button
+                type="button"
+                onClick={() => setVerAgotadas((v) => !v)}
+                aria-pressed={verAgotadas}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                {verAgotadas ? 'Ocultarlas' : 'Mostrarlas'}
+              </button>
+            </p>
+          )}
         </div>
       )}
 
@@ -401,112 +466,143 @@ export function StockTab() {
         // sigue a la vista (el botón de cerrar igual queda bloqueado por `listo`).
         <TableSkeleton rows={8} cols={5} />
       ) : (
-        <Card>
-          <CardContent className="space-y-5 pt-5">
-            {filas.length === 0 && (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Todavía no hay fichas de filamento: se crean al registrar una compra en Gastos.
-              </p>
-            )}
-            {filas.length > 0 && grupos.length === 0 && (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Ninguna ficha coincide con los filtros.
-              </p>
-            )}
-            {grupos.map((g) => {
-              const todas = gruposCompletos.get(g.clave) ?? g.filas;
-              const rollosDelColor = todas.reduce((s, f) => s + stockTotal(valores(f)), 0);
-              const marcas =
-                todas.length > g.filas.length
-                  ? `${g.filas.length} de ${todas.length} marca(s)`
-                  : `${todas.length} marca(s)`;
-              return (
-              <section key={g.clave}>
-                <header className="mb-2 flex items-baseline justify-between gap-2 border-b border-border/60 pb-1">
-                  <h3 className="font-display text-sm font-semibold">{g.clave}</h3>
-                  <span className="text-xs text-muted-foreground">
-                    {rollosDelColor} rollo(s) · {marcas}
-                  </span>
-                </header>
-
-                <div className="hidden grid-cols-[1fr_5rem_5rem_5rem_4rem] gap-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground sm:grid">
-                  <span>Marca</span>
-                  <span className="text-center">Sin abrir</span>
-                  <span className="text-center">En uso</span>
-                  <span className="text-center">Por acabarse</span>
-                  <span className="text-center">Total</span>
-                </div>
-
-                <div className="space-y-2">
-                  {g.filas.map((f) => {
+        <div
+          className="grid gap-3"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 20rem), 1fr))' }}
+        >
+          {filas.length === 0 && (
+            <p className="col-span-full rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+              Todavía no hay fichas de filamento: se crean al registrar una compra en Gastos.
+            </p>
+          )}
+          {filas.length > 0 && grupos.length === 0 && (
+            <p className="col-span-full rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+              Ninguna ficha coincide con los filtros.
+            </p>
+          )}
+          {grupos.map((g) => {
+            const todas = gruposCompletos.get(g.clave) ?? g.filas;
+            const rollosDelColor = todas.reduce((s, f) => s + stockTotal(valores(f)), 0);
+            const marcas =
+              todas.length > g.filas.length
+                ? `${g.filas.length} de ${todas.length} marcas`
+                : `${todas.length} ${todas.length === 1 ? 'marca' : 'marcas'}`;
+            // Una tarjeta por marca, con el color ADENTRO: antes cada color era un
+            // panel con filas sueltas del mismo peso y la referencia del mes
+            // anterior parecía de la fila de abajo (pedido del dueño, 2026-10-01).
+            return g.filas.map((f) => {
                     const p = valores(f);
                     const total = stockTotal(p);
                     const ficha = `${g.clave} ${f.brand ?? 'Sin marca'}`;
+                    const editable = !cerrado && !cerrar.isPending;
+                    // Antes de contar, todo vale 0 y "cambió" sería ruido en cada tarjeta.
+                    const cambio = !!f.previous && (cerrado || total > 0) && stockTotal(f.previous) !== total;
                     return (
-                      <div
+                      <article
                         key={f.materialId}
-                        className="grid grid-cols-3 items-center gap-2 sm:grid-cols-[1fr_5rem_5rem_5rem_4rem]"
+                        aria-label={ficha}
+                        className={cn(
+                          'rounded-xl border border-border/50 bg-background/50 p-3 transition-[border-color,box-shadow]',
+                          // La tarjeta donde estás escribiendo se ilumina: así no
+                          // se escribe en una creyendo que es otra.
+                          'focus-within:border-brand-yellow/80 focus-within:shadow-glow-sm',
+                          total > 0 && 'border-brand-blue-bright/40',
+                        )}
                       >
-                        <div className="col-span-3 flex items-center gap-2 sm:col-span-1">
-                          <button
-                            type="button"
-                            onClick={() => setFichaAbierta(f)}
-                            aria-label={`Ficha de ${ficha}`}
-                            className="truncate rounded text-left text-sm underline decoration-dotted underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          >
-                            {f.brand ?? 'Sin marca'}
-                          </button>
-                          {f.status === 'DISCONTINUED' && (
-                            <Badge variant="outline" className="shrink-0 text-[10px]">
-                              descontinuado
-                            </Badge>
-                          )}
-                          {f.needsBrandCheck && (
-                            <AlertTriangle
-                              className="h-3.5 w-3.5 shrink-0 text-brand-blue-bright"
-                              role="img"
-                              aria-label="Marca por identificar"
+                        <div className="flex items-start gap-3">
+                          <Muestra color={f.color} />
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate font-display text-base font-semibold leading-tight">
+                              {g.clave}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setFichaAbierta(f)}
+                                aria-label={`Ficha de ${ficha}`}
+                                className="truncate rounded text-left text-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-brand-yellow-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              >
+                                {f.brand ?? 'Sin marca'}
+                              </button>
+                              {f.status === 'DISCONTINUED' && (
+                                <Badge variant="outline" className="shrink-0 text-[10px]">
+                                  descontinuado
+                                </Badge>
+                              )}
+                              {f.needsBrandCheck && (
+                                <AlertTriangle
+                                  className="h-3.5 w-3.5 shrink-0 text-brand-blue-bright"
+                                  role="img"
+                                  aria-label="Marca por identificar"
+                                />
+                              )}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <div
+                              className={cn(
+                                'font-display text-xl font-bold leading-none tabular-nums',
+                                // Rojo solo en un mes CERRADO: ahí un 0 es "no hay".
+                                // Mientras se llena el borrador todavía no es un dato.
+                                cerrado && total === 0 && f.status === 'ACTIVE' && 'text-destructive',
+                                total > 0 && p.running > 0 && 'text-brand-yellow-ink',
+                                total === 0 && !cerrado && 'text-muted-foreground',
+                              )}
+                            >
+                              {total}
+                            </div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                              {total === 1 ? 'rollo' : 'rollos'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          {PARTES.map(({ clave, etiqueta }) => (
+                            <Contador
+                              key={clave}
+                              etiqueta={etiqueta}
+                              ficha={ficha}
+                              value={p[clave]}
+                              antes={f.previous ? f.previous[clave] : null}
+                              mesCorto={mesCorto}
+                              disabled={!editable}
+                              onChange={(n) => set(f.materialId, { [clave]: n })}
                             />
-                          )}
+                          ))}
                         </div>
-                        <Campo
-                          etiqueta={`Sin abrir · ${ficha}`}
-                          value={p.sealed}
-                          disabled={cerrado || cerrar.isPending}
-                          onChange={(n) => set(f.materialId, { sealed: n })}
-                        />
-                        <Campo
-                          etiqueta={`En uso · ${ficha}`}
-                          value={p.inUse}
-                          disabled={cerrado || cerrar.isPending}
-                          onChange={(n) => set(f.materialId, { inUse: n })}
-                        />
-                        <Campo
-                          etiqueta={`Por acabarse · ${ficha}`}
-                          value={p.running}
-                          disabled={cerrado || cerrar.isPending}
-                          onChange={(n) => set(f.materialId, { running: n })}
-                        />
-                        <div
-                          className={cn(
-                            'col-span-3 text-right text-sm font-semibold tabular-nums sm:col-span-1 sm:text-center',
-                            // Rojo solo en un mes CERRADO: ahí un 0 es "no hay".
-                            // Mientras se llena el borrador todavía no es un dato.
-                            cerrado && total === 0 && f.status === 'ACTIVE' && 'text-destructive',
-                            total > 0 && p.running > 0 && 'text-brand-yellow-ink',
-                          )}
-                        >
-                          {total}
-                        </div>
-                      </div>
+
+                        {todas.length > 1 && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {g.clave} entre {marcas}: {rollosDelColor} {rollosDelColor === 1 ? 'rollo' : 'rollos'}
+                          </p>
+                        )}
+                        {f.previous && (
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border/40 pt-2 text-xs text-muted-foreground">
+                            <span>
+                              {mesCapital}: {describirPartes(f.previous)}
+                              {cambio && (
+                                <span className="ml-2 font-medium text-brand-yellow-ink">· cambió</span>
+                              )}
+                            </span>
+                            {!cerrado && (
+                              <button
+                                type="button"
+                                onClick={() => copiarAnterior(f)}
+                                disabled={!editable}
+                                aria-label={`Igual que ${mesAnterior} · ${ficha}`}
+                                className="rounded font-medium text-foreground underline underline-offset-4 hover:text-brand-yellow-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                              >
+                                Igual que {mesAnterior}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </article>
                     );
-                  })}
-                </div>
-              </section>
-              );
-            })}
-          </CardContent>
-        </Card>
+            });
+          })}
+        </div>
       )}
 
       {fichaAbierta && <FichaDialog fila={fichaAbierta} onClose={() => setFichaAbierta(null)} />}
@@ -525,6 +621,16 @@ const CERO: Partes = { sealed: 0, inUse: 0, running: 0 };
 /** Valores válidos del filtro de estado: '' = todas. */
 const ESTADOS = ['', 'ACTIVE', 'DISCONTINUED'];
 
+
+/** `{sealed: 1, running: 2}` → `'1 sin abrir · 2 por acabarse'`; todo en 0 → `'0 rollos'`. */
+function describirPartes(p: Partes): string {
+  const partes = [
+    p.sealed > 0 && `${p.sealed} sin abrir`,
+    p.inUse > 0 && `${p.inUse} en uso`,
+    p.running > 0 && `${p.running} por acabarse`,
+  ].filter(Boolean);
+  return partes.length ? partes.join(' · ') : '0 rollos';
+}
 
 const partesDe = (f: StockCountRow): Partes => ({ sealed: f.sealed, inUse: f.inUse, running: f.running });
 
@@ -617,26 +723,136 @@ function diaLargo(dia: string): string {
   });
 }
 
-function Campo({
+/** Las tres casillas del conteo, en el orden del estante. */
+const PARTES: { clave: keyof Partes; etiqueta: string }[] = [
+  { clave: 'sealed', etiqueta: 'Sin abrir' },
+  { clave: 'inUse', etiqueta: 'En uso' },
+  { clave: 'running', etiqueta: 'Por acabarse' },
+];
+
+/**
+ * Una casilla con − / +: contar rollos es sumar de a uno, y con botones grandes
+ * no hace falta apuntar al campo (en el teléfono, sobre todo). Debajo, lo que
+ * tenía esa MISMA casilla el mes anterior.
+ */
+function Contador({
   etiqueta,
+  ficha,
   value,
+  antes,
+  mesCorto,
   disabled,
   onChange,
 }: {
   etiqueta: string;
+  ficha: string;
   value: number;
+  antes: number | null;
+  mesCorto: string;
   disabled: boolean;
   onChange: (n: number) => void;
 }) {
+  const boton =
+    'grid h-9 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-brand-blue/30 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-30';
   return (
-    <NumberInput
-      className="h-9 text-center"
-      min={0}
-      value={value}
-      disabled={disabled}
-      onChange={(n) => onChange(Math.max(0, Math.round(n)))}
-      aria-label={etiqueta}
-      placeholder="0"
+    <div className="min-w-0">
+      <div className="mb-1 truncate text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {etiqueta}
+      </div>
+      <div
+        className={cn(
+          'flex items-center rounded-lg border border-border/60 bg-background/60',
+          value > 0 && 'border-brand-blue-bright/50',
+        )}
+      >
+        {!disabled && (
+          <button
+            type="button"
+            className={boton}
+            disabled={value <= 0}
+            onClick={() => onChange(value - 1)}
+            aria-label={`Restar uno · ${etiqueta} · ${ficha}`}
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <NumberInput
+          className="h-9 min-w-0 flex-1 border-0 bg-transparent px-0 text-center font-semibold tabular-nums shadow-none focus-visible:ring-0"
+          min={0}
+          value={value}
+          disabled={disabled}
+          onChange={(n) => onChange(Math.max(0, Math.round(n)))}
+          aria-label={`${etiqueta} · ${ficha}`}
+          placeholder="0"
+        />
+        {!disabled && (
+          <button
+            type="button"
+            className={boton}
+            onClick={() => onChange(value + 1)}
+            aria-label={`Sumar uno · ${etiqueta} · ${ficha}`}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {antes !== null && (
+        <div className="mt-1 text-center text-[11px] tabular-nums text-muted-foreground">
+          {mesCorto} {antes}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Muestra del color del filamento, para encontrarlo de un vistazo. Es un DATO
+ * (como los pines de Contactos), no parte de la paleta de la marca. Un color
+ * que no está en la lista se ve como un círculo vacío.
+ */
+const MUESTRAS: Record<string, string> = {
+  blanco: '#f4f4f0',
+  negro: '#141414',
+  gris: '#8a8f98',
+  plateado: 'linear-gradient(135deg,#e6e8eb,#9aa0a8)',
+  amarillo: '#f5cf1d',
+  'amarillo girasol': '#f7b500',
+  naranja: '#f07a1a',
+  dorado: 'linear-gradient(135deg,#f6d77a,#b8862b)',
+  cobre: 'linear-gradient(135deg,#e39a6b,#9c5221)',
+  rojo: '#d62828',
+  vinotinto: '#6d1426',
+  rosado: '#f39ab8',
+  magenta: '#d1238b',
+  morado: '#7b3fb0',
+  'aurora morado': 'linear-gradient(135deg,#7b3fb0,#3fb0a8)',
+  arandano: '#4b3a8c',
+  azul: '#1f5fd1',
+  'azul oscuro': '#14306b',
+  celeste: '#7cc6f2',
+  turquesa: '#1fb5ad',
+  verde: '#2e9e44',
+  'verde bosque': '#1e5b34',
+  marron: '#6b4226',
+  madera: '#a8774a',
+  arena: '#d8c39a',
+  biege: '#e3d3b5',
+  carne: '#f1c6a6',
+  marmol: 'linear-gradient(135deg,#f2f2f2,#bdbdbd 60%,#f2f2f2)',
+  arcoiris: 'conic-gradient(#e63946,#f4a261,#e9c46a,#2a9d8f,#457b9d,#9b5de5,#e63946)',
+};
+
+function Muestra({ color }: { color: string | null }) {
+  const fondo = color ? MUESTRAS[color.trim().toLowerCase()] : undefined;
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        // Anillo claro: el negro y el azul oscuro se perdían sobre el navy.
+        'mt-0.5 h-5 w-5 shrink-0 rounded-full ring-1 ring-white/30',
+        !fondo && 'border border-dashed border-muted-foreground',
+      )}
+      style={fondo ? { background: fondo } : undefined}
     />
   );
 }

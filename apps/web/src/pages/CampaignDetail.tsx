@@ -169,7 +169,7 @@ export function CampaignDetailPage() {
 
       {/* Lo que reporta la plataforma. Es la ÚNICA medida de una campaña que
           todavía no generó venta atribuida: por ROAS daría cero y no diría nada. */}
-      {(c.reach != null || c.conversations != null || c.profileVisits != null) && (
+      {(c.reach != null || c.conversations != null || c.profileVisits != null || c.followers != null) && (
         <Card>
           <CardHeader>
             <CardTitle>Lo que reportó la plataforma</CardTitle>
@@ -179,7 +179,7 @@ export function CampaignDetailPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
               <Stat label="Alcance" value={c.reach == null ? '—' : c.reach.toLocaleString('es-VE')} />
               <Stat
                 label="Conversaciones"
@@ -188,6 +188,10 @@ export function CampaignDetailPage() {
               <Stat
                 label="Visitas al perfil"
                 value={c.profileVisits == null ? '—' : c.profileVisits.toLocaleString('es-VE')}
+              />
+              <Stat
+                label="Seguidores"
+                value={c.followers == null ? '—' : c.followers.toLocaleString('es-VE')}
               />
               <Stat
                 label="Costo por conversación"

@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import {
   Activity,
   Landmark,
+  Wallet,
   Target,
   Calculator,
   Disc3,
@@ -51,6 +52,7 @@ const navGroups: { heading?: string; items: { to: string; label: string; icon: t
       { to: '/orders', label: 'Encargos', icon: Package },
       { to: '/calendar', label: 'Calendario', icon: CalendarDays },
       { to: '/receivables', label: 'Por cobrar', icon: HandCoins },
+      { to: '/cash', label: 'Caja', icon: Wallet },
       { to: '/loans', label: 'Deuda', icon: Landmark },
       { to: '/goals', label: 'Metas', icon: Target },
       { to: '/production', label: 'Producción', icon: Activity },

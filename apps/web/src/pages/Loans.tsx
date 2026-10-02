@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { HandCoins, Plus, Trash2 } from 'lucide-react';
 import { monthlyLoanPayments } from '@calc3d/shared';
-import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, ProgressBar, Stat } from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, ProgressBar, Select, Stat } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { useMoney } from '@/features/settings/useSettings';
 import { notify } from '@/components/toast';
 import { todayKey } from '@/lib/today';
+import { PAID_BY_LABELS } from '@/features/finance/api';
 import {
   type Loan,
   useAddLoanPayment,
@@ -159,6 +160,7 @@ function LoanCard({ loan }: { loan: Loan }) {
                   <th className="py-2 pr-3 font-semibold">Fecha</th>
                   <th className="py-2 pr-3 text-right font-semibold">Pago</th>
                   <th className="py-2 pr-3 font-semibold">Referencia</th>
+                  <th className="py-2 pr-3 font-semibold">Pagó</th>
                   <th className="w-10" />
                 </tr>
               </thead>
@@ -171,6 +173,11 @@ function LoanCard({ loan }: { loan: Loan }) {
                     <td className="py-2 pr-3 text-right tabular-nums">{money(p.amount)}</td>
                     <td className="max-w-[16rem] truncate py-2 pr-3 text-xs text-muted-foreground">
                       {p.reference ?? '—'}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Badge variant={p.paidBy === 'OWNER' ? 'brand' : 'outline'}>
+                        {PAID_BY_LABELS[p.paidBy]}
+                      </Badge>
                     </td>
                     <td className="py-2 text-right">
                       <button
@@ -216,6 +223,7 @@ function PaymentDialog({
   const [date, setDate] = useState(hoy);
   const [amount, setAmount] = useState(loan.monthlyPayment || 0);
   const [reference, setReference] = useState('');
+  const [paidBy, setPaidBy] = useState<'BUSINESS' | 'OWNER'>('BUSINESS');
   const agregar = useAddLoanPayment();
 
   return (
@@ -225,7 +233,7 @@ function PaymentDialog({
         onSubmit={(e) => {
           e.preventDefault();
           agregar.mutate(
-            { id: loan.id, date, amount, reference: reference.trim() || null },
+            { id: loan.id, date, amount, reference: reference.trim() || null, paidBy },
             {
               onSuccess: () => {
                 notify.success('Pago registrado');
@@ -244,6 +252,15 @@ function PaymentDialog({
         </Field>
         <Field label="Referencia" hint="La del banco, o lo que te sirva para reconocerlo después">
           <Input value={reference} onChange={(e) => setReference(e.target.value)} />
+        </Field>
+        <Field
+          label="¿Quién la pagó?"
+          hint="Si la pagaste vos, baja la deuda con el prestamista y sube la que el negocio tiene con vos."
+        >
+          <Select value={paidBy} onChange={(e) => setPaidBy(e.target.value as 'BUSINESS' | 'OWNER')}>
+            <option value="BUSINESS">La caja del negocio</option>
+            <option value="OWNER">Vanan, de su bolsillo</option>
+          </Select>
         </Field>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>

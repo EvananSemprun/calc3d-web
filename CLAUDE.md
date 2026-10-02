@@ -301,6 +301,30 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   arrancar en "Activas": una descontinuada con rollos se cerraría en 0 sin verla.
   La cabecera de cada color suma TODAS sus marcas aunque el filtro oculte
   algunas ("1 de 3 marca(s)").
+- **En el conteo solo salen las fichas que HAY** (2026-10-01, decisión del
+  dueño, shared 0.18.0): las que tenían rollos al cierre del mes anterior o se
+  compraron en este. `exhausted` en `GET /filament/stock` = el mes ANTERIOR
+  (CERRADO) no la tenía —en 0 **o fuera de su conteo**: 11 fichas importadas
+  con compras del 31/08 nunca entraron al cierre de agosto—, no se compró en
+  este y no tiene rollos anotados. Se esconden con un aviso "N ficha(s) se acabaron en … Mostrarlas"
+  (`verAgotadas`, no persistente); una a la que se le escriben rollos en el
+  borrador no se esconde. Al cerrar se guardan igual, en 0, y la confirmación
+  lo dice. Comprarla en Gastos la hace volver.
+- **Una TARJETA por ficha** (2026-10-01, pedido del dueño: con filas sueltas
+  "se pierde" y se escribía en una creyendo que era otra). Grilla `auto-fill`
+  de ~20rem: cada tarjeta lleva muestra del color (`Muestra`/`MUESTRAS`, un
+  DATO como los pines de Contactos, no paleta de marca), "PLA Amarillo" y la
+  marca debajo, el total grande y tres `Contador` con − / + y, debajo de CADA
+  casilla, lo que tenía el mes anterior ("sep. 1"). La tarjeta donde se escribe
+  se ilumina en oro (`focus-within`). "· cambió" solo aparece con dato (mes
+  cerrado o algo cargado): antes de contar, todo vale 0 y sería ruido. Con
+  varias marcas del mismo color, cada tarjeta dice el total del color.
+- **Cómo cerró el mes anterior** (2026-10-01, decisión del dueño): `previous`
+  en `GET /filament/stock` (null si ese mes no está cerrado). Cada marca muestra
+  "Agosto: 1 por acabarse" con un botón **"Igual que agosto"**, y hay un
+  **"Copiar todo agosto"** (pide confirmación si ya hay casillas llenas). ⚠️ Se
+  COPIA a pedido, NO se precarga: precargado, una ficha que no se miró se
+  cerraría con el número viejo como si se hubiera contado.
 - **El mes se CIERRA, no se guarda casilla por casilla** (2026-09-13, shared
   0.13.0). Lo escrito vive en un borrador del navegador
   (`filament:stock:draft:AAAA-MM`) hasta tocar **"Guardar y cerrar"**, que manda
@@ -360,6 +384,16 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
   préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
   equipo ya está ahí como inversión.
+- **Caja** (`pages/Cash.tsx`, `features/cash/api.ts`, en Finanzas, 2026-09-26):
+  saldo del negocio, lo que se le debe a Vanan y al prestamista, el conteo de
+  los lunes (en rojo si en Binance hay MENOS de lo que es del negocio) y los
+  movimientos de plata pura. Todo lo DERIVA el servidor; las mutaciones
+  devuelven el resumen y se guardan directo en la caché `['cash']`. ⚠️ Las
+  compras que paga Vanan NO se cargan acá: van en **Gastos** con el campo
+  **"¿Quién lo pagó?"** (`paidBy`, también editable desde la columna "Pagó" de
+  la tabla), y las cuotas en **Deuda** con el mismo campo. El Dashboard muestra
+  las cuatro cifras de la caja (toda la historia, no dependen del filtro).
+  Categoría de gasto nueva: **Diseño**.
 - **Producción** (`pages/Production.tsx`): dos mediciones que se cargan en dos
   lugares, y no da lo mismo:
   - **Horas** → `ReadingsCard` en esa misma pantalla: una lectura por mes con

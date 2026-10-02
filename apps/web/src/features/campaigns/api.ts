@@ -35,6 +35,7 @@ export interface Campaign {
   reach: number | null;
   conversations: number | null;
   profileVisits: number | null;
+  followers: number | null;
   createdAt: string;
   stats: CampaignStats;
   /** Vista por período (solo en el detalle): ventas dentro de la ventana de la campaña. */

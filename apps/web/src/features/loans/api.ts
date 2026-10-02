@@ -13,7 +13,14 @@ export interface Loan {
   closedAt: string | null;
   notes: string | null;
   printer: { id: string; name: string } | null;
-  payments: { id: string; date: string; amount: number; reference: string | null }[];
+  payments: {
+    id: string;
+    date: string;
+    amount: number;
+    reference: string | null;
+    /** Quién puso la plata de la cuota: la caja o Vanan. */
+    paidBy: 'BUSINESS' | 'OWNER' | 'LOAN';
+  }[];
   paid: number;
   balance: number;
   progress: number;
@@ -35,6 +42,8 @@ function useLoanMutation<T>(fn: (v: T) => Promise<unknown>) {
     mutationFn: fn,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['loans'] });
+      // Una cuota mueve la caja (si la pagó el negocio) o la deuda con Vanan.
+      qc.invalidateQueries({ queryKey: ['cash'] });
     },
   });
 }

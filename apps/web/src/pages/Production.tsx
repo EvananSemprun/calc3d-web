@@ -128,7 +128,7 @@ export function ProductionPage() {
                     valor={money(p.maintenance.charged)}
                     detalle={
                       p.maintPerHour > 0
-                        ? `${money(p.maintPerHour)} por hora`
+                        ? `$${p.maintPerHour.toFixed(4)} por hora (repuestos ÷ horas de todas)`
                         : 'La tarifa por hora está en cero'
                     }
                   />
@@ -149,7 +149,7 @@ export function ProductionPage() {
                 {p.maintenance.difference < 0 && p.maintPerHour === 0 && (
                   <p className="text-xs text-muted-foreground">
                     Con la tarifa en cero, esos {money(p.maintenance.spent)} de repuestos no entran
-                    en ningún precio. Se ajusta en Catálogos → Impresoras.
+                    en ningún precio. La tarifa se calcula sola en cuanto haya lecturas del contador.
                   </p>
                 )}
               </CardContent>

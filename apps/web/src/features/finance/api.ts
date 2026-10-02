@@ -13,6 +13,15 @@ export interface SaleRow {
   client?: { id: string; name: string } | null;
 }
 
+/** Quién puso la plata de un gasto o de una cuota. */
+export type PaidBy = 'BUSINESS' | 'OWNER' | 'LOAN';
+
+export const PAID_BY_LABELS: Record<PaidBy, string> = {
+  BUSINESS: 'Negocio',
+  OWNER: 'Vanan',
+  LOAN: 'Préstamo',
+};
+
 export interface ExpenseLink {
   id: string;
   name: string;
@@ -21,7 +30,9 @@ export interface ExpenseLink {
 export interface ExpenseRow {
   id: string;
   date: string;
-  category: 'EQUIPMENT' | 'CONSUMABLE' | 'MAINTENANCE' | 'SHIPPING' | 'OTHER' | 'ADVERTISING';
+  category: 'EQUIPMENT' | 'CONSUMABLE' | 'MAINTENANCE' | 'SHIPPING' | 'OTHER' | 'ADVERTISING' | 'DESIGN';
+  /** Quién lo pagó: alimenta la Caja y lo que el negocio le debe a Vanan. */
+  paidBy: PaidBy;
   description: string;
   amount: number;
   isInvestment: boolean;
@@ -88,6 +99,7 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseRow['category'], string> = {
   SHIPPING: 'Envío',
   OTHER: 'Otro',
   ADVERTISING: 'Publicidad',
+  DESIGN: 'Diseño',
 };
 
 export const LINK_KIND_LABELS: Record<Exclude<LinkKind, null>, string> = {

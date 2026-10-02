@@ -24,6 +24,7 @@ import {
 import { useLoans } from '@/features/loans/api';
 import { useGoalForMonth } from '@/features/goals/api';
 import { useEquipmentRecovery } from '@/features/equipment/api';
+import { useCash } from '@/features/cash/api';
 import { currentMonthKey } from '@/lib/today';
 import { Card, CardContent, CardHeader, CardTitle, ProgressBar, Stat, TableSkeleton } from '@/components/ui';
 import { NumberTicker } from '@/components/effects';
@@ -150,6 +151,8 @@ export function DashboardPage() {
 
   const hasData = saleRows.length > 0 || expenseRows.length > 0 || paymentRows.length > 0;
   const { data: recovery } = useEquipmentRecovery();
+  // Caja y deuda son de TODA la historia: no dependen del filtro de fechas.
+  const { data: caja } = useCash();
 
   // Punto de equilibrio: cuánto hay que vender al mes para cubrir los costos
   // fijos, dado el margen de contribución declarado (Configuración → Costos fijos).
@@ -222,6 +225,32 @@ export function DashboardPage() {
           }
         />
       </div>
+
+      {caja && (
+        <Link
+          to="/cash"
+          aria-label="Ver la caja"
+          className="grid grid-cols-2 gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:grid-cols-4"
+        >
+          <Stat
+            label="Saldo en caja"
+            value={money(caja.balance.balance)}
+            sub={
+              caja.counts[0]?.short
+                ? 'el último conteo dio de MENOS'
+                : 'lo que es del negocio en Binance'
+            }
+            accent="blue"
+          />
+          <Stat label="Le debe a Vanan" value={money(caja.financing.owedToOwner)} />
+          <Stat label="Le debe al prestamista" value={money(caja.financing.owedToLender)} />
+          <Stat
+            label="Total por devolver"
+            value={money(caja.financing.totalOwed)}
+            sub="detalle en Caja"
+          />
+        </Link>
+      )}
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2">
