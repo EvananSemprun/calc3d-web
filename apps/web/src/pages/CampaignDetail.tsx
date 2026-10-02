@@ -111,7 +111,7 @@ export function CampaignDetailPage() {
       {/* KPIs principales */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Invertido" value={money(s.invested)} accent="yellow" sub={c.budget != null ? `de ${money(c.budget)} presup.` : undefined} />
-        <Stat label="Vendido (atribuido)" value={money(s.revenue)} accent="success" sub={`${s.sales} venta${s.sales === 1 ? '' : 's'}`} />
+        <Stat label="Vendido (atribuido)" value={money(s.revenue)} accent="success" sub={`${s.orders} encargo${s.orders === 1 ? '' : 's'} · ${s.sales} venta${s.sales === 1 ? '' : 's'}`} />
         <Stat label="ROAS" value={fmtRoas(roas(s.revenue, s.invested))} sub="ingresos ÷ inversión" />
         <Stat
           label="Ganancia atribuida"
@@ -154,7 +154,7 @@ export function CampaignDetailPage() {
           <CardContent>
             <dl className="space-y-2.5 text-sm tabular">
               <Row label="Ventas atribuidas" value={String(s.sales)} />
-              <Row label="Ticket promedio" value={s.sales > 0 ? money(s.revenue / s.sales) : '—'} />
+              <Row label="Ticket promedio" value={s.sales + s.orders > 0 ? money(s.revenue / (s.sales + s.orders)) : '—'} />
               <Row label="Encargos atribuidos" value={`${s.orders}  (${money(s.ordersTotal)})`} />
               <Row label="Cotizaciones atribuidas" value={String(s.quotes)} />
               <Row label="Costo por encargo" value={costPer(s.invested, s.orders) == null ? '—' : money(costPer(s.invested, s.orders)!)} />

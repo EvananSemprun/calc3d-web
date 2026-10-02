@@ -1,11 +1,11 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box } from 'lucide-react';
 import { LoginSchema, type LoginDto } from '@calc3d/shared';
 import { useAuth } from '@/auth/AuthContext';
-import { apiErrorMessage } from '@/lib/api';
+import { api, apiErrorMessage } from '@/lib/api';
 import { Button, Field, Input } from '@/components/ui';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AuthBrandPanel, AuthShell } from '@/components/AuthShell';
@@ -19,6 +19,26 @@ export function LoginPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginDto>({ resolver: zodResolver(LoginSchema) });
+
+  // La API está en el plan free de Render, que la apaga tras 15 min sin uso y
+  // tarda en arrancar. Se la despierta apenas se abre el login: mientras se
+  // escriben correo y contraseña, ya va arrancando. /health no toca la base.
+  useEffect(() => {
+    fetch(`${api.defaults.baseURL}/health`).catch(() => {
+      // Si falla, el login mismo mostrará el error real.
+    });
+  }, []);
+
+  // Si el login tarda, se explica por qué en vez de dejar un "Entrando…" mudo.
+  const [despertando, setDespertando] = useState(false);
+  useEffect(() => {
+    if (!isSubmitting) {
+      setDespertando(false);
+      return;
+    }
+    const t = setTimeout(() => setDespertando(true), 6000);
+    return () => clearTimeout(t);
+  }, [isSubmitting]);
 
   const onSubmit = async (data: LoginDto) => {
     setServerError(null);
@@ -64,6 +84,12 @@ export function LoginPage() {
         <Button type="submit" variant="accent" className="w-full" disabled={isSubmitting}>
           {isSubmitting ? 'Entrando…' : 'Entrar'}
         </Button>
+        {despertando && (
+          <p role="status" className="text-center text-xs text-muted-foreground">
+            El servidor se está despertando (se apaga solo cuando nadie lo usa). Puede tardar
+            uno o dos minutos la primera vez; no cierres la página.
+          </p>
+        )}
       </form>
       <p className="mt-3 text-center text-sm">
         <Link to="/forgot-password" className="text-muted-foreground hover:text-foreground hover:underline">

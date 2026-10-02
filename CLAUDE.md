@@ -687,8 +687,12 @@ está en Railway; detalle en el `CLAUDE.md` de `calc3d-api`).
   `https://calc3d-web.pages.dev` exacto (sin barra final) o el login muere en CORS.
 - Un cambio de configuración en Pages NO se aplica a lo ya publicado: hay que
   "Reintentar implementación".
-- La API del plan free de Render se duerme a los 15 min: el primer login del día
-  puede tardar ~50 s. No es un error.
+- La API del plan free de Render se duerme a los 15 min y despertarla tardó
+  más de 2 minutos (2026-10-02). `Login.tsx` la despierta apenas se abre la
+  página (`GET /health`, no toca la base) y, si el login pasa de 6 s, explica la
+  espera en vez de un "Entrando…" mudo. La solución de fondo es un ping cada
+  10 min a `/api/health` (cron-job.org): 744 h/mes entran en las 750 gratis con
+  UN solo servicio en Render.
 
 ## Entorno
 - Windows / PowerShell: usar su sintaxis (`$env:VAR` no `$VAR`, `$null` no
