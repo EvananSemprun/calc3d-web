@@ -639,7 +639,7 @@ desaparecen de una:
   llegar al 3001, y ahí el login falla con *"no se pudo conectar con el
   servidor"* **con el backend perfectamente levantado**.
 
-En producción sí va la URL completa del backend. El **fallback** de `lib/api.ts`
+En producción sí va la URL completa del backend. Ver "Producción en Cloudflare Pages" abajo. El **fallback** de `lib/api.ts`
 (`http://localhost:3001/api`) queda de red de seguridad si no hay variable.
 
 ⚠️ **Siempre `localhost:5180`, nunca `127.0.0.1:5180`.** Vite escucha en `[::1]`
@@ -651,6 +651,44 @@ el `.env.example` también. Arrancar el panel sin `VITE_API_URL` daba *"no se
 pudo conectar con el servidor"* en el login **con el backend perfectamente
 levantado**, que es el peor tipo de error: el mensaje apunta al lugar
 equivocado.
+
+## Producción en Cloudflare Pages (desde 2026-10-01)
+
+El panel vive en **`https://calc3d-web.pages.dev`** (proyecto `calc3d-web` en
+Workers y Pages, conectado a este repo, despliega solo en cada push a `main`) y
+le habla a la API en **Render**: `https://calc3d-api.onrender.com/api` (la base
+está en Railway; detalle en el `CLAUDE.md` de `calc3d-api`).
+
+| Configuración de compilación | Valor |
+|---|---|
+| Valor preestablecido del marco | Ninguno |
+| Comando de compilación | `pnpm install --frozen-lockfile && pnpm --filter @calc3d/web build` |
+| Directorio de salida | `apps/web/dist` |
+| Directorio raíz | vacío |
+
+| Variable (tipo **Texto**) | Valor |
+|---|---|
+| `VITE_API_URL` | `https://calc3d-api.onrender.com/api` |
+| `NODE_VERSION` | `22.18.0` |
+| `PNPM_VERSION` | `11.6.0` |
+
+- ⚠️ **Sin comando de compilación ni directorio de salida, Pages publica el REPO
+  TAL CUAL** y lo da por "exitoso": la raíz respondía 404 y en cambio
+  `/package.json` y `/README.md` daban 200. Si el sitio da 404 con el deploy en
+  verde, mirar esto primero.
+- `VITE_API_URL` va como **Texto**, no Secreto: se escribe DENTRO del bundle que
+  baja cualquier visitante (no es secreta), y un secreto puede no estar en el
+  build — el panel quedaría apuntando al fallback `localhost:3001`.
+- `NODE_VERSION`/`PNPM_VERSION`: pnpm 11 exige Node ≥ 22.13 (lo mismo que rompió
+  el `Dockerfile` de la API en Render).
+- `apps/web/public/_redirects` (`/* /index.html 200`) es el fallback SPA: sin él,
+  recargar en `/filament/stock` daría 404.
+- Del lado de la API, `WEB_ORIGIN` en Render tiene que ser
+  `https://calc3d-web.pages.dev` exacto (sin barra final) o el login muere en CORS.
+- Un cambio de configuración en Pages NO se aplica a lo ya publicado: hay que
+  "Reintentar implementación".
+- La API del plan free de Render se duerme a los 15 min: el primer login del día
+  puede tardar ~50 s. No es un error.
 
 ## Entorno
 - Windows / PowerShell: usar su sintaxis (`$env:VAR` no `$VAR`, `$null` no
