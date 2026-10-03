@@ -22,7 +22,8 @@ const STATUS_TEXT: Record<PriceStatus, string> = {
 };
 
 /**
- * Comparador de redondeos: qué precio daría cada regla y con qué margen.
+ * Comparador de redondeos: qué precio daría cada regla, con qué recargo
+ * sobre el costo y qué margen sobre la venta.
  * Es la tabla D52:F57 de la hoja, y sirve para decidir de un vistazo si conviene
  * subir a la cifra redonda de arriba.
  */
@@ -52,6 +53,7 @@ export function RoundingComparator() {
               <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="pb-2 font-semibold">Regla</th>
                 <th className="pb-2 text-right font-semibold">Precio</th>
+                <th className="pb-2 text-right font-semibold">Recargo</th>
                 <th className="pb-2 text-right font-semibold">Margen</th>
               </tr>
             </thead>
@@ -84,6 +86,9 @@ export function RoundingComparator() {
                     <td className="py-2 text-right tabular-nums text-muted-foreground">
                       {percent(o.marginReal)}
                     </td>
+                    <td className="py-2 text-right tabular-nums text-muted-foreground">
+                      {percent(o.marginOnSale)}
+                    </td>
                   </tr>
                 );
               })}
@@ -105,7 +110,7 @@ const ROUNDING_LABEL: Record<string, string> = {
 
 /**
  * Mayoreo por DESCUENTO sobre el precio final, como la hoja. Cada tramo muestra
- * el margen real que queda: es lo que evita regalar el trabajo por volumen.
+ * el recargo y el margen reales que quedan: es lo que evita regalar el trabajo por volumen.
  */
 export function WholesaleTable() {
   const c = useCalculator();
@@ -116,13 +121,13 @@ export function WholesaleTable() {
   const ranges = tierRanges(c.tiers);
   const sinDatos = !c.result || c.missing.length > 0;
 
-  /** Pide al motor los tramos que no rompen el piso de margen. */
+  /** Pide al motor los tramos que no rompen el piso de recargo. */
   const sugerir = async () => {
     const s = suggestTiers(c.input);
     if (s.tiers.length === 0) {
       notify.info(
-        'No hay margen para descontar',
-        `Con este precio, cualquier descuento baja el margen del piso (${percent(c.minMarginPct)}).`,
+        'No hay recargo para descontar',
+        `Con este precio, cualquier descuento baja el recargo del piso (${percent(c.minMarginPct)}).`,
       );
       return;
     }
@@ -130,7 +135,7 @@ export function WholesaleTable() {
       c.tiers.length > 0 &&
       !(await confirm({
         title: `¿Reemplazar tus ${c.tiers.length} tramos?`,
-        description: `Se proponen ${s.tiers.length}, con hasta ${percent(s.maxDiscountPct)} de descuento sin bajar del piso de margen.`,
+        description: `Se proponen ${s.tiers.length}, con hasta ${percent(s.maxDiscountPct)} de descuento sin bajar del piso de recargo.`,
         confirmLabel: 'Reemplazar',
       }))
     ) {
@@ -179,7 +184,7 @@ export function WholesaleTable() {
               title={
                 sinDatos
                   ? 'Completá los datos del trabajo para sugerir tramos'
-                  : 'El mayor descuento que respeta tu piso de margen, en tres escalones'
+                  : 'El mayor descuento que respeta tu piso de recargo, en tres escalones'
               }
             >
               <Sparkles className="h-4 w-4" /> Sugerir
@@ -193,7 +198,7 @@ export function WholesaleTable() {
       <CardContent>
         {ranges.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-            Sin tramos. Usá «Sugerir» para que la app proponga unos que respeten tu piso de margen, o
+            Sin tramos. Usá «Sugerir» para que la app proponga unos que respeten tu piso de recargo, o
             agregá uno a mano.
           </p>
         ) : (
@@ -258,7 +263,7 @@ export function WholesaleTable() {
                             {money(calc.unitPrice)}
                           </span>
                           <span className="text-muted-foreground">
-                            margen {percent(calc.marginReal)}
+                            +{percent(calc.marginReal)} · {percent(calc.marginOnSale)} de margen
                           </span>
                           <span className={cn('text-xs font-semibold', STATUS_TEXT[calc.status])}>
                             {PRICE_STATUS_LABEL[calc.status]}

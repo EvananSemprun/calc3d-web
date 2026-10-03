@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, TrendingUp, PauseCircle, Search, CheckCircle2, Clock } from 'lucide-react';
+import { ArrowLeft, Download, TrendingUp, PauseCircle, Search, CheckCircle2, Clock, Archive } from 'lucide-react';
 import {
   roas,
   roi,
@@ -7,6 +7,7 @@ import {
   netAfterAds,
   campaignHealth,
   campaignRecommendation,
+  campaignLifecycle,
   type CampaignAction,
   type CampaignHealth,
 } from '@calc3d/shared';
@@ -14,11 +15,12 @@ import { useMoney } from '@/features/settings/useSettings';
 import {
   useCampaign,
   CAMPAIGN_STATUS,
+  campaignDisplayStatus,
   PLATFORM_LABELS,
   OBJECTIVE_LABELS,
 } from '@/features/campaigns/api';
 import { apiErrorMessage, downloadFile } from '@/lib/api';
-import { formatStoredDay } from '@/lib/today';
+import { formatStoredDay, todayKey } from '@/lib/today';
 import { notify } from '@/components/toast';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, PageSkeleton, Stat } from '@/components/ui';
 
@@ -36,6 +38,9 @@ const REC_META: Record<CampaignAction, { icon: typeof TrendingUp; classes: strin
   REVIEW: { icon: Search, classes: 'border-amber-500/50 bg-amber-500/10', iconClass: 'text-amber-600 dark:text-amber-400' },
   PAUSE: { icon: PauseCircle, classes: 'border-destructive/50 bg-destructive/10', iconClass: 'text-destructive' },
   WAIT: { icon: Clock, classes: 'border-border bg-background/30', iconClass: 'text-muted-foreground' },
+  // Una campaña terminada no admite consejos: el banner queda neutro porque no
+  // hay nada que hacer, solo algo que recordar para la próxima (2026-10-02).
+  CLOSED: { icon: Archive, classes: 'border-border bg-muted/30', iconClass: 'text-muted-foreground' },
 };
 
 const fmtRoas = (r: number | null) => (r == null ? '—' : `${r.toLocaleString('es-VE', { maximumFractionDigits: 2 })}×`);
@@ -53,7 +58,11 @@ export function CampaignDetailPage() {
   const health = campaignHealth(s);
   const h = HEALTH[health];
   const net = netAfterAds(s.profit, s.invested);
-  const rec = campaignRecommendation(s);
+  // El estado que manda es el DERIVADO: `status` se queda viejo porque nada lo
+  // mueve a FINISHED cuando pasa la fecha de fin (2026-10-02).
+  const lifecycle = campaignLifecycle(c.status, c.endDate, todayKey());
+  const estado = campaignDisplayStatus(c);
+  const rec = campaignRecommendation(s, lifecycle);
   const recMeta = REC_META[rec.action];
   const RecIcon = recMeta.icon;
 
@@ -69,7 +78,7 @@ export function CampaignDetailPage() {
           <div>
             <h1 className="font-display text-2xl font-bold">{c.name}</h1>
             <p className="text-sm text-muted-foreground">
-              {PLATFORM_LABELS[c.platform]} · <span className={CAMPAIGN_STATUS[c.status].tone}>{CAMPAIGN_STATUS[c.status].label}</span>
+              {PLATFORM_LABELS[c.platform]} · <span className={CAMPAIGN_STATUS[estado].tone}>{CAMPAIGN_STATUS[estado].label}</span>
               {c.objective ? ` · ${OBJECTIVE_LABELS[c.objective]}` : ''}
               {' · '}
               {formatStoredDay(c.startDate)}

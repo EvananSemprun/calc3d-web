@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { HandCoins } from 'lucide-react';
 import { useMoney } from '@/features/settings/useSettings';
 import { useOrders, ORDER_STATUS } from '@/features/orders/api';
+import { OrdersShell } from '@/features/orders/OrdersShell';
 import { Badge, Card, CardContent, Stat, TableSkeleton } from '@/components/ui';
 
 /** Días transcurridos desde una fecha ISO hasta hoy (UTC). */
@@ -30,17 +31,10 @@ export function ReceivablesPage() {
   const totalPending = pending.reduce((s, o) => s + o.balance, 0);
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
-        <div>
-          <h1 className="font-display text-2xl font-bold">Cuentas por cobrar</h1>
-          <p className="text-sm text-muted-foreground">
-            Quién te debe y desde cuándo. En Bs, cada día sin cobrar pierde valor.
-          </p>
-        </div>
-      </div>
-
+    <OrdersShell
+      title="Cuentas por cobrar"
+      description="Quién te debe y desde cuándo. En Bs, cada día sin cobrar pierde valor."
+    >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat
           label="Total por cobrar"
@@ -104,6 +98,6 @@ export function ReceivablesPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </OrdersShell>
   );
 }

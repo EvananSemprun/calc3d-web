@@ -1,19 +1,24 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import {
+  borrarTokens,
+  guardarTokens,
+  leerRecordarme,
+  leerTokensDelNavegador,
+} from '@/lib/auth-storage';
+import { esperaDeReintento, mensajeDeRed, sePuedeReintentar } from '@/lib/network-errors';
 
-const TOKEN_KEY = 'calc3d_token';
-const REFRESH_KEY = 'calc3d_refresh';
-
-export const getToken = () => localStorage.getItem(TOKEN_KEY);
-export const setToken = (token: string) => localStorage.setItem(TOKEN_KEY, token);
-export const getRefreshToken = () => localStorage.getItem(REFRESH_KEY);
-export const setTokens = (accessToken: string, refreshToken: string) => {
-  localStorage.setItem(TOKEN_KEY, accessToken);
-  localStorage.setItem(REFRESH_KEY, refreshToken);
-};
-export const clearToken = () => {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
-};
+/**
+ * Los tokens viven en `localStorage` o en `sessionStorage` según el checkbox
+ * «Recuérdame» del login (ver `lib/auth-storage.ts`). Estos cuatro helpers
+ * consultan LOS DOS almacenes: si solo miraran el que dice la preferencia, un
+ * token viejo quedaría leyéndose desde el otro y la sesión no moriría nunca.
+ */
+export const getToken = () => leerTokensDelNavegador().accessToken;
+export const getRefreshToken = () => leerTokensDelNavegador().refreshToken;
+export const setTokens = (accessToken: string, refreshToken: string) =>
+  guardarTokens(accessToken, refreshToken, leerRecordarme());
+/** Limpia los dos almacenes SIEMPRE, sin mirar la preferencia. */
+export const clearTokens = () => borrarTokens();
 
 /** Rutas públicas donde un 401 NO debe redirigir a /login. */
 const PUBLIC_PREFIXES = ['/login', '/forgot-password', '/reset-password'];
@@ -48,13 +53,42 @@ async function refreshAccess(): Promise<string> {
   return res.data.accessToken;
 }
 
+const esperar = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Config de axios con los extras que este interceptor le cuelga. */
+type ConfigConExtras = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+  /** Cuántos reintentos de RED se hicieron ya de esta misma petición. */
+  _reintentosDeRed?: number;
+};
+
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
-    const original = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
+    const original = error.config as ConfigConExtras | undefined;
     const status = error.response?.status;
     const url = original?.url ?? '';
     const isAuthCall = url.includes('/auth/login') || url.includes('/auth/refresh');
+
+    // Fallo de RED (sin respuesta del servidor): se reintenta con espera
+    // creciente antes de molestar al usuario. La API vive en el plan free de
+    // Render, que la apaga a los 15 min, y la primera petición puede tardar.
+    // ⚠️ Solo LECTURAS: reintentar una escritura duplicaría datos.
+    if (original) {
+      const reintentosHechos = original._reintentosDeRed ?? 0;
+      if (
+        sePuedeReintentar({
+          metodo: original.method,
+          huboRespuesta: Boolean(error.response),
+          codigo: error.code,
+          reintentosHechos,
+        })
+      ) {
+        original._reintentosDeRed = reintentosHechos + 1;
+        await esperar(esperaDeReintento(reintentosHechos));
+        return api(original);
+      }
+    }
 
     // Access token vencido: intenta rotar UNA vez y reintenta la request original.
     if (status === 401 && original && !original._retry && !isAuthCall && getRefreshToken()) {
@@ -65,7 +99,7 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${newAccess}`;
         return api(original);
       } catch {
-        clearToken();
+        clearTokens();
         if (!onPublicPage()) location.href = '/login';
         return Promise.reject(error);
       } finally {
@@ -75,7 +109,7 @@ api.interceptors.response.use(
 
     // 401 sin posibilidad de refrescar: cerrar sesión (salvo en páginas públicas).
     if (status === 401 && !isAuthCall && !onPublicPage()) {
-      clearToken();
+      clearTokens();
       location.href = '/login';
     }
     return Promise.reject(error);
@@ -100,7 +134,14 @@ export async function downloadFile(path: string, filename: string): Promise<void
 export function apiErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     if (!error.response) {
-      return 'No se pudo conectar con el servidor. ¿Está corriendo el backend (pnpm dev:api)?';
+      // El texto depende de la causa (sin conexión / tardó demasiado / el
+      // servidor no contesta) y de si estamos en desarrollo. La lógica es pura
+      // y vive en `lib/network-errors.ts`.
+      return mensajeDeRed({
+        enDesarrollo: import.meta.env.DEV,
+        enLinea: typeof navigator === 'undefined' ? true : navigator.onLine !== false,
+        codigo: error.code,
+      });
     }
     if (error.response.status === 429) {
       return 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.';

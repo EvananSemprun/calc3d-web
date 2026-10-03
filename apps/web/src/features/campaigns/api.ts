@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { campaignLifecycle } from '@calc3d/shared';
 import type {
   AttributionChannel,
   CampaignObjective,
@@ -6,6 +7,7 @@ import type {
   CampaignStatusDto,
 } from '@calc3d/shared';
 import { api } from '@/lib/api';
+import { todayKey } from '@/lib/today';
 
 export type { AttributionChannel, CampaignObjective, CampaignPlatform, CampaignStatusDto };
 
@@ -66,6 +68,24 @@ export const OBJECTIVE_LABELS: Record<CampaignObjective, string> = {
   FOLLOWERS: 'Seguidores',
   AWARENESS: 'Reconocimiento de marca',
 };
+
+/**
+ * ESTADO QUE SE MUESTRA. El `status` guardado se queda viejo: nada lo mueve a
+ * FINISHED cuando pasa la fecha de fin, así que una campaña que terminó hace
+ * semanas seguía diciendo "Activa" y el Dashboard pedía revisarla
+ * (2026-10-02). Se deriva al vuelo, sin tocar la base ni montar un proceso.
+ *
+ * Lo marcado a mano manda: una campaña Pausada o Finalizada se respeta.
+ */
+export function campaignDisplayStatus(c: Pick<Campaign, 'status' | 'endDate'>): CampaignStatusDto {
+  const lifecycle = campaignLifecycle(c.status, c.endDate, todayKey());
+  return lifecycle === 'RUNNING' ? 'ACTIVE' : lifecycle;
+}
+
+/** Solo sobre una campaña VIGENTE se puede actuar: es la única que se avisa. */
+export function isCampaignVigente(c: Pick<Campaign, 'status' | 'endDate'>): boolean {
+  return campaignDisplayStatus(c) === 'ACTIVE';
+}
 
 export const CAMPAIGN_STATUS: Record<CampaignStatusDto, { label: string; tone: string }> = {
   ACTIVE: { label: 'Activa', tone: 'text-success' },

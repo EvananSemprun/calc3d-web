@@ -3,6 +3,7 @@ import { todayKey } from '@/lib/today';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { useOrders, ORDER_STATUS } from '@/features/orders/api';
+import { OrdersShell } from '@/features/orders/OrdersShell';
 import { Button, Card, CardContent } from '@/components/ui';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -59,28 +60,23 @@ export function CalendarPage() {
   const hoy = todayKey();
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
-          <div>
-            <h1 className="font-display text-2xl font-bold">Calendario de entregas</h1>
-            <p className="text-sm text-muted-foreground">Tus encargos por fecha de entrega.</p>
-          </div>
-        </div>
+    <OrdersShell
+      title="Calendario de entregas"
+      description="Tus encargos por fecha de entrega."
+      actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => move(-1)}>
+          <Button variant="outline" size="icon" aria-label="Mes anterior" onClick={() => move(-1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="min-w-[160px] text-center font-display font-semibold capitalize">
             {MONTHS[cursor.month]} {cursor.year}
           </span>
-          <Button variant="outline" size="icon" onClick={() => move(1)}>
+          <Button variant="outline" size="icon" aria-label="Mes siguiente" onClick={() => move(1)}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-      </div>
-
+      }
+    >
       <Card>
         <CardContent className="p-3">
           <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -138,6 +134,6 @@ export function CalendarPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </OrdersShell>
   );
 }

@@ -9,6 +9,7 @@ import {
   useSaveCampaign,
   useDeleteCampaign,
   CAMPAIGN_STATUS,
+  campaignDisplayStatus,
   HEALTH_META,
   PLATFORM_LABELS,
   PLATFORM_OPTIONS,
@@ -65,7 +66,9 @@ export function CampaignsPage() {
         .filter(
           (c) =>
             (!platformF || c.platform === platformF) &&
-            (!statusF || c.status === statusF),
+            // El estado DERIVADO, no el guardado: con el guardado, elegir
+            // "Activa" seguía trayendo campañas vencidas (2026-10-02).
+            (!statusF || campaignDisplayStatus(c) === statusF),
         )
         .map((c) => ({
           ...c,
@@ -236,8 +239,8 @@ export function CampaignsPage() {
                   <Link key={c.id} to={`/campaigns/${c.id}`} className="block p-4 hover:bg-accent/40">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate font-medium text-brand-yellow-ink">{c.name}</span>
-                      <span className={`text-xs ${CAMPAIGN_STATUS[c.status].tone}`}>
-                        {CAMPAIGN_STATUS[c.status].label}
+                      <span className={`text-xs ${CAMPAIGN_STATUS[campaignDisplayStatus(c)].tone}`}>
+                        {CAMPAIGN_STATUS[campaignDisplayStatus(c)].label}
                       </span>
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular">

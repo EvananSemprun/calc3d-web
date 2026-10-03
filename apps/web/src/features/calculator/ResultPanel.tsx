@@ -33,7 +33,7 @@ const STATUS_STYLE: Record<PriceStatus, { ring: string; text: string; icon: type
 
 /**
  * El precio a cobrar, primero y grande. Debajo, lo que hace falta para decidir:
- * margen real, ganancia, costo y el cobro en bolívares.
+ * recargo y margen reales, ganancia, costo y el cobro en bolívares.
  *
  * En la calculadora el precio es EDITABLE (`onManualPrice`); en un documento
  * guardado se muestra tal como quedó.
@@ -136,7 +136,7 @@ export function ResultPanel({
 
           {sinDatos ? (
             <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-              Carga el trabajo para ver tu margen.
+              Carga el trabajo para ver tu recargo y tu margen.
             </div>
           ) : (
             <div
@@ -148,13 +148,24 @@ export function ResultPanel({
             >
               <StatusIcon className="h-4 w-4 shrink-0" />
               <span>{PRICE_STATUS_LABEL[o.status]}</span>
-              <span className="ml-auto tabular-nums">{percent(o.marginReal)}</span>
+              {/* Las DOS cifras, con su nombre correcto (2026-10-02). Lo que la
+                  app llamaba "margen" es RECARGO sobre el costo: un recargo del
+                  100 % es un margen del 50 %, y el piso de 60 % protegía la
+                  mitad de lo que parecía. El margen sobre venta es el que se
+                  compara con cualquier referencia del rubro. */}
+              <span className="ml-auto whitespace-nowrap tabular-nums">
+                <span title="Recargo sobre el costo">+{percent(o.marginReal)}</span>
+                <span className="mx-1.5 opacity-50">·</span>
+                <span className="font-normal opacity-80" title="Margen sobre la venta">
+                  {percent(o.marginOnSale)} de margen
+                </span>
+              </span>
             </div>
           )}
 
           {o.status === 'LOW' && !sinDatos && (
             <p className="rounded-xl border border-destructive/50 bg-destructive/[0.07] px-3 py-2 text-xs text-destructive">
-              Estás por debajo de tu piso de margen. Se puede vender igual, pero sabiendo
+              Estás por debajo de tu piso de recargo. Se puede vender igual, pero sabiendo
               que a este precio el trabajo casi no deja.
             </p>
           )}

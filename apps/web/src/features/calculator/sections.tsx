@@ -442,7 +442,7 @@ const ROUNDING_OPTIONS: { value: string; label: string }[] = [
   { value: 'DOWN|1', label: 'Hacia abajo al entero' },
 ];
 
-/** 8. MARGEN Y REDONDEO — de dónde sale el precio sugerido. */
+/** 8. RECARGO Y REDONDEO — de dónde sale el precio sugerido. */
 export function SectionMargen() {
   const c = useCalculator();
   const value = `${c.roundingMode}|${c.roundingIncrement}`;
@@ -451,11 +451,14 @@ export function SectionMargen() {
     <CostSection
       n={8}
       icon={Percent}
-      title="Margen y redondeo"
-      hint="Tu ganancia sobre el costo, y cómo se redondea el precio."
+      title="Recargo y redondeo"
+      hint="Cuánto le sumás al costo, y cómo se redondea el precio."
     >
       <FieldGrid>
-        <Field label="Margen objetivo (%)" hint="Ganancia sobre el costo: 100 % = el doble.">
+        {/* NO es "margen": es RECARGO sobre el costo. 100 % = el doble del
+            costo = 50 % de margen sobre la venta. Llamarlo margen hacía que
+            el piso del semáforo se leyera como el doble de lo que protege. */}
+        <Field label="Recargo objetivo (%)" hint="Se le suma al costo: 100 % = el doble (50 % de margen).">
           <NumberInput
             value={Math.round(c.markup * 1000) / 10}
             onChange={(n) => c.setMarkup(n / 100)}

@@ -77,10 +77,17 @@ export function App() {
         />
         <Route path="/sales" element={<SalesPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
+        {/* Encargos: TRES pestañas del mismo dato, cada una con su dirección
+            (así "atrás" funciona y el enlace se puede compartir). Las rutas
+            literales van ANTES de `:id` por claridad; React Router igual les da
+            prioridad sobre el segmento dinámico. */}
         <Route path="/orders" element={<OrdersPage />} />
+        <Route path="/orders/calendario" element={<CalendarPage />} />
+        <Route path="/orders/por-cobrar" element={<ReceivablesPage />} />
         <Route path="/orders/:id" element={<OrderDetailPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/receivables" element={<ReceivablesPage />} />
+        {/* Direcciones viejas: redirigen para no romper favoritos. */}
+        <Route path="/calendar" element={<Navigate to="/orders/calendario" replace />} />
+        <Route path="/receivables" element={<Navigate to="/orders/por-cobrar" replace />} />
         <Route path="/cash" element={<CashPage />} />
         <Route path="/loans" element={<LoansPage />} />
         <Route path="/goals" element={<GoalsPage />} />

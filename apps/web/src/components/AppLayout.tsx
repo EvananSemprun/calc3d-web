@@ -14,7 +14,6 @@ import {
   TrendingUp,
   Receipt,
   Package,
-  CalendarDays,
   HandCoins,
   Megaphone,
   Box,
@@ -41,22 +40,62 @@ import { Toaster } from '@/components/toast';
 import { ConfirmProvider, TooltipProvider } from '@/components/overlays';
 import { useStoreRequestsPending } from '@/features/store/requests-api';
 
-const navGroups: { heading?: string; items: { to: string; label: string; icon: typeof Calculator; end?: boolean; badge?: string }[] }[] = [
+const navGroups: {
+  heading?: string;
+  items: {
+    to: string;
+    label: string;
+    icon: typeof Calculator;
+    end?: boolean;
+    badge?: string;
+    /** Regla propia para decidir si el ítem está activo (ver `Encargos`). */
+    activeWhen?: (pathname: string) => boolean;
+  }[];
+}[] = [
   { items: [{ to: '/', label: 'Calculadora', icon: Calculator, end: true }] },
+  /**
+   * Finanzas = solo plata (2026-10-02). Tenía 11 de los 23 ítems, con tres que
+   * no son dinero: Calendario y Por cobrar son VISTAS de Encargos (las tres
+   * leen `useOrders`) y pasaron a ser pestañas suyas; Producción mide máquinas
+   * y Publicidad es marketing, y cada una tiene ahora su categoría.
+   */
   {
     heading: 'Finanzas',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/sales', label: 'Ventas', icon: TrendingUp },
+      { to: '/sales', label: 'Mostrador', icon: TrendingUp },
       { to: '/expenses', label: 'Gastos', icon: Receipt },
-      { to: '/orders', label: 'Encargos', icon: Package },
-      { to: '/calendar', label: 'Calendario', icon: CalendarDays },
-      { to: '/receivables', label: 'Por cobrar', icon: HandCoins },
+      {
+        to: '/orders',
+        label: 'Encargos',
+        icon: Package,
+        // `/orders/por-cobrar` empieza con `/orders`, así que sin esto se
+        // resaltaban DOS ítems del menú a la vez. El detalle de un encargo
+        // (`/orders/:id`) sí tiene que resaltar Encargos.
+        activeWhen: (p) => p.startsWith('/orders') && p !== '/orders/calendario' && p !== '/orders/por-cobrar',
+      },
+      // Acceso directo a una PESTAÑA de Encargos: es consulta frecuente y el
+      // dueño no quiso perder el click directo.
+      { to: '/orders/por-cobrar', label: 'Por cobrar', icon: HandCoins },
       { to: '/cash', label: 'Caja', icon: Wallet },
       { to: '/loans', label: 'Deuda', icon: Landmark },
       { to: '/goals', label: 'Metas', icon: Target },
-      { to: '/production', label: 'Producción', icon: Activity },
-      { to: '/campaigns', label: 'Publicidad', icon: Megaphone },
+    ],
+  },
+  {
+    heading: 'Operaciones',
+    items: [{ to: '/production', label: 'Producción', icon: Activity }],
+  },
+  {
+    heading: 'Marketing',
+    items: [{ to: '/campaigns', label: 'Publicidad', icon: Megaphone }],
+  },
+  {
+    // La bandeja es trabajo ENTRANTE, no un catálogo: no era una "definición".
+    heading: 'Tienda',
+    items: [
+      { to: '/store', label: 'Tienda', icon: Store },
+      { to: '/store/requests', label: 'Bandeja de tienda', icon: Inbox, badge: 'store-requests' },
     ],
   },
   {
@@ -77,10 +116,10 @@ const navGroups: { heading?: string; items: { to: string; label: string; icon: t
     ],
   },
   {
-    heading: 'Definiciones',
+    // "Definiciones" no decía qué había adentro. Son catálogos, y las rutas ya
+    // se llamaban `/catalogs/*`: el nombre ahora coincide con el código.
+    heading: 'Catálogos',
     items: [
-      { to: '/store', label: 'Tienda', icon: Store },
-      { to: '/store/requests', label: 'Bandeja de tienda', icon: Inbox, badge: 'store-requests' },
       { to: '/catalogs/printers', label: 'Impresoras', icon: Printer },
       { to: '/catalogs/components', label: 'Insumos', icon: Puzzle },
       { to: '/catalogs/providers', label: 'Proveedores', icon: Truck },
@@ -94,24 +133,35 @@ function NavItem({
   item,
   onNavigate,
 }: {
-  item: { to: string; label: string; icon: typeof Calculator; end: boolean; badge?: string };
+  item: {
+    to: string;
+    label: string;
+    icon: typeof Calculator;
+    end: boolean;
+    badge?: string;
+    activeWhen?: (pathname: string) => boolean;
+  };
   onNavigate?: () => void;
 }) {
+  const { pathname } = useLocation();
+  const forzarActivo = item.activeWhen?.(pathname);
   return (
     <NavLink
       to={item.to}
       end={item.end}
       onClick={onNavigate}
-      className={({ isActive }) =>
+      className={({ isActive: rutaActiva }) =>
         cn(
           'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-          isActive
+          (forzarActivo ?? rutaActiva)
             ? 'text-foreground'
             : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
         )
       }
     >
-      {({ isActive }) => (
+      {({ isActive: rutaActiva }) => {
+        const isActive = forzarActivo ?? rutaActiva;
+        return (
         <>
           {isActive && (
             <motion.span
@@ -136,7 +186,8 @@ function NavItem({
           <span className="relative">{item.label}</span>
           {item.badge === 'store-requests' && <PendingStoreBadge />}
         </>
-      )}
+        );
+      }}
     </NavLink>
   );
 }
@@ -155,6 +206,30 @@ function PendingStoreBadge() {
     </span>
   );
 }
+
+/**
+ * El MISMO contador, pero en el encabezado de un grupo CERRADO.
+ *
+ * ⚠️ El acordeón abre un grupo a la vez (decisión del dueño), así que el grupo
+ * "Tienda" va a estar cerrado casi siempre y su badge quedaría invisible — un
+ * contador que no se ve no avisa de nada, que es justo lo que esta bandeja
+ * necesita porque se llena sola. Por eso burbujea al encabezado (2026-10-02).
+ */
+function GroupPendingBadge({ visible }: { visible: boolean }) {
+  const { data } = useStoreRequestsPending();
+  if (!visible || !data?.pending) return null;
+  return (
+    <span
+      aria-label={`${data.pending} pedido(s) de la tienda sin revisar`}
+      className="grid h-4 min-w-4 place-items-center rounded-full bg-brand-yellow px-1 text-[10px] font-bold tabular-nums text-brand-yellow-foreground"
+    >
+      {data.pending}
+    </span>
+  );
+}
+
+/** true si alguno de los ítems del grupo lleva contador. */
+const groupHasBadge = (items: { badge?: string }[]) => items.some((i) => i.badge);
 
 const OPEN_GROUP_KEY = 'nav-open-group';
 
@@ -262,9 +337,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 className="flex w-full items-center justify-between rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
               >
                 {group.heading}
-                <ChevronDown
-                  className={cn('h-3.5 w-3.5 transition-transform duration-200', !isOpen && '-rotate-90')}
-                />
+                <span className="flex items-center gap-1.5">
+                  {groupHasBadge(group.items) && <GroupPendingBadge visible={!isOpen} />}
+                  <ChevronDown
+                    className={cn('h-3.5 w-3.5 transition-transform duration-200', !isOpen && '-rotate-90')}
+                  />
+                </span>
               </button>
               {/* Colapso suave por grid-rows (sin medir alturas en JS). */}
               <div

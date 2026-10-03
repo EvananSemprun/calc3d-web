@@ -8,6 +8,7 @@ import { useMoney } from '@/features/settings/useSettings';
 import { useDocRate } from '@/features/settings/useExchangeRates';
 import { useOrder, ORDER_STATUS_OPTIONS } from '@/features/orders/api';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, NumberInput, PageSkeleton, Select, Stat, FieldGrid } from '@/components/ui';
+import { OrderLinesEditor, EMPTY_ORDER_LINE } from '@/features/orders/OrderLinesEditor';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { formatStoredDay, todayKey } from '@/lib/today';
@@ -345,6 +346,7 @@ export function OrderDetailPage() {
       {editOpen && (
         <EditLinesModal
           initial={order.lines}
+          currencyLabel={order.currencyLabel}
           onClose={() => setEditOpen(false)}
           onSave={(lines) => {
             patch.mutate(
@@ -365,49 +367,26 @@ export function OrderDetailPage() {
 
 function EditLinesModal({
   initial,
+  currencyLabel,
   onClose,
   onSave,
 }: {
   initial: OrderLineDto[];
+  /** Moneda del documento, para ver el total también en ella. */
+  currencyLabel?: string | null;
   onClose: () => void;
   onSave: (lines: OrderLineDto[]) => void;
 }) {
+  // El MISMO editor que "Nuevo encargo" (2026-10-02). Eran dos formularios de
+  // artículos con UX distinta: acá los números seguían sin etiqueta y sin total.
   const [lines, setLines] = useState<OrderLineDto[]>(
-    initial.length ? initial : [{ description: '', quantity: 1, unit: 'u', unitPrice: 0 }],
+    initial.length ? initial : [{ ...EMPTY_ORDER_LINE }],
   );
-  const setLine = (i: number, patch: Partial<OrderLineDto>) =>
-    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
 
   return (
     <Dialog open onOpenChange={(n) => !n && onClose()} title="Editar artículos">
       <div className="space-y-3">
-        {lines.map((l, i) => (
-          <div key={i} className="flex items-end gap-2">
-            <div className="flex-1">
-              <Input
-                placeholder="Descripción"
-                value={l.description}
-                onChange={(e) => setLine(i, { description: e.target.value })}
-              />
-            </div>
-            <div className="w-16">
-              <NumberInput value={l.quantity} onChange={(v) => setLine(i, { quantity: v })} />
-            </div>
-            <div className="w-24">
-              <NumberInput step="0.01" value={l.unitPrice} onChange={(v) => setLine(i, { unitPrice: v })} />
-            </div>
-            <Button variant="ghost" size="icon" onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}>
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        ))}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setLines((ls) => [...ls, { description: '', quantity: 1, unit: 'u', unitPrice: 0 }])}
-        >
-          <Plus className="h-4 w-4" /> Artículo
-        </Button>
+        <OrderLinesEditor lines={lines} onChange={setLines} currencyLabel={currencyLabel} />
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="outline" onClick={onClose}>
             Cancelar

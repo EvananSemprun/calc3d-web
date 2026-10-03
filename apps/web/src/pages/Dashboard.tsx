@@ -4,7 +4,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
+  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -26,11 +28,13 @@ import { useGoalForMonth } from '@/features/goals/api';
 import { useEquipmentRecovery } from '@/features/equipment/api';
 import { useCash } from '@/features/cash/api';
 import { currentMonthKey } from '@/lib/today';
-import { Card, CardContent, CardHeader, CardTitle, ProgressBar, Stat, TableSkeleton } from '@/components/ui';
+import { Card, CardContent, CardHeader, CardTitle, ProgressBar, Select, Stat, TableSkeleton } from '@/components/ui';
+import { usePersistentState } from '@/lib/usePersistentState';
+import { cn } from '@/lib/utils';
 import { NumberTicker } from '@/components/effects';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
 import { useOrderPayments } from '@/features/orders/api';
-import { useCampaigns } from '@/features/campaigns/api';
+import { useCampaigns, isCampaignVigente } from '@/features/campaigns/api';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { storeProductsBelowMargin, useStoreProducts } from '@/features/store/api';
@@ -41,6 +45,9 @@ import {
   useExpenses,
   useSales,
 } from '@/features/finance/api';
+
+/** Canal de los gráficos: todo, solo mostrador o solo abonos de encargos. */
+type Canal = 'ALL' | 'COUNTER' | 'ORDERS';
 
 const GOLD = '#FFC300';
 const BLUE = '#3b82c4';
@@ -59,6 +66,9 @@ export function DashboardPage() {
   const range = useDateRange('MONTH', 'dashboard');
   const { money, moneyAlt } = useMoney();
   const { data: settings } = useSettings();
+  // Canal de los gráficos. Se recuerda como el resto de los filtros de la app.
+  const [canal, setCanal] = usePersistentState<Canal>('dashboard:canal', 'ALL');
+  const verCanal = (c: Exclude<Canal, 'ALL'>) => canal === 'ALL' || canal === c;
   const sales = useSales(range);
   const expenses = useExpenses(range);
   const payments = useOrderPayments(range);
@@ -69,6 +79,22 @@ export function DashboardPage() {
   const paymentRows = payments.data ?? [];
 
   const agg = React.useMemo(() => {
+    /**
+     * ⚠️ LAS 25 VENTAS `ENCARGO` SON TOTALES SEMANALES DEL EXCEL, no ventas de
+     * un día: se importaron **todas fechadas el lunes** porque la hoja no
+     * registraba el día (`docs/excel-vs-app.md`). Metidas en un gráfico DIARIO
+     * solo pueden mentir: el lunes parecía el mejor día del negocio por $1.323
+     * que en realidad son 25 semanas enteras. Y en el ticket promedio contaban
+     * como 25 "ventas" de ~$53, inflando el promedio.
+     *
+     * Se excluyen de todo lo que mira el DÍA (ingresos por día, día de la
+     * semana, ticket). NO se excluyen de los totales de plata, que son reales,
+     * ni de los gráficos MENSUALES: una semana sí cae dentro de un mes.
+     */
+    const mostradorRows = saleRows.filter((r) => r.kind === 'COUNTER');
+    const historicoRows = saleRows.filter((r) => r.kind === 'ENCARGO');
+    const historicoTotal = historicoRows.reduce((s, r) => s + r.amount, 0);
+
     const ventas = saleRows.reduce((s, r) => s + r.amount, 0);
     // Abonos de pedidos: dinero que entra por encargos, flujo SEPARADO de las
     // ventas mostrador (no se genera un Sale por abono, así no hay doble conteo).
@@ -85,31 +111,49 @@ export function DashboardPage() {
     const gastosOperativos = gastos - inversion;
     const utilidad = ingresos - gastosOperativos;
 
-    // Ingresos por día (ventas + abonos), asc
-    const byDayMap = new Map<string, number>();
-    for (const r of saleRows) {
-      const d = r.date.slice(0, 10);
-      byDayMap.set(d, (byDayMap.get(d) ?? 0) + r.amount);
-    }
-    for (const r of paymentRows) {
-      const d = r.date.slice(0, 10);
-      byDayMap.set(d, (byDayMap.get(d) ?? 0) + r.amount);
-    }
+    /**
+     * Ingresos por día, SEPARADOS POR CANAL (2026-10-02). Saber si la plata de
+     * un día entró por mostrador o por abonos de encargos dice más que el total
+     * solo. Sin el histórico semanal, que no es diario (ver arriba).
+     */
+    const byDayMap = new Map<string, { mostrador: number; encargos: number }>();
+    const atDay = (d: string) => {
+      let v = byDayMap.get(d);
+      if (!v) {
+        v = { mostrador: 0, encargos: 0 };
+        byDayMap.set(d, v);
+      }
+      return v;
+    };
+    for (const r of mostradorRows) atDay(r.date.slice(0, 10)).mostrador += r.amount;
+    for (const r of paymentRows) atDay(r.date.slice(0, 10)).encargos += r.amount;
     const byDay = [...byDayMap.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([d, v]) => ({ label: `${d.slice(8, 10)}/${d.slice(5, 7)}`, ventas: v }));
+      .map(([d, v]) => ({
+        label: `${d.slice(8, 10)}/${d.slice(5, 7)}`,
+        mostrador: v.mostrador,
+        encargos: v.encargos,
+      }));
 
     // Mostrador vs Encargo
     const kindMap = new Map<string, number>();
     for (const r of saleRows) kindMap.set(r.kind, (kindMap.get(r.kind) ?? 0) + r.amount);
     const byKind = [...kindMap.entries()].map(([k, v]) => ({
+      kind: k as 'COUNTER' | 'ENCARGO',
       name: SALE_KIND_LABELS[k as 'COUNTER' | 'ENCARGO'],
       value: v,
     }));
 
-    // Gasto por tipo de recurso (Filamento/Impresora/Componente/Empaque/General)
+    /**
+     * Gasto por tipo de recurso. ⚠️ SIN la inversión en equipos: el KPI de
+     * arriba ya la excluye (`gastosOperativos`), y tenerla acá hacía que la
+     * misma pantalla usara dos definiciones de "gasto" — una impresora de $600
+     * dominaba el gráfico mientras el KPI afirmaba que no era gasto. Los
+     * equipos tienen su propia tarjeta de Reposición.
+     */
     const resMap = new Map<string, number>();
     for (const r of expenseRows) {
+      if (r.isInvestment) continue;
       const link = expenseLink(r);
       const label = link ? LINK_KIND_LABELS[link.kind] : 'General';
       resMap.set(label, (resMap.get(label) ?? 0) + r.amount);
@@ -123,14 +167,19 @@ export function DashboardPage() {
     // para que coincida con "Ventas por día" (que usa r.date.slice(0,10)). Con
     // new Date(r.date).getDay() (día LOCAL), al oeste de UTC toda venta date-only
     // caería en el día de semana anterior (el lunes se graficaría como domingo).
-    const wd = Array(7).fill(0) as number[];
-    for (const r of saleRows) {
-      const [y, m, d] = r.date.slice(0, 10).split('-').map(Number);
-      const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Dom..6=Sáb
-      const idx = (dow + 6) % 7; // lunes = 0
-      wd[idx] += r.amount;
-    }
-    const byWeekday = WEEKDAYS.map((d, i) => ({ dia: d, ventas: wd[i] }));
+    const diaDeLaSemana = (iso: string) => {
+      const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+      return (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // lunes = 0
+    };
+    const wdMostrador = Array(7).fill(0) as number[];
+    const wdEncargos = Array(7).fill(0) as number[];
+    for (const r of mostradorRows) wdMostrador[diaDeLaSemana(r.date)] += r.amount;
+    for (const r of paymentRows) wdEncargos[diaDeLaSemana(r.date)] += r.amount;
+    const byWeekday = WEEKDAYS.map((d, i) => ({
+      dia: d,
+      mostrador: wdMostrador[i],
+      encargos: wdEncargos[i],
+    }));
 
     return {
       ventas,
@@ -140,8 +189,13 @@ export function DashboardPage() {
       gastosOperativos,
       utilidad,
       inversion,
-      ticket: saleRows.length ? ventas / saleRows.length : 0,
-      numVentas: saleRows.length,
+      // Ticket promedio SOLO de mostrador: las 25 filas del histórico son
+      // semanas, no ventas, y dividir entre ellas inflaba el promedio.
+      ticket: mostradorRows.length ? mostradorRows.reduce((s, r) => s + r.amount, 0) / mostradorRows.length : 0,
+      numVentas: mostradorRows.length,
+      // Para la nota al pie de los gráficos diarios: cuánto quedó afuera y por qué.
+      historicoCount: historicoRows.length,
+      historicoTotal,
       byDay,
       byKind,
       byResource,
@@ -173,6 +227,22 @@ export function DashboardPage() {
   const mesEnCurso = currentMonthKey();
   const { data: meta } = useGoalForMonth(mesEnCurso);
 
+  /**
+   * INGRESOS DEL MES EN CURSO, aparte del filtro de arriba.
+   *
+   * ⚠️ El punto de equilibrio es MENSUAL (costos fijos del mes, cuota del mes,
+   * reserva del mes) y hasta el 2026-10-02 se comparaba contra el rango elegido:
+   * con "Todo" seleccionado la tarjeta decía que lo habías cumplido al 400 %,
+   * que no significa nada. Es el mismo problema que Metas ya resolvió mirando
+   * siempre el mes en curso, así que se resuelve igual.
+   */
+  const rangoDelMes = { from: `${mesEnCurso}-01`, to: `${mesEnCurso}-31` };
+  const ventasDelMes = useSales(rangoDelMes);
+  const abonosDelMes = useOrderPayments(rangoDelMes);
+  const ingresosDelMes =
+    (ventasDelMes.data ?? []).reduce((s, r) => s + r.amount, 0) +
+    (abonosDelMes.data ?? []).reduce((s, r) => s + r.amount, 0);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -180,7 +250,7 @@ export function DashboardPage() {
           <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
           <div>
             <h1 className="font-display text-2xl font-bold">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">Ventas, gastos y utilidad de tu taller.</p>
+            <p className="text-sm text-muted-foreground">Ventas, gastos y resultado de caja de tu taller.</p>
           </div>
         </div>
         <DateRangePicker range={range} />
@@ -196,7 +266,7 @@ export function DashboardPage() {
           label="Ventas"
           value={<NumberTicker value={agg.ventas} format={money} />}
           accent="yellow"
-          sub={`${agg.numVentas} mostrador/encargo`}
+          sub={`${agg.numVentas} de mostrador`}
         />
         <Stat
           label="Cobrado de encargos"
@@ -214,14 +284,19 @@ export function DashboardPage() {
                 : 'filamento + generales'
           }
         />
+        {/* ⚠️ NO es "utilidad" (2026-10-02). Incluye abonos de encargos que
+            todavía no se entregaron, cuyo costo se va a registrar después: es
+            un resultado de CAJA, no una ganancia contable. La cuenta no cambió
+            —es la que sirve para saber si el mes alcanza— pero el nombre sí,
+            porque decía algo que no era. */}
         <Stat
-          label="Utilidad"
+          label="Resultado de caja"
           value={<NumberTicker value={agg.utilidad} format={money} />}
           accent={agg.utilidad >= 0 ? 'success' : 'plain'}
           sub={
             moneyAlt
-              ? `≈ ${moneyAlt(agg.utilidad)} · ingresos − gastos operativos`
-              : 'ventas + abonos − gastos operativos'
+              ? `≈ ${moneyAlt(agg.utilidad)} · cobrado − gastos operativos`
+              : 'cobrado (ventas + abonos) − gastos operativos'
           }
         />
       </div>
@@ -277,9 +352,9 @@ export function DashboardPage() {
           {breakEven != null && fijosMensuales > 0 && (
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Punto de equilibrio</CardTitle>
+                <CardTitle>Punto de equilibrio del mes</CardTitle>
                 <span className="text-sm text-muted-foreground">
-                  Vendiste {money(agg.ingresos)} este periodo
+                  Ingresos cobrados este mes: {money(ingresosDelMes)}
                 </span>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -304,12 +379,13 @@ export function DashboardPage() {
                 ]
                   .filter((n) => !n.oculto && n.meta != null)
                   .map((n, i) => {
-                    // INGRESOS, no solo las ventas de mostrador: los abonos de
-                    // pedidos también pagan los costos fijos, y la tarjeta de Metas
-                    // de acá abajo ya los cuenta. Con `ventas` las dos se
-                    // contradecían en la misma pantalla ($5,00 contra $68,50).
-                    const pct = breakEvenProgress(agg.ingresos, n.meta) ?? 0;
-                    const logrado = agg.ingresos >= n.meta!;
+                    // Los INGRESOS DEL MES EN CURSO (ventas + abonos), no los
+                    // del rango elegido: los niveles son mensuales. Y los abonos
+                    // cuentan porque también pagan los costos fijos — con solo
+                    // las ventas de mostrador, esta tarjeta y la de Metas decían
+                    // números distintos para lo mismo ($5,00 contra $68,50).
+                    const pct = breakEvenProgress(ingresosDelMes, n.meta) ?? 0;
+                    const logrado = ingresosDelMes >= n.meta!;
                     return (
                       <div key={n.titulo}>
                         <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2 text-sm">
@@ -328,7 +404,8 @@ export function DashboardPage() {
                   })}
                 <p className="text-xs text-muted-foreground">
                   Con {Math.round((settings?.breakEvenMarginPct ?? 0) * 100)} % de margen de
-                  contribución. Compará con el rango “Mes”: los tres números son mensuales.
+                  contribución. Los tres números son MENSUALES, así que esta tarjeta mira
+                  siempre el mes en curso y no cambia con el filtro de arriba.
                 </p>
               </CardContent>
             </Card>
@@ -399,6 +476,22 @@ export function DashboardPage() {
             </Card>
           )}
 
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-muted-foreground">Gráficos</h2>
+            {/* UN solo selector para toda la sección: con un control por gráfico
+                se puede terminar comparando dos tarjetas filtradas distinto. */}
+            <Select
+              className="w-full sm:w-48"
+              aria-label="Canal de los gráficos"
+              value={canal}
+              onChange={(e) => setCanal(e.target.value as Canal)}
+            >
+              <option value="ALL">Canal: todos</option>
+              <option value="COUNTER">Solo mostrador</option>
+              <option value="ORDERS">Solo encargos</option>
+            </Select>
+          </div>
+
           <div className="grid gap-5 lg:grid-cols-2">
             <ChartCard title="Ingresos por día">
               <BarChart data={agg.byDay}>
@@ -406,15 +499,27 @@ export function DashboardPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={40} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v) => money(Number(v))} cursor={{ fill: 'hsl(var(--accent) / 0.4)' }} />
-                <Bar dataKey="ventas" fill={GOLD} radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {verCanal('COUNTER') && (
+                  <Bar dataKey="mostrador" name="Mostrador" stackId="canal" fill={GOLD} radius={verCanal('ORDERS') ? undefined : [4, 4, 0, 0]} />
+                )}
+                {verCanal('ORDERS') && (
+                  <Bar dataKey="encargos" name="Encargos" stackId="canal" fill={BLUE} radius={[4, 4, 0, 0]} />
+                )}
               </BarChart>
             </ChartCard>
 
             <ChartCard title="Mostrador vs encargo">
               <PieChart>
                 <Pie data={agg.byKind} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3}>
-                  {agg.byKind.map((entry, i) => (
-                    <Cell key={i} fill={entry.name === 'Encargo' ? GOLD : BLUE} stroke="hsl(var(--card))" />
+                  {agg.byKind.map((entry) => (
+                    // Se colorea por la CLAVE (`kind`), no por el texto visible.
+                    // Comparaba contra 'Encargo' y la etiqueta pasó a ser
+                    // 'Encargo anterior' el 2026-09-14: la condición dejó de
+                    // dar verdadera y la dona salía toda azul, sin fallar ni
+                    // avisar. El texto cambia cuando cambia el negocio; la
+                    // clave no.
+                    <Cell key={entry.kind} fill={entry.kind === 'ENCARGO' ? GOLD : BLUE} stroke="hsl(var(--card))" />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={tooltipStyle} formatter={(v) => money(Number(v))} />
@@ -432,18 +537,35 @@ export function DashboardPage() {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Ventas por día de la semana">
+            <ChartCard
+              title="Ingresos por día de la semana"
+              footnote={
+                agg.historicoCount > 0
+                  ? `No incluye ${agg.historicoCount} registro(s) del Excel (${money(agg.historicoTotal)}): son totales SEMANALES fechados todos el lunes, no ventas de un día.`
+                  : undefined
+              }
+            >
               <BarChart data={agg.byWeekday}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="dia" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={40} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v) => money(Number(v))} cursor={{ fill: 'hsl(var(--accent) / 0.4)' }} />
-                <Bar dataKey="ventas" fill={GREEN} radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {verCanal('COUNTER') && (
+                  <Bar dataKey="mostrador" name="Mostrador" stackId="canal" fill={GOLD} radius={verCanal('ORDERS') ? undefined : [4, 4, 0, 0]} />
+                )}
+                {verCanal('ORDERS') && (
+                  <Bar dataKey="encargos" name="Encargos" stackId="canal" fill={BLUE} radius={[4, 4, 0, 0]} />
+                )}
               </BarChart>
             </ChartCard>
           </div>
         </>
       )}
+
+      {/* Vista ANUAL: tiene su propio selector de año y NO responde al filtro
+          de arriba, igual que Metas, el punto de equilibrio y Reposición. */}
+      <AnnualIncome />
     </div>
   );
 }
@@ -472,10 +594,18 @@ function ProfitabilityAlert() {
   );
 }
 
-/** Aviso proactivo: campañas en pérdida o en riesgo (la publicidad no rinde). */
+/**
+ * Aviso proactivo: campañas en pérdida o en riesgo (la publicidad no rinde).
+ *
+ * ⚠️ Solo las VIGENTES. Hasta el 2026-10-02 avisaba de campañas terminadas el
+ * 23/09 pidiendo "revisalas antes de seguir invirtiendo": una orden imposible
+ * de cumplir sobre algo que ya cerró. Pedir una acción que no se puede hacer es
+ * peor que no avisar — enseña a ignorar el aviso.
+ */
 function CampaignAlert() {
   const { data: campaigns } = useCampaigns();
   const alerts = (campaigns ?? []).filter((c) => {
+    if (!isCampaignVigente(c)) return false;
     const h = campaignHealth(c.stats);
     return c.stats.invested > 0 && (h === 'LOSS' || h === 'AT_RISK');
   });
@@ -499,7 +629,16 @@ function CampaignAlert() {
   );
 }
 
-function ChartCard({ title, children }: { title: string; children: React.ReactElement }) {
+function ChartCard({
+  title,
+  footnote,
+  children,
+}: {
+  title: string;
+  /** Qué quedó FUERA del gráfico y por qué. Un dato excluido en silencio es peor que uno mal dibujado. */
+  footnote?: string;
+  children: React.ReactElement;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -510,6 +649,157 @@ function ChartCard({ title, children }: { title: string; children: React.ReactEl
           <ResponsiveContainer width="100%" height="100%">
             {children}
           </ResponsiveContainer>
+        </div>
+        {footnote && <p className="mt-2 text-xs text-muted-foreground">{footnote}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+const MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
+/**
+ * INGRESOS POR MES — la tabla "Ingresos por mes" del Excel del dueño, con el
+ * año como filtro propio.
+ *
+ * ⚠️ Esta tarjeta NO responde al filtro de fechas de arriba: un año es su
+ * propia pregunta. Es la misma regla que ya siguen Metas y el punto de
+ * equilibrio (que miran el mes en curso) y Reposición de equipos (toda la
+ * historia), por eso va al final y bajo un título que lo anuncia.
+ *
+ * Acá el histórico semanal del Excel SÍ cuenta: una semana cae dentro de un
+ * mes, así que a esta granularidad el dato es válido (a diferencia de los
+ * gráficos por día, donde todas esas filas caen falsamente en lunes).
+ */
+function AnnualIncome() {
+  const { money } = useMoney();
+  const anioActual = new Date().getFullYear();
+  const mesActual = new Date().getMonth(); // 0..11, en día LOCAL
+  const [anio, setAnio] = usePersistentState<number>('dashboard:anio', anioActual);
+  const [orden, setOrden] = usePersistentState<'MES' | 'MONTO'>('dashboard:anio:orden', 'MES');
+
+  const rango = { from: `${anio}-01-01`, to: `${anio}-12-31` };
+  const sales = useSales(rango);
+  const payments = useOrderPayments(rango);
+  // Para saber qué años ofrecer hace falta mirar TODA la historia, no el año elegido.
+  const todasLasVentas = useSales({ from: undefined, to: undefined });
+
+  const anios = React.useMemo(() => {
+    const set = new Set<number>([anioActual]);
+    for (const v of todasLasVentas.data ?? []) set.add(Number(v.date.slice(0, 4)));
+    return [...set].sort((a, b) => b - a);
+  }, [todasLasVentas.data, anioActual]);
+
+  const filas = React.useMemo(() => {
+    const mostrador = Array(12).fill(0) as number[];
+    const encargos = Array(12).fill(0) as number[];
+    for (const v of sales.data ?? []) mostrador[Number(v.date.slice(5, 7)) - 1] += v.amount;
+    for (const pago of payments.data ?? []) encargos[Number(pago.date.slice(5, 7)) - 1] += pago.amount;
+    return MESES.map((mes, i) => ({
+      mes,
+      indice: i,
+      mostrador: mostrador[i],
+      encargos: encargos[i],
+      total: mostrador[i] + encargos[i],
+    }));
+  }, [sales.data, payments.data]);
+
+  const total = filas.reduce((s, f) => s + f.total, 0);
+  const ordenadas = orden === 'MES' ? filas : [...filas].sort((a, b) => b.total - a.total);
+
+  /**
+   * El gráfico se corta en el mes ACTUAL. Dibujar noviembre y diciembre en $0
+   * hace que la línea se desplome y se lea como un derrumbe del negocio, cuando
+   * en realidad esos meses todavía no pasaron. En la TABLA sí se listan los 12
+   * (decisión del dueño): ahí un 0 se entiende, en una línea no.
+   */
+  const datosGrafico = anio === anioActual ? filas.slice(0, mesActual + 1) : filas;
+
+  return (
+    <Card>
+      <CardHeader className="flex-col items-start gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle>Ingresos por mes</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Año completo, independiente del filtro de arriba. Total {anio}: {money(total)}.
+          </p>
+        </div>
+        <div className="flex w-full gap-2 sm:w-auto">
+          <Select
+            className="w-full sm:w-28"
+            aria-label="Año"
+            value={String(anio)}
+            onChange={(e) => setAnio(Number(e.target.value))}
+          >
+            {anios.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </Select>
+          <Select
+            className="w-full sm:w-40"
+            aria-label="Orden de los meses"
+            value={orden}
+            onChange={(e) => setOrden(e.target.value as 'MES' | 'MONTO')}
+          >
+            <option value="MES">Orden: por mes</option>
+            <option value="MONTO">Orden: mayor a menor</option>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-5 lg:grid-cols-2">
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={datosGrafico}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis
+                dataKey="mes"
+                tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                tickFormatter={(m: string) => m.slice(0, 3)}
+              />
+              <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={40} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v) => money(Number(v))} cursor={{ fill: 'hsl(var(--accent) / 0.4)' }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="mostrador" name="Mostrador" stackId="canal" fill={GOLD} />
+              <Bar dataKey="encargos" name="Encargos" stackId="canal" fill={BLUE} radius={[4, 4, 0, 0]} />
+              <Line type="monotone" dataKey="total" name="Total" stroke={GREEN} strokeWidth={2} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="py-2 font-semibold">Mes</th>
+                <th className="py-2 text-right font-semibold">Ingresos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ordenadas.map((f) => {
+                const futuro = anio === anioActual && f.indice > mesActual;
+                return (
+                  <tr key={f.mes} className="border-b border-border/70 last:border-0">
+                    <td className={cn('py-1.5', futuro && 'text-muted-foreground/60')}>
+                      {f.mes}
+                      {futuro && <span className="ml-1.5 text-xs">(no llegó)</span>}
+                    </td>
+                    <td className={cn('py-1.5 text-right tabular', f.total === 0 && 'text-muted-foreground')}>
+                      {money(f.total)}
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="font-semibold">
+                <td className="py-2">Total</td>
+                <td className="py-2 text-right tabular">{money(total)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </CardContent>
     </Card>

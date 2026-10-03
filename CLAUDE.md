@@ -60,6 +60,17 @@ Vite importa.
     tocar el abierto lo cierra. El grupo de la página actual se abre solo (también
     al llegar por el buscador o un enlace), y el último abierto se recuerda en
     localStorage `nav-open-group` (la clave vieja `nav-collapsed` ya no se usa).
+    **Reorganizado el 2026-10-02**: Finanzas tenía 11 de los 23 ítems, con tres
+    que no son dinero. Quedó con Dashboard · Mostrador · Gastos · Encargos ·
+    Por cobrar · Caja · Deuda · Metas, y nacieron **OPERACIONES** (Producción),
+    **MARKETING** (Publicidad) y **TIENDA** (Tienda · Bandeja, que es trabajo
+    entrante y no un catálogo). **Definiciones → CATÁLOGOS**, que es lo que
+    tiene adentro y coincide con las rutas `/catalogs/*`.
+    ⚠️ **El badge de la Bandeja BURBUJEA al encabezado cuando el grupo está
+    cerrado** (`GroupPendingBadge`). Con el acordeón de uno a la vez, "Tienda"
+    va a estar cerrado casi siempre y el contador quedaría invisible — y un
+    contador que no se ve no avisa de nada, que es justo lo que esa bandeja
+    necesita porque se llena sola.
   - **Barras de filtros: SIEMPRE `FilterBar`** (`components/ui.tsx`, desde el
     2026-09-14, decisión del dueño). Toda lista con filtros —las que existen y las
     que se hagan— los pone dentro de `<FilterBar>`, NUNCA en un `flex-wrap` suelto
@@ -150,6 +161,17 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
 - **Dialog** — limita el alto a `100dvh` y scrollea el cuerpo (los modales no se
   salen de pantalla). Modales con `<form onSubmit>` + botón `type="submit"` dan
   **Enter=Guardar**; el primer input lleva `autoFocus`.
+- **Encargos = TRES pestañas en la URL** (2026-10-02): `/orders` (Lista),
+  `/orders/calendario` y `/orders/por-cobrar`. Las tres leen `useOrders()`: son
+  vistas del MISMO dato, no pantallas hermanas. `/calendar` y `/receivables`
+  quedan como redirect. El **filtro de fecha vive solo en Lista**, con selector
+  entrega/creación y un aviso clickeable para los encargos **sin fecha de
+  entrega** (ocultarlos en silencio es perder justo el pedido que más fácil se
+  olvida). Las líneas de artículo van SIEMPRE con
+  `features/orders/OrderLinesEditor` (encabezados una vez en escritorio,
+  bloques con etiqueta en móvil, `aria-label` por input, subtotal y total en
+  vivo): antes eran dos `spinbutton` sin nombre y se creaba un encargo sin ver
+  cuánto sumaba. Lo usan "Nuevo encargo" y "Editar artículos" del detalle.
 - **Encargo = pedido (2026-09-14, shared 0.16.0)** — la pantalla `/orders` se
   llama **Encargos** en todo el panel (menú, títulos, botones, Dashboard,
   Calendario, Por cobrar, Campañas, Producción, bandeja de la tienda). Ventas es
@@ -430,7 +452,87 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   pantalla.
 - **Alertas proactivas**: `ProfitabilityAlert` (productos por debajo del margen
   mínimo → `/products`) y `CampaignAlert` (campañas `LOSS`/`AT_RISK` con inversión
-  > 0 → `/campaigns`).
+  > 0 **y VIGENTES** → `/campaigns`; ver abajo).
+
+#### Ventas → «Ventas de mostrador» (2026-10-02)
+
+Renombre **solo de front**: el `kind` de la base y la API no se tocan (la API ya
+rechaza crear `ENCARGO`). Lo demás:
+- ⚠️ **Las 25 ventas `ENCARGO` se ocultan tras el interruptor «Ver histórico
+  importado»** (`sales:ver-historico`, apagado por defecto), o el título mentiría
+  sobre 25 de las filas. **Los tres KPIs (Total vendido · Cantidad · Ticket
+  promedio) se calculan sobre LO QUE SE VE**: si no, la tabla mostraría 97 filas
+  y el total sumaría 122, y el ticket volvería a dividir entre 25 "ventas" que
+  son semanas enteras. La columna "Tipo" solo aparece cuando hay histórico a la
+  vista de verdad. Se fue el KPI «Cobrado de encargos»: mezclaba dos flujos y
+  contradecía el título (ese dato vive en el Dashboard y en Encargos).
+- **Sin columna «Cliente»** (casi siempre vacía): el cliente va debajo de la
+  nota cuando existe, en tabla y en tarjetas.
+- **Dos vistas sobre los MISMOS datos** (`sales:vista`): **Registros** (la tabla)
+  y **Resumen semanal** (semanas lunes→domingo, mejor día en oro, día sin ventas
+  con borde punteado y un tercer estado para los días fuera del rango — que no
+  son "sin ventas"). ⚠️ **No existe el dato de "días que no se trabajó"** (en el
+  Excel se pintaba a mano), así que el promedio se calcula **por día con venta**
+  y la pantalla lo dice: dividir entre 30 días cuando se trabajaron 20 da un
+  número que no significa nada.
+- Filtros `Select` de Cliente, Canal y Campaña (`sales:cliente|canal|campana`),
+  con valor seguro. ⚠️ **Solo se dibujan cuando hay algo que elegir**: hoy las
+  122 ventas tienen `clientId`/`originChannel`/`campaignId` en null, así que no
+  se ven hasta que se carguen ventas con esos datos.
+- ⚠️ **`formatStoredDay` de `lib/today.ts` da `30/9/2026`, no `30/09/2026`**
+  (`es-VE` sin `2-digit`). Ventas usa `formatoDiaVenta` de
+  `features/finance/sales-view.ts`, con la MISMA regla UTC y dos dígitos.
+  Unificarlos cambiaría la fecha en todas las pantallas que ya usan el otro.
+- ⚠️ **`SaleRow` (en `features/finance/api.ts`) miente por omisión**: no declara
+  `originChannel` ni `campaignId` aunque la API los manda siempre. Está
+  extendido en `sales-view.ts` (`SaleRowFull`); conviene moverlo al tipo base.
+
+#### Cambios del 2026-10-02 (hay que conocerlos antes de tocar el Dashboard)
+
+- ⚠️ **"Utilidad" se llama ahora «Resultado de caja»** y "Vendiste $X" pasó a
+  "Ingresos cobrados". **Ningún número cambió**: la cuenta incluye abonos de
+  encargos todavía no entregados, cuyo costo se registra después, así que es un
+  resultado de CAJA y no una ganancia contable. Se evaluó pasar la app a
+  devengado y se descartó (toca Dashboard, Encargos, Caja, Por cobrar,
+  equilibrio, Metas, Reposición y el Excel, para corregir una distorsión chica
+  con los montos actuales). Si algún día se hace, ese es el alcance real.
+- ⚠️ **El punto de equilibrio mira SIEMPRE el mes en curso**, con sus propias
+  consultas (`rangoDelMes`), no el filtro de arriba. Los tres niveles son
+  mensuales y con "Todo" seleccionado la tarjeta decía que lo habías cumplido al
+  400 %. Es la misma regla que ya seguía Metas.
+- ⚠️ **Las 25 ventas `kind: 'ENCARGO'` NO entran en los gráficos por DÍA ni en el
+  ticket promedio.** Son totales SEMANALES importados del Excel y están **todas
+  fechadas el lunes** (la hoja no registraba el día): el lunes parecía el mejor
+  día del negocio por $1.323 que son 25 semanas enteras, y el ticket promedio
+  dividía entre 25 "ventas" de ~$53. Sí cuentan en los totales de plata y en el
+  bloque **mensual**, donde una semana cae dentro de un mes. El gráfico lo dice
+  al pie (`ChartCard` acepta `footnote`): un dato excluido en silencio es peor
+  que uno mal dibujado.
+- **Gráficos por CANAL**: "Ingresos por día" e "Ingresos por día de la semana"
+  son barras **apiladas** (Mostrador oro / Encargos azul) y hay **UN solo
+  selector de canal** para toda la sección (`dashboard:canal`) — con un control
+  por gráfico se puede terminar comparando dos tarjetas filtradas distinto.
+- **"Gasto por tipo de recurso" excluye la inversión**, igual que el KPI: con
+  ella, la misma pantalla usaba dos definiciones de "gasto" y una impresora de
+  $600 dominaba el gráfico mientras el KPI afirmaba que no era gasto.
+- ⚠️ **La dona "Mostrador vs encargo" se colorea por la CLAVE (`kind`), no por
+  la etiqueta.** Comparaba `entry.name === 'Encargo'` y la etiqueta pasó a ser
+  "Encargo anterior" el 2026-09-14: la condición dejó de dar verdadera y los dos
+  segmentos salían del mismo color, sin fallar ni avisar. El texto cambia cuando
+  cambia el negocio; la clave no.
+- **`AnnualIncome` — "Ingresos por mes"** (la tabla del Excel del dueño): bloque
+  al final con **su propio selector de año** (derivado de los datos) y, como
+  Metas/equilibrio/Reposición, **no responde al filtro de arriba**. Tabla con los
+  12 meses (los que no llegaron, marcados) ordenable por mes o por monto, y
+  barras apiladas por canal + línea del total. ⚠️ **La línea se corta en el mes
+  actual**: dibujar noviembre y diciembre en $0 la desploma y se lee como un
+  derrumbe, cuando esos meses todavía no pasaron.
+- ⚠️ **`CampaignAlert` avisa SOLO de campañas vigentes** (`isCampaignVigente`).
+  Avisaba de campañas terminadas el 23/09 pidiendo "revisalas antes de seguir
+  invirtiendo": pedir una acción imposible enseña a ignorar el aviso. El estado
+  que se MUESTRA en la lista y el detalle también es el derivado
+  (`campaignDisplayStatus`), porque nada mueve el `status` guardado a FINISHED
+  cuando pasa la fecha de fin.
 
 ### Multi-moneda / Bs (front)
 - `useMoney()` (en `features/settings/useSettings.ts`) expone `moneyAlt` (tasa default
@@ -608,11 +710,32 @@ cliente**, publica la ganancia del negocio.
 
 ### Auth / seguridad (front)
 - `lib/api.ts`: interceptor que ante 401 llama `/auth/refresh` UNA vez (single-flight
-  con `refreshPromise`) y reintenta; `setTokens` guarda access+refresh en localStorage;
-  `AuthContext` hace logout server-side. **No hay registro público** (`AuthContext` solo
-  expone `login`).
+  con `refreshPromise`) y reintenta; `AuthContext` hace logout server-side. **No hay
+  registro público** (`AuthContext` solo expone `login`).
+- **Dónde viven los tokens lo decide «Recuérdame»** (2026-10-02,
+  `lib/auth-storage.ts`): marcado (default) → `localStorage`, la sesión sobrevive
+  a cerrar el navegador; desmarcado → `sessionStorage`, muere al cerrarlo.
+  ⚠️ **`getToken`/`getRefreshToken` consultan LOS DOS almacenes y `clearTokens`
+  limpia LOS DOS siempre**; al guardar, el almacén que NO corresponde se borra.
+  Si solo se mirara el que dice la preferencia, desmarcar dejaría el token viejo
+  en `localStorage` y la sesión no moriría: la casilla parecería andar y no
+  andaría. La preferencia (`calc3d_recordarme`) y el último correo con login
+  exitoso (`calc3d_ultimo_correo`, **nunca la contraseña**) van siempre en
+  `localStorage`. Todo acceso va envuelto en `try/catch`: en modo privado lanza.
+  `clearToken` pasó a llamarse **`clearTokens`**.
+- **Fallos de red** (`lib/network-errors.ts`, puro): el cartel distingue sin
+  conexión (`navigator.onLine`), corte por tiempo (`ECONNABORTED`/`ERR_CANCELED`)
+  y "el servidor no responde", y solo en `import.meta.env.DEV` menciona levantar
+  el backend — ese texto se le mostraba al usuario final en Pages, donde no puede
+  correr nada. Antes de mostrarlo se **reintenta 2 veces (1 s y 3 s)**, y ⚠️ **solo
+  los GET**: reintentar un POST/PATCH/PUT/DELETE que se cortó sin respuesta puede
+  duplicar un cobro o un alta. Tampoco se reintenta si hubo respuesta (un 400 o un
+  500 no mejora repitiendo).
 - Páginas de auth: `Login` / `ForgotPassword` / `ResetPassword`, sobre
-  `components/AuthShell.tsx` (split panel de marca + form glass).
+  `components/AuthShell.tsx` (split panel de marca + form glass). El `Login` tiene
+  ojo para ver la contraseña (`type="button"` — si no, Enter lo dispararía en vez
+  de enviar el formulario —, `aria-label` que alterna + `aria-pressed`, y el cursor
+  se conserva al alternar).
 
 ## Comandos (desde la raíz de este repo)
 - `pnpm install`

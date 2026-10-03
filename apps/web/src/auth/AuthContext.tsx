@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { api, clearToken, getToken, getRefreshToken, setTokens } from '@/lib/api';
+import { api, clearTokens, getToken, getRefreshToken, setTokens } from '@/lib/api';
 import type { AuthTokensResponse, LoginDto } from '@calc3d/shared';
 
 interface AuthUser {
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     fetchMe()
-      .catch(() => clearToken())
+      .catch(() => clearTokens())
       .finally(() => setLoading(false));
   }, [fetchMe]);
 
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Revoca el refresh token en el servidor (best-effort) antes de limpiar.
       const rt = getRefreshToken();
       if (rt) api.post('/auth/logout', { refreshToken: rt }).catch(() => undefined);
-      clearToken();
+      clearTokens();
       setUser(null);
       location.href = '/login';
     },

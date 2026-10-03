@@ -1,20 +1,27 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Package, Trash2 } from 'lucide-react';
+import { Plus, Package } from 'lucide-react';
 import type { OrderLineDto } from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
 import { useOrders, ORDER_STATUS, ORDER_STATUS_OPTIONS, type Order } from '@/features/orders/api';
+import { OrdersShell } from '@/features/orders/OrdersShell';
+import {
+  OrdersDateFilterControl,
+  OrdersUndatedNotice,
+  useOrdersDateFilter,
+} from '@/features/orders/OrdersDateFilter';
+import { EMPTY_ORDER_LINE, OrderLinesEditor } from '@/features/orders/OrderLinesEditor';
+import { useDocumentCurrency } from '@/features/orders/useDocumentCurrency';
 import { useSortable } from '@/lib/useSortable';
 import { usePersistentState } from '@/lib/usePersistentState';
 import { uniqueSorted } from '@/lib/utils';
 import { formatStoredDay } from '@/lib/today';
 import { useStoreProducts } from '@/features/store/api';
-import { useSettings } from '@/features/settings/useSettings';
 import { CurrencyPicker } from '@/features/settings/CurrencyPicker';
 import { AttributionPicker, EMPTY_ATTRIBUTION, type Attribution } from '@/features/campaigns/AttributionPicker';
-import { Badge, Button, Card, CardContent, EmptyState, Field, Input, FilterBar, NumberInput, Select, SortHeader, TableSkeleton, FieldGrid } from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Field, Input, FilterBar, Select, SortHeader, TableSkeleton, FieldGrid } from '@/components/ui';
 import { Dialog } from '@/components/overlays';
 import { notify } from '@/components/toast';
 
@@ -46,45 +53,45 @@ export function OrdersPage() {
     [orders, estadoSeguro, clienteSeguro],
   );
   type OrderRow = Order & { clientName: string };
-  const { sorted, sortKey, sortDir, toggle } = useSortable<OrderRow>(rows, 'code', 'desc');
+  // El filtro de fecha vive SOLO en esta pestaña (el calendario ya es una vista
+  // por fecha y Por cobrar ordena por antigüedad). Arranca en "Todo".
+  const dateFilter = useOrdersDateFilter<OrderRow>(rows);
+  const { sorted, sortKey, sortDir, toggle } = useSortable<OrderRow>(dateFilter.rows, 'code', 'desc');
   const sort = { sortKey, sortDir, toggle };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
-          <div>
-            <h1 className="font-display text-2xl font-bold">Encargos</h1>
-            <p className="text-sm text-muted-foreground">
-              Encargos con fecha de entrega, abonos y saldo. Por cobrar: {money(pendiente)}.
-            </p>
-          </div>
-        </div>
+    <OrdersShell
+      title="Encargos"
+      description={`Encargos con fecha de entrega, abonos y saldo. Por cobrar: ${money(pendiente)}.`}
+      actions={
         <Button variant="accent" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
           <Plus className="h-4 w-4" /> Nuevo encargo
         </Button>
-      </div>
-
+      }
+    >
       {orders.length > 0 && (
-        <FilterBar>
-          <Select className="w-full sm:w-44" value={estadoSeguro} onChange={(e) => setEstadoF(e.target.value)}>
-            <option value="">Estado: todos</option>
-            {ORDER_STATUS_OPTIONS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-          <Select className="w-full sm:w-52" value={clienteSeguro} onChange={(e) => setClienteF(e.target.value)}>
-            <option value="">Cliente: todos</option>
-            {clientes.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </Select>
-        </FilterBar>
+        <div className="space-y-2">
+          <FilterBar>
+            <Select className="w-full sm:w-44" value={estadoSeguro} onChange={(e) => setEstadoF(e.target.value)}>
+              <option value="">Estado: todos</option>
+              {ORDER_STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+            <Select className="w-full sm:w-52" value={clienteSeguro} onChange={(e) => setClienteF(e.target.value)}>
+              <option value="">Cliente: todos</option>
+              {clientes.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+            <OrdersDateFilterControl filter={dateFilter} />
+          </FilterBar>
+          <OrdersUndatedNotice filter={dateFilter} />
+        </div>
       )}
 
       <Card>
@@ -197,7 +204,7 @@ export function OrdersPage() {
           }}
         />
       )}
-    </div>
+    </OrdersShell>
   );
 }
 
@@ -207,19 +214,14 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
     queryFn: async () => (await api.get<{ id: string; name: string }[]>('/clients')).data,
   });
   const { data: products = [] } = useStoreProducts();
-  const { data: settings } = useSettings();
   const { money } = useMoney();
   const [clientId, setClientId] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
-  const [currencyLabel, setCurrencyLabel] = useState<string | null>(settings?.defaultRateLabel ?? null);
+  // Moneda con valor SEGURO: si la etiqueta por defecto ya no existe, "Solo USD".
+  const currency = useDocumentCurrency();
   const [attr, setAttr] = useState<Attribution>(EMPTY_ATTRIBUTION);
-  const [lines, setLines] = useState<OrderLineDto[]>([
-    { description: '', quantity: 1, unit: 'u', unitPrice: 0 },
-  ]);
+  const [lines, setLines] = useState<OrderLineDto[]>([{ ...EMPTY_ORDER_LINE }]);
   const [saving, setSaving] = useState(false);
-
-  const setLine = (i: number, patch: Partial<OrderLineDto>) =>
-    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
 
   /** Agrega una línea desde un producto del catálogo (nombre + precio vigente). */
   const addFromProduct = (id: string) => {
@@ -241,7 +243,7 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
         clientId,
         deliveryDate: deliveryDate || null,
         lines: clean,
-        currencyLabel,
+        currencyLabel: currency.value,
         originChannel: attr.originChannel,
         campaignId: attr.campaignId,
       });
@@ -254,7 +256,9 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
 
   return (
     <Dialog open onOpenChange={(n) => !n && onClose()} title="Nuevo encargo">
-      <div className="space-y-3">
+      {/* Los datos del cliente y los artículos son dos bloques separados: antes
+          las filas de artículo arrancaban pegadas al formulario. */}
+      <div className="space-y-5">
         <FieldGrid min="11rem" className="gap-3">
           <Field label="Cliente" required>
             <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
@@ -270,17 +274,19 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
             <Input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} />
           </Field>
           <div className="col-span-full">
-            <CurrencyPicker value={currencyLabel} onChange={setCurrencyLabel} />
+            <CurrencyPicker value={currency.value} onChange={currency.setValue} />
           </div>
           <div className="col-span-full">
             <AttributionPicker value={attr} onChange={setAttr} />
           </div>
         </FieldGrid>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-muted-foreground">Artículos</p>
-            {products.length > 0 && (
+        <OrderLinesEditor
+          lines={lines}
+          onChange={setLines}
+          currencyLabel={currency.value}
+          extra={
+            products.length > 0 && (
               <div className="w-52">
                 <Select
                   value=""
@@ -295,40 +301,9 @@ function NewOrderModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id
                   ))}
                 </Select>
               </div>
-            )}
-          </div>
-          {lines.map((l, i) => (
-            <div key={i} className="flex items-end gap-2">
-              <div className="flex-1">
-                <Input
-                  placeholder="Descripción"
-                  value={l.description}
-                  onChange={(e) => setLine(i, { description: e.target.value })}
-                />
-              </div>
-              <div className="w-16">
-                <NumberInput value={l.quantity} onChange={(v) => setLine(i, { quantity: v })} />
-              </div>
-              <div className="w-24">
-                <NumberInput step="0.01" value={l.unitPrice} onChange={(v) => setLine(i, { unitPrice: v })} />
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setLines((ls) => [...ls, { description: '', quantity: 1, unit: 'u', unitPrice: 0 }])}
-          >
-            <Plus className="h-4 w-4" /> Artículo
-          </Button>
-        </div>
+            )
+          }
+        />
 
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="outline" onClick={onClose}>
