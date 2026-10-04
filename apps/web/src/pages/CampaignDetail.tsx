@@ -165,6 +165,13 @@ export function CampaignDetailPage() {
               <Row label="Ventas atribuidas" value={String(s.sales)} />
               <Row label="Ticket promedio" value={s.sales + s.orders > 0 ? money(s.revenue / (s.sales + s.orders)) : '—'} />
               <Row label="Encargos atribuidos" value={`${s.orders}  (${money(s.ordersTotal)})`} />
+              {c.attributedSales > 0 && (
+                <Row
+                  label="Venta atribuida sin encargo"
+                  value={money(c.attributedSales)}
+                  hint="Vendido que trajo la campaña pero que no quedó registrado encargo por encargo. Ya está contado en las ventas del negocio: no se suma a los ingresos ni a la reposición de equipos."
+                />
+              )}
               <Row label="Cotizaciones atribuidas" value={String(s.quotes)} />
               <Row label="Costo por encargo" value={costPer(s.invested, s.orders) == null ? '—' : money(costPer(s.invested, s.orders)!)} />
               <Row

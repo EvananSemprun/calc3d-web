@@ -18,6 +18,8 @@ export interface CampaignStats {
   profit: number;
   hasCost: boolean;
   sales: number;
+  /** Ventas de mostrador atribuidas (USD). */
+  salesTotal: number;
   orders: number;
   ordersTotal: number;
   quotes: number;
@@ -38,6 +40,12 @@ export interface Campaign {
   conversations: number | null;
   profileVisits: number | null;
   followers: number | null;
+  /**
+   * Venta atribuida DECLARADA (columna "Venta atribuida ($)" del Excel): lo
+   * vendido que se le rastrea a la campaña pero que no quedó registrado pedido
+   * por pedido. Suma a `stats.revenue`, pero NO es facturación del negocio.
+   */
+  attributedSales: number;
   createdAt: string;
   stats: CampaignStats;
   /** Vista por período (solo en el detalle): ventas dentro de la ventana de la campaña. */

@@ -276,6 +276,7 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
     conversations: campaign?.conversations ?? 0,
     profileVisits: campaign?.profileVisits ?? 0,
     followers: campaign?.followers ?? 0,
+    attributedSales: campaign?.attributedSales ?? 0,
     notes: campaign?.notes ?? '',
   });
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -297,6 +298,7 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
         conversations: form.conversations || null,
         profileVisits: form.profileVisits || null,
         followers: form.followers || null,
+        attributedSales: form.attributedSales || 0,
         notes: form.notes || null,
       },
       {
@@ -355,6 +357,16 @@ function CampaignModal({ campaign, onClose }: { campaign: Campaign | null; onClo
           </Field>
           <Field label="Seguidores ganados">
             <NumberInput value={form.followers} onChange={(v) => set({ followers: v })} />
+          </Field>
+          <Field
+            label="Venta atribuida sin encargo (USD)"
+            hint="Vendido que trajo la campaña pero que no quedó registrado encargo por encargo. No es facturación: ya está contado en las ventas del negocio."
+          >
+            <NumberInput
+              step="0.01"
+              value={form.attributedSales}
+              onChange={(v) => set({ attributedSales: v })}
+            />
           </Field>
           <Field label="Estado">
             <Select value={form.status} onChange={(e) => set({ status: e.target.value as typeof form.status })}>
