@@ -453,6 +453,51 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
       `useMutation` con `api.patch('/settings', ...)` e invalida `['settings']`.
     - El límite de multicuenta va **al pie de la tarjeta**, no escondido: solo se
       concilia la cuenta principal.
+  - **Se lee en el teléfono y cada línea se abre** (fase 3, 2026-10-05, shared
+    0.23.0). Las tres tablas de Caja tienen **tarjetas bajo `sm` y tabla desde
+    `sm`**.
+    - ⚠️ **Lo que no se puede duplicar es la LÓGICA, no el markup.** Cada
+      tarjeta arma primero un array de filas **ya resueltas** —`money()` ya
+      llamado, decisiones ya tomadas, handlers ya cerrados sobre su dato— y lo
+      mapea dos veces con JSX tonto. Nada de `hidden sm:block` con dos árboles
+      escritos a mano, y nada de conmutar con `matchMedia` (salto de hidratación
+      y JS para algo que resuelve el CSS).
+    - **"De dónde sale el saldo" es desplegable**: `GET /cash/breakdown/:cat`
+      vía `useCashBreakdown`, **lazy** (`enabled: category != null`) y **una
+      sola categoría abierta por vez**. El pie de cada lista muestra el total
+      del detalle: si alguna vez no coincide con la línea, el dueño lo ve.
+    - ⚠️ **`useCashMutation` NO invalida: pisa la caché con
+      `setQueryData(['cash'], data)`.** Por eso hay que invalidar
+      `['cash','breakdown']` ahí explícitamente, o el detalle queda viejo
+      mientras la línea de arriba ya cambió. Las mutaciones que sí hacen
+      `invalidateQueries(['cash'])` **no** necesitan nada: React Query invalida
+      por prefijo.
+    - ⚠️ **El `total` del endpoint viene SIN signo** (los `amount` son
+      positivos; el signo lo pone `CASH_SIGN` del motor). La línea y el detalle
+      salen **los dos** de `CASH_SIGN`: los literales `-b.expenses`,
+      `-b.filament`… murieron, eran una segunda fuente de signos conviviendo
+      con el motor.
+    - Una categoría en 0 **no se dibuja** (filtro preexistente), así que toda
+      categoría que se puede abrir vale ≠ 0 y **un detalle vacío es siempre un
+      BUG**: se dice con esas palabras, no con un "sin movimientos"
+      tranquilizador.
+    - Badge **"Importado"** solo donde `source === 'EXCEL_IMPORT'`.
+      `MIGRATION` y `RECONCILIATION` no son importaciones y una insignia de más
+      vuelve ruido a todas.
+    - "Ajustada con $X" enlaza al `OwnerMovement` que la ajustó
+      (`#mov-{id}` + `scroll-mt-24` + realce con `:target`).
+
+> ⚠️ **Verificar Caja en local es difícil y el modo honesto está acotado.** Los
+> datos locales **no tienen** ninguna conciliación ajustada, ninguna fila
+> `EXCEL_IMPORT` ni ningún retiro parcialmente aplicado, y **cuatro de las nueve
+> categorías valen 0**, así que no se dibujan. Para medir esos casos: inyectar
+> el dato **en el render** con un bloque temporal, medir, revertir y confirmar
+> con `grep`. **Nunca escribirlo en la base del dueño.**
+>
+> ⚠️ **El panel del escritorio de Claude no scrollea** (renderiza a altura
+> completa) y las capturas del pane salen en negro a tamaño móvil. Para medir
+> scroll o sacar una captura hace falta un Chrome real. Medir el **DOM**, no la
+> foto.
 - **Producción** (`pages/Production.tsx`): dos mediciones que se cargan en dos
   lugares, y no da lo mismo:
   - **Horas** → `ReadingsCard` en esa misma pantalla: una lectura por mes con
