@@ -311,13 +311,18 @@ export function DashboardPage() {
             label="Saldo en caja"
             value={money(caja.balance.balance)}
             sub={
-              caja.counts[0]?.short
-                ? 'el último conteo dio de MENOS'
-                : 'lo que es del negocio en Binance'
+              // La lista viene por fecha descendente: la primera confirmada en
+              // contra es la más reciente.
+              caja.reconciliations.find((c) => c.status === 'CONFIRMED' && c.kind === 'SHORT')
+                ? 'la última conciliación dio de MENOS'
+                : 'lo que es del negocio en la cuenta'
             }
             accent="blue"
           />
-          <Stat label="Le debe a Vanan" value={money(caja.financing.owedToOwner)} />
+          <Stat
+            label={`Le debe a ${caja.counterparty.name}`}
+            value={money(caja.financing.owedToOwner)}
+          />
           <Stat label="Le debe al prestamista" value={money(caja.financing.owedToLender)} />
           <Stat
             label="Total por devolver"
