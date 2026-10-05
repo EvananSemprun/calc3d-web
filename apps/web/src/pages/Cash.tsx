@@ -212,45 +212,110 @@ const FUENTE: Record<OwnerFinancingKey, string> = {
   equipment: 'Equipos',
 };
 
+/**
+ * Las columnas de "Quién puso la plata", en orden. La primera es la etiqueta de
+ * la fila; las otras tres son los números.
+ */
+const COLUMNAS_FINANCIAMIENTO = ['Puesto', 'Recuperado', 'Falta'] as const;
+
+/**
+ * Una fila ya resuelta: el texto de cada celda sale de acá, UNA sola vez.
+ *
+ * ⚠️ Las dos presentaciones (tabla desde `sm`, tarjetas en el teléfono) leen
+ * esta lista; ninguna de las dos vuelve a llamar a `money()` ni a decidir qué
+ * mostrar. Con dos fuentes, arreglar un número en una dejaría la otra mintiendo
+ * en la misma pantalla.
+ */
+type FilaFinanciamiento = {
+  key: string;
+  fuente: string;
+  /** Los tres montos ya formateados, en el orden de `COLUMNAS_FINANCIAMIENTO`. */
+  valores: string[];
+};
+
 function FinanciamientoCard({ data }: { data: CashSummary }) {
   const { money } = useMoney();
   const f = data.financing;
   const nombre = data.counterparty.name;
 
+  const filas: FilaFinanciamiento[] = [
+    ...f.rows.map((r) => ({
+      key: r.key,
+      fuente: `${nombre} · ${FUENTE[r.key]}`,
+      valores: [money(r.put), money(r.recovered), money(r.missing)],
+    })),
+    {
+      key: 'lender',
+      fuente: 'Prestamista · saldo',
+      // Al prestamista se le paga con las cuotas, no con la caja: no hay nada
+      // "recuperado" que mostrar, y un $0,00 ahí se leería como un dato.
+      valores: [money(f.owedToLender), '—', money(f.owedToLender)],
+    },
+  ];
+  const total = money(f.totalOwed);
+
   return (
     <Card>
       <CardContent className="space-y-3 p-4 sm:p-5">
         <h2 className="font-display text-lg font-bold">Quién puso la plata</h2>
-        <div className="overflow-x-auto">
+
+        {/* Teléfono: una tarjeta por fuente, con pares etiqueta-valor. La tabla
+            de cuatro columnas obligaba a arrastrar la pantalla de lado. */}
+        <div className="space-y-2 sm:hidden">
+          {filas.map((fila) => (
+            <div key={fila.key} className="rounded-lg border border-border/60 p-3">
+              <p className="text-sm font-medium">{fila.fuente}</p>
+              <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                {COLUMNAS_FINANCIAMIENTO.map((columna, i) => (
+                  <div key={columna}>
+                    <dt className="text-muted-foreground">{columna}</dt>
+                    <dd className="tabular-nums">{fila.valores[i]}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+          {/* Destacado: es el número que el dueño viene a buscar. */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-brand-blue/45 bg-brand-blue/[0.10] p-3">
+            <span className="text-sm font-semibold">Total por devolver</span>
+            <span className="font-display text-lg font-bold tabular-nums">{total}</span>
+          </div>
+        </div>
+
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[24rem] text-sm">
             <thead>
               <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="py-2 pr-3 font-semibold">Fuente</th>
-                <th className="py-2 pr-3 text-right font-semibold">Puesto</th>
-                <th className="py-2 pr-3 text-right font-semibold">Recuperado</th>
-                <th className="py-2 text-right font-semibold">Falta</th>
+                {COLUMNAS_FINANCIAMIENTO.map((columna) => (
+                  <th key={columna} className="py-2 pr-3 text-right font-semibold last:pr-0">
+                    {columna}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {f.rows.map((r) => (
-                <tr key={r.key} className="border-b border-border/40">
-                  <td className="py-2 pr-3">{`${nombre} · ${FUENTE[r.key]}`}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{money(r.put)}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{money(r.recovered)}</td>
-                  <td className="py-2 text-right tabular-nums">{money(r.missing)}</td>
+              {filas.map((fila) => (
+                <tr key={fila.key} className="border-b border-border/40">
+                  <td className="py-2 pr-3">{fila.fuente}</td>
+                  {fila.valores.map((valor, i) => (
+                    <td
+                      key={COLUMNAS_FINANCIAMIENTO[i]}
+                      className={cn(
+                        'py-2 pr-3 text-right tabular-nums last:pr-0',
+                        COLUMNAS_FINANCIAMIENTO[i] === 'Recuperado' && 'text-muted-foreground',
+                      )}
+                    >
+                      {valor}
+                    </td>
+                  ))}
                 </tr>
               ))}
-              <tr className="border-b border-border/40">
-                <td className="py-2 pr-3">Prestamista · saldo</td>
-                <td className="py-2 pr-3 text-right tabular-nums">{money(f.owedToLender)}</td>
-                <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">—</td>
-                <td className="py-2 text-right tabular-nums">{money(f.owedToLender)}</td>
-              </tr>
               <tr className="font-semibold">
-                <td className="py-2 pr-3" colSpan={3}>
+                <td className="py-2 pr-3" colSpan={COLUMNAS_FINANCIAMIENTO.length}>
                   Total por devolver
                 </td>
-                <td className="py-2 text-right tabular-nums">{money(f.totalOwed)}</td>
+                <td className="py-2 text-right tabular-nums">{total}</td>
               </tr>
             </tbody>
           </table>
@@ -276,11 +341,133 @@ const ESTADO = {
   SHORT: 'Diferencia en contra',
 } as const;
 
+/**
+ * Las cuatro líneas de una conciliación, en orden. La diferencia va aparte:
+ * es la conclusión, no una quinta columna.
+ */
+const COLUMNAS_CONCILIACION = ['En la cuenta', 'Personal', 'Del negocio', 'Esperado'] as const;
+
+/** Las que son contexto y van apagadas; las otras dos son las que se comparan. */
+const CONCILIACION_APAGADAS: readonly string[] = ['Personal', 'Esperado'];
+
+/**
+ * Una conciliación ya resuelta para mostrar.
+ *
+ * ⚠️ Las dos presentaciones (tabla desde `sm`, tarjetas en el teléfono) leen
+ * esta lista: los `money()`, las anotaciones y el botón de anular se arman UNA
+ * sola vez. Con dos fuentes, el día que cambie una anotación la otra seguiría
+ * mostrando la vieja, en la misma pantalla y sin que nada falle.
+ */
+type FilaConciliacion = {
+  id: string;
+  /** Anulada: se tacha y se apaga, pero no desaparece del historial. */
+  anulada: boolean;
+  fechaTxt: string;
+  importado: boolean;
+  borrador: boolean;
+  estado: string;
+  /** Los cuatro montos ya formateados, en el orden de `COLUMNAS_CONCILIACION`. */
+  valores: string[];
+  diferencia: string;
+  /** El color de la diferencia; vacío si cuadró. */
+  tonoDiferencia: string;
+  note: string | null;
+  explanation: string | null;
+  /** El movimiento del ajuste, para poder saltar a él en los movimientos. */
+  ajuste: { id: string; texto: string } | null;
+  stale: string | null;
+  /** Solo lo confirmado se anula: un borrador no movió nada todavía. */
+  onAnular: (() => void) | null;
+};
+
+/** Lo que se dice de una conciliación debajo de su fecha, en las dos vistas. */
+function Anotaciones({ fila }: { fila: FilaConciliacion }) {
+  if (!fila.note && !fila.explanation && !fila.ajuste && !fila.stale) return null;
+  return (
+    <div className="space-y-0.5 text-xs">
+      {fila.note && <p>{fila.note}</p>}
+      {fila.explanation && <p>{fila.explanation}</p>}
+      {fila.ajuste && (
+        // El historial no decía dónde había quedado el ajuste; ahora salta a él.
+        <p>
+          <a
+            href={`#mov-${fila.ajuste.id}`}
+            className="rounded-sm underline decoration-dotted underline-offset-2 hover:text-brand-yellow-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {fila.ajuste.texto}
+          </a>
+        </p>
+      )}
+      {fila.stale && <p>{fila.stale}</p>}
+    </div>
+  );
+}
+
+/** El botón de anular: con texto en el teléfono, solo el ícono en la tabla. */
+function BotonAnular({ fila }: { fila: FilaConciliacion }) {
+  if (!fila.onAnular) return null;
+  return (
+    <button
+      type="button"
+      aria-label={`Anular la conciliación del ${fila.fechaTxt}`}
+      className="inline-flex items-center gap-1.5 rounded-md p-1 text-xs text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={fila.onAnular}
+    >
+      <Undo2 aria-hidden className="h-4 w-4" />
+      <span className="sm:sr-only">Anular</span>
+    </button>
+  );
+}
+
 function ConciliacionesCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => void }) {
   const { money } = useMoney();
   const confirm = useConfirm();
   const anular = useVoidReconciliation();
   const nombre = data.counterparty.name;
+
+  const filas: FilaConciliacion[] = data.reconciliations.map((c) => ({
+    id: c.id,
+    anulada: c.status === 'VOID',
+    fechaTxt: fecha(c.date),
+    // Solo lo que vino del Excel: MIGRATION y RECONCILIATION no son
+    // importaciones y una insignia de más vuelve ruido a todas.
+    importado: c.source === 'EXCEL_IMPORT',
+    borrador: c.status === 'DRAFT',
+    estado: ESTADO[c.kind],
+    valores: [
+      money(c.totalUsd),
+      money(c.personalUsd),
+      money(c.businessActualUsd),
+      money(c.expectedUsd),
+    ],
+    diferencia: money(c.differenceUsd),
+    tonoDiferencia:
+      c.kind === 'SHORT' ? 'text-destructive' : c.kind === 'FAVOR' ? 'text-success' : '',
+    note: c.note,
+    explanation: c.explanation,
+    ajuste: c.adjustment
+      ? { id: c.adjustment.id, texto: `Ajustada con ${money(c.adjustment.amount)}` }
+      : null,
+    stale: c.stale
+      ? `Hoy daría ${money(c.expectedNow)}: entraron movimientos con fecha anterior.`
+      : null,
+    onAnular:
+      c.status === 'CONFIRMED'
+        ? async () => {
+            const ok = await confirm({
+              title: `¿Anular la conciliación del ${fecha(c.date)}?`,
+              description: c.adjustment
+                ? `Se borra el ajuste de ${money(c.adjustment.amount)} y sus aplicaciones a deudas. La conciliación queda en el historial.`
+                : 'La conciliación queda en el historial, marcada como anulada.',
+              confirmLabel: 'Anular',
+              tone: 'destructive',
+            });
+            if (ok) {
+              anular.mutate(c.id, { onSuccess: () => notify.success('Conciliación anulada') });
+            }
+          }
+        : null,
+  }));
 
   return (
     <Card>
@@ -292,113 +479,125 @@ function ConciliacionesCard({ data, onNuevo }: { data: CashSummary; onNuevo: () 
             negocio se calcula a esa fecha. En rojo: hay MENOS de lo que debería haber.
           </p>
         </div>
-        {data.reconciliations.length === 0 ? (
+        {filas.length === 0 ? (
           <EmptyState
             title="Todavía no conciliaste"
             description="Una vez por semana, antes de abrir. Si se te pasa, hacelo al otro día: lo grave es dejar pasar dos semanas."
             action={<Button onClick={onNuevo}>Primera conciliación</Button>}
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[42rem] text-sm">
-              <thead>
-                <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                  <th className="py-2 pr-3 font-semibold">Fecha</th>
-                  <th className="py-2 pr-3 text-right font-semibold">En la cuenta</th>
-                  <th className="py-2 pr-3 text-right font-semibold">Personal</th>
-                  <th className="py-2 pr-3 text-right font-semibold">Del negocio</th>
-                  <th className="py-2 pr-3 text-right font-semibold">Esperado</th>
-                  <th className="py-2 pr-3 text-right font-semibold">Diferencia</th>
-                  <th className="py-2 pr-3 font-semibold">Estado</th>
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {data.reconciliations.map((c) => (
-                  <tr
-                    key={c.id}
-                    className={cn(
-                      'border-b border-border/40 last:border-0',
-                      c.status === 'VOID' && 'opacity-50 line-through',
-                    )}
-                  >
-                    <td className="py-2 pr-3 align-top tabular-nums text-muted-foreground">
-                      <span className="flex flex-wrap items-center gap-2">
-                        {fecha(c.date)}
-                        {/* Solo lo que vino del Excel: MIGRATION y RECONCILIATION no son
-                            importaciones y una insignia de más vuelve ruido a todas. */}
-                        {c.source === 'EXCEL_IMPORT' && <Badge variant="outline">Importado</Badge>}
-                      </span>
-                      {c.note && <span className="block text-xs">{c.note}</span>}
-                      {c.explanation && <span className="block text-xs">{c.explanation}</span>}
-                      {c.adjustment && (
-                        <span className="block text-xs">Ajustada con {money(c.adjustment.amount)}</span>
-                      )}
-                      {c.stale && (
-                        <span className="block text-xs">
-                          Hoy daría {money(c.expectedNow)}: entraron movimientos con fecha anterior.
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3 text-right align-top tabular-nums">{money(c.totalUsd)}</td>
-                    <td className="py-2 pr-3 text-right align-top tabular-nums text-muted-foreground">
-                      {money(c.personalUsd)}
-                    </td>
-                    <td className="py-2 pr-3 text-right align-top tabular-nums">
-                      {money(c.businessActualUsd)}
-                    </td>
-                    <td className="py-2 pr-3 text-right align-top tabular-nums text-muted-foreground">
-                      {money(c.expectedUsd)}
-                    </td>
-                    <td
+          <>
+            {/* Teléfono: una tarjeta por conciliación. Ocho columnas con
+                `min-w-[42rem]` obligaban a leer la caja de costado. */}
+            <div className="space-y-2 sm:hidden">
+              {filas.map((fila) => (
+                <div
+                  key={fila.id}
+                  className={cn(
+                    'rounded-lg border border-border/60 p-3',
+                    fila.anulada && 'line-through opacity-50',
+                  )}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium tabular-nums">
+                      {fila.fechaTxt}
+                      {fila.importado && <Badge variant="outline">Importado</Badge>}
+                    </span>
+                    <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      {fila.estado}
+                      {fila.borrador && <Badge variant="warning">Borrador</Badge>}
+                      {fila.anulada && <Badge variant="outline">Anulada</Badge>}
+                    </span>
+                  </div>
+                  <dl className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    {COLUMNAS_CONCILIACION.map((columna, i) => (
+                      <div key={columna}>
+                        <dt className="text-muted-foreground">{columna}</dt>
+                        <dd className="tabular-nums">{fila.valores[i]}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <div className="mt-2 flex items-center justify-between gap-3 border-t border-border/50 pt-2">
+                    <span className="text-xs text-muted-foreground">Diferencia</span>
+                    <span className={cn('font-semibold tabular-nums', fila.tonoDiferencia)}>
+                      {fila.diferencia}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-muted-foreground">
+                    <Anotaciones fila={fila} />
+                  </div>
+                  <BotonAnular fila={fila} />
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full min-w-[42rem] text-sm">
+                <thead>
+                  <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="py-2 pr-3 font-semibold">Fecha</th>
+                    {COLUMNAS_CONCILIACION.map((columna) => (
+                      <th key={columna} className="py-2 pr-3 text-right font-semibold">
+                        {columna}
+                      </th>
+                    ))}
+                    <th className="py-2 pr-3 text-right font-semibold">Diferencia</th>
+                    <th className="py-2 pr-3 font-semibold">Estado</th>
+                    <th className="w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filas.map((fila) => (
+                    <tr
+                      key={fila.id}
                       className={cn(
-                        'py-2 pr-3 text-right align-top font-semibold tabular-nums',
-                        c.kind === 'SHORT' && 'text-destructive',
-                        c.kind === 'FAVOR' && 'text-success',
+                        'border-b border-border/40 last:border-0',
+                        fila.anulada && 'line-through opacity-50',
                       )}
                     >
-                      {money(c.differenceUsd)}
-                    </td>
-                    <td className="py-2 pr-3 align-top">
-                      <span className="flex flex-wrap items-center gap-2">
-                        {ESTADO[c.kind]}
-                        {c.status === 'DRAFT' && <Badge variant="warning">Borrador</Badge>}
-                        {c.status === 'VOID' && <Badge variant="outline">Anulada</Badge>}
-                      </span>
-                    </td>
-                    <td className="py-2 text-right align-top">
-                      {/* Anular solo tiene sentido sobre lo confirmado: un borrador no
-                          movió nada todavía. */}
-                      {c.status === 'CONFIRMED' && (
-                        <button
-                          type="button"
-                          aria-label={`Anular la conciliación del ${fecha(c.date)}`}
-                          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={async () => {
-                            const ok = await confirm({
-                              title: `¿Anular la conciliación del ${fecha(c.date)}?`,
-                              description: c.adjustment
-                                ? `Se borra el ajuste de ${money(c.adjustment.amount)} y sus aplicaciones a deudas. La conciliación queda en el historial.`
-                                : 'La conciliación queda en el historial, marcada como anulada.',
-                              confirmLabel: 'Anular',
-                              tone: 'destructive',
-                            });
-                            if (ok) {
-                              anular.mutate(c.id, {
-                                onSuccess: () => notify.success('Conciliación anulada'),
-                              });
-                            }
-                          }}
+                      <td className="py-2 pr-3 align-top tabular-nums text-muted-foreground">
+                        <span className="flex flex-wrap items-center gap-2">
+                          {fila.fechaTxt}
+                          {fila.importado && <Badge variant="outline">Importado</Badge>}
+                        </span>
+                        <Anotaciones fila={fila} />
+                      </td>
+                      {fila.valores.map((valor, i) => (
+                        <td
+                          key={COLUMNAS_CONCILIACION[i]}
+                          className={cn(
+                            'py-2 pr-3 text-right align-top tabular-nums',
+                            CONCILIACION_APAGADAS.includes(COLUMNAS_CONCILIACION[i]) &&
+                              'text-muted-foreground',
+                          )}
                         >
-                          <Undo2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                          {valor}
+                        </td>
+                      ))}
+                      <td
+                        className={cn(
+                          'py-2 pr-3 text-right align-top font-semibold tabular-nums',
+                          fila.tonoDiferencia,
+                        )}
+                      >
+                        {fila.diferencia}
+                      </td>
+                      <td className="py-2 pr-3 align-top">
+                        <span className="flex flex-wrap items-center gap-2">
+                          {fila.estado}
+                          {fila.borrador && <Badge variant="warning">Borrador</Badge>}
+                          {fila.anulada && <Badge variant="outline">Anulada</Badge>}
+                        </span>
+                      </td>
+                      <td className="py-2 text-right align-top">
+                        <BotonAnular fila={fila} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
@@ -438,13 +637,25 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
                   ? `Aporte de ${nombre}`
                   : `Aporte de capital de ${nombre}`;
               return (
-                <li key={m.id} className="flex items-center gap-3 py-2.5 text-sm">
+                <li
+                  key={m.id}
+                  // El destino del enlace "Ajustada con" del historial. El
+                  // `scroll-mt` existe porque el encabezado es `sticky top-0`:
+                  // sin él, el salto deja la fila justo debajo y tapada.
+                  id={`mov-${m.id}`}
+                  className="flex items-center gap-3 rounded-md px-1 py-2.5 text-sm scroll-mt-24 target:bg-brand-yellow/10 target:ring-1 target:ring-brand-yellow/50"
+                >
                   <Icono className={cn('h-4 w-4 shrink-0', sale ? 'text-destructive' : 'text-success')} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate">{m.concept}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {fecha(m.date)} · <Badge variant="outline">{etiqueta}</Badge>
-                      {m.note && ` · ${m.note}`}
+                    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+                      <span className="tabular-nums">{fecha(m.date)}</span> ·{' '}
+                      <Badge variant="outline">{etiqueta}</Badge>
+                      {/* Solo lo que vino del Excel: MIGRATION y RECONCILIATION no
+                          son importaciones y una insignia de más vuelve ruido a
+                          todas. */}
+                      {m.source === 'EXCEL_IMPORT' && <Badge variant="outline">Importado</Badge>}
+                      {m.note && <span className="min-w-0 truncate">· {m.note}</span>}
                     </p>
                   </div>
                   <span className={cn('tabular-nums font-semibold', sale && 'text-destructive')}>
@@ -473,14 +684,6 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
   );
 }
 
-/**
- * El reparto exacto: qué deuda, de qué fecha, cuánto.
- *
- * ⚠️ Esto DUPLICA A PROPÓSITO la lógica de `applyPayment` del servidor. Sirve
- * nada más para previsualizar el faltante ANTES de confirmar, sin guardar: lo
- * que se persiste lo calcula el servidor. Si el reparto viajara desde el front,
- * cualquiera lo inventaría y la deuda se daría por pagada donde conviniera.
- */
 /**
  * El reparto exacto: qué deuda, de qué fecha, cuánto.
  *
