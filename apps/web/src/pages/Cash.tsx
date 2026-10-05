@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Plus, Trash2, Undo2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  CalendarClock,
+  Plus,
+  Trash2,
+  Undo2,
+} from 'lucide-react';
 import type { OwnerFinancingKey } from '@calc3d/shared';
 import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, Select, Stat } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
-import { useMoney } from '@/features/settings/useSettings';
+import { useMoney, useSettings } from '@/features/settings/useSettings';
 import { todayKey } from '@/lib/today';
 import { cn } from '@/lib/utils';
 import {
@@ -32,6 +40,7 @@ import {
  */
 export function CashPage() {
   const { data, isLoading } = useCash();
+  const { data: settings } = useSettings();
   const { money } = useMoney();
   const [conciliando, setConciliando] = useState(false);
   const [moviendo, setMoviendo] = useState(false);
@@ -40,6 +49,7 @@ export function CashPage() {
   const nombre = data.counterparty.name;
   /** El faltante más reciente que ya está CONFIRMADO: un borrador no acusa nada. */
   const faltante = data.reconciliations.find((c) => c.status === 'CONFIRMED' && c.kind === 'SHORT');
+  const toca = tocaConciliar(data, settings?.reconciliationFrequency ?? 'NONE');
 
   return (
     <div className="space-y-5">
@@ -62,6 +72,16 @@ export function CashPage() {
           </Button>
         </div>
       </div>
+
+      {/* Un recordatorio, no una alerta: no pasó nada malo, solo toca mirar. */}
+      {toca && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CalendarClock aria-hidden className="h-4 w-4 shrink-0 text-brand-yellow-ink" />
+          {toca.dias == null
+            ? 'Todavía no conciliaste la caja.'
+            : `Te toca conciliar: la última fue hace ${toca.dias} días.`}
+        </p>
+      )}
 
       {faltante && (
         <div
@@ -109,6 +129,34 @@ export function CashPage() {
 }
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-VE', { timeZone: 'UTC' });
+
+/** Cada cuánto toca conciliar, en días. `NONE` = el dueño no quiere recordatorio. */
+const CADA: Record<string, number> = { WEEKLY: 7, BIWEEKLY: 14, MONTHLY: 30 };
+
+/**
+ * Si ya pasó el momento de conciliar, según la frecuencia configurada.
+ *
+ * ⚠️ "Hoy" se decide en hora LOCAL con `todayKey()`.
+ * `new Date().toISOString().slice(0,10)` es hoy en UTC, y en Venezuela (UTC−4)
+ * eso significa que desde las 20:00 la app cree que ya es mañana — ya rompió
+ * siete lugares en este proyecto.
+ *
+ * Es un recordatorio, no una regla: conciliar cualquier día sigue estando bien.
+ */
+function tocaConciliar(data: CashSummary, frecuencia: string) {
+  const cada = CADA[frecuencia];
+  if (!cada) return null;
+
+  const ultima = data.reconciliations.find((c) => c.status === 'CONFIRMED');
+  if (!ultima) return { dias: null as number | null, cada };
+
+  const unDia = 24 * 60 * 60 * 1000;
+  const dias = Math.floor(
+    (Date.parse(`${todayKey()}T00:00:00Z`) - Date.parse(ultima.date.slice(0, 10) + 'T00:00:00Z')) /
+      unDia,
+  );
+  return dias >= cada ? { dias, cada } : null;
+}
 
 function SaldoCard({ data }: { data: CashSummary }) {
   const { money } = useMoney();
