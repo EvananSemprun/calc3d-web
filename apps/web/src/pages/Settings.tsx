@@ -28,6 +28,7 @@ import {
   useRefreshRate,
   useSetRate,
 } from '@/features/settings/useExchangeRates';
+import { CounterpartiesCard } from '@/features/cash/CounterpartiesCard';
 import { useAuth } from '@/auth/AuthContext';
 import {
   Badge,
@@ -51,7 +52,7 @@ export function SettingsPage() {
   const sections = [
     { key: 'cuenta', label: 'Cuenta', icon: User, Comp: MyAccount },
     { key: 'calculo', label: 'Cálculo', icon: SlidersHorizontal, Comp: GeneralSettings },
-    { key: 'moneda', label: 'Moneda', icon: Coins, Comp: CurrencySettings },
+    { key: 'moneda', label: 'Moneda', icon: Coins, Comp: MoneyAndCounterparties },
     { key: 'fijos', label: 'Costos fijos', icon: PiggyBank, Comp: FixedCostsSettings },
     { key: 'productos', label: 'Productos', icon: Boxes, Comp: ProductSettings },
     { key: 'negocio', label: 'Negocio', icon: Building2, Comp: BusinessSettings },
@@ -279,6 +280,16 @@ function GeneralSettings() {
 }
 
 // ---------------- Moneda y tasa (Bs) ----------------
+
+/** La sección "Moneda": las tasas y, debajo, quién pone la plata en el negocio. */
+function MoneyAndCounterparties() {
+  return (
+    <div className="space-y-5">
+      <CurrencySettings />
+      <CounterpartiesCard />
+    </div>
+  );
+}
 
 function CurrencySettings() {
   const { data: settings } = useSettings();
