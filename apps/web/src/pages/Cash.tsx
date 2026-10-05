@@ -83,7 +83,7 @@ export function CashPage() {
         <Stat
           label={`Le debe a ${nombre}`}
           value={money(data.financing.owedToOwner)}
-          sub="diseñador, compras, cuotas y la A1"
+          sub="lo que puso y todavía no se le devolvió"
         />
         <Stat label="Le debe al prestamista" value={money(data.financing.owedToLender)} />
         <Stat
@@ -161,7 +161,7 @@ const FUENTE: Record<OwnerFinancingKey, string> = {
   designer: 'Diseñador',
   purchases: 'Compras y aportes',
   loanPayments: 'Cuotas del préstamo',
-  equipment: 'Equipos (la A1)',
+  equipment: 'Equipos',
 };
 
 function FinanciamientoCard({ data }: { data: CashSummary }) {
