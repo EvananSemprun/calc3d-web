@@ -406,16 +406,32 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
   préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
   equipo ya está ahí como inversión.
-- **Caja** (`pages/Cash.tsx`, `features/cash/api.ts`, en Finanzas, 2026-09-26):
-  saldo del negocio, lo que se le debe a Vanan y al prestamista, el conteo de
-  los lunes (en rojo si en Binance hay MENOS de lo que es del negocio) y los
-  movimientos de plata pura. Todo lo DERIVA el servidor; las mutaciones
-  devuelven el resumen y se guardan directo en la caché `['cash']`. ⚠️ Las
-  compras que paga Vanan NO se cargan acá: van en **Gastos** con el campo
-  **"¿Quién lo pagó?"** (`paidBy`, también editable desde la columna "Pagó" de
-  la tabla), y las cuotas en **Deuda** con el mismo campo. El Dashboard muestra
-  las cuatro cifras de la caja (toda la historia, no dependen del filtro).
-  Categoría de gasto nueva: **Diseño**.
+- **Caja** (`pages/Cash.tsx`, `features/cash/api.ts`, en Finanzas; rediseñada el
+  2026-10-05, shared 0.21.0): saldo del negocio, lo que se le debe a la
+  contraparte y al prestamista, las **conciliaciones** y los movimientos de
+  plata pura. Todo lo DERIVA el servidor; las mutaciones devuelven el resumen y
+  se guardan directo en la caché `['cash']`. ⚠️ Las compras que paga la
+  contraparte NO se cargan acá: van en **Gastos** con **"¿Quién lo pagó?"**
+  (`paidBy`, también editable desde la columna "Pagó"), y las cuotas en
+  **Deuda** con el mismo campo. Categoría de gasto: **Diseño**.
+  - ⚠️ **La cuenta es COMPARTIDA: son CUATRO números, no dos.** Esperado del
+    negocio · total de la cuenta · personal declarado · real del negocio
+    (`total − personal`). **Nunca** se compara el total contra el esperado. Lo
+    personal **lo declara el dueño**; el sistema no puede saberlo (su plata
+    entra y sale por fuera). Se sugiere el de la conciliación anterior.
+  - **Conciliar es en DOS pasos**: "Guardar borrador" y, viendo las cuatro
+    líneas y el reparto, "Confirmar". El diálogo no se cierra al guardar, o el
+    paso de previsualización nunca se vería.
+  - ⚠️ **El reparto NO se calcula en el front**: viene en `reconciliation.plan`,
+    que el servidor arma por el mismo camino que `confirm()`. Deducirlo de
+    `obligations` (sin filtro de fecha, contraparte por defecto) mostraría
+    deudas que el servidor va a ignorar al conciliar una fecha pasada.
+  - La atribución automática del faltante está **apagada por defecto** y es por
+    cuenta; una diferencia **a favor no ofrece nada**. Anular revierte el ajuste
+    y deja la fila tachada en el historial.
+  - ⚠️ **Nombres dinámicos a medias**: `Cash.tsx`, el Dashboard y el reporte en
+    Excel usan `counterparty.name`, pero **`Expenses.tsx`, `Loans.tsx` y
+    `features/finance/api.ts` (`PAID_BY`) todavía dicen "Vanan"**. Es fase 2.
 - **Producción** (`pages/Production.tsx`): dos mediciones que se cargan en dos
   lugares, y no da lo mismo:
   - **Horas** → `ReadingsCard` en esa misma pantalla: una lectura por mes con
