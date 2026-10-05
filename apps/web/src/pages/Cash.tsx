@@ -433,32 +433,30 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
  * que se persiste lo calcula el servidor. Si el reparto viajara desde el front,
  * cualquiera lo inventaría y la deuda se daría por pagada donde conviniera.
  */
-function Reparto({ data, monto }: { data: CashSummary; monto: number }) {
+/**
+ * El reparto exacto: qué deuda, de qué fecha, cuánto.
+ *
+ * ⚠️ Lo calcula el SERVIDOR y acá solo se dibuja. No se recalcula con
+ * `obligations`: esa lista viene sin filtro de fecha y con la contraparte por
+ * defecto de la organización, mientras que confirmar filtra hasta la fecha de
+ * la conciliación y usa la contraparte de la cuenta. Al conciliar con retraso
+ * —lo normal— un reparto calculado acá ofrecería deudas posteriores que el
+ * servidor va a ignorar, y el dueño estaría aprobando algo que no ocurre.
+ */
+function Reparto({ plan }: { plan: NonNullable<CashSummary['reconciliations'][number]['plan']> }) {
   const { money } = useMoney();
-  let resto = monto;
-  const filas: { id: string; date: string; amount: number }[] = [];
-  const cola =
-    data.applicationOrder === 'NEWEST_FIRST' ? [...data.obligations].reverse() : data.obligations;
-
-  for (const o of cola) {
-    if (resto <= 0) break;
-    if (o.outstanding <= 0) continue;
-    const cuota = Math.min(resto, o.outstanding);
-    filas.push({ id: o.sourceId, date: o.date, amount: cuota });
-    resto = Math.round((resto - cuota) * 100) / 100;
-  }
 
   return (
     <ul className="space-y-1 text-xs text-muted-foreground">
-      {filas.map((f) => (
-        <li key={f.id} className="flex justify-between gap-3">
-          <span>Deuda del {f.date}</span>
-          <span className="tabular-nums">{money(f.amount)}</span>
+      {plan.applications.map((a) => (
+        <li key={a.sourceId} className="flex justify-between gap-3">
+          <span>Deuda del {a.date}</span>
+          <span className="tabular-nums">{money(a.amount)}</span>
         </li>
       ))}
       <li className="flex justify-between gap-3 font-medium">
         <span>Excedente como retiro</span>
-        <span className="tabular-nums">{money(resto)}</span>
+        <span className="tabular-nums">{money(plan.leftover)}</span>
       </li>
     </ul>
   );
@@ -625,7 +623,7 @@ function ReconciliationDialog({
                     .
                   </span>
                 </label>
-                {atribuir && <Reparto data={data} monto={falta} />}
+                {atribuir && borrador.plan && <Reparto plan={borrador.plan} />}
                 <p className="text-xs text-muted-foreground">
                   ⚠️ Es una regla del negocio para la cuenta compartida, no una causa comprobada del
                   faltante.

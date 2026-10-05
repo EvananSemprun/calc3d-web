@@ -79,6 +79,28 @@ export interface CashSummary {
     confirmedAt: string | null;
     voidedAt: string | null;
     adjustment: { id: string; amount: number; concept: string } | null;
+    /**
+     * El reparto que el servidor VA A HACER si se confirma este borrador, o
+     * `null` si no habría ajuste.
+     *
+     * ⚠️ No se deduce de `obligations`: esa lista viene sin filtro de fecha y
+     * con la contraparte por defecto de la organización, mientras que
+     * confirmar filtra hasta la fecha de la conciliación y usa la contraparte
+     * de la cuenta. Recalcularlo acá le mostraría al dueño un reparto que no
+     * es el que ocurre.
+     */
+    plan: {
+      applications: {
+        sourceId: string;
+        source: 'EXPENSE' | 'LOAN_PAYMENT' | 'MOVEMENT';
+        amount: number;
+        date: string;
+        category: string | null;
+      }[];
+      /** Lo que sobra después de cancelar todo: se registra como retiro. */
+      leftover: number;
+      order: ApplicationOrder;
+    } | null;
   }[];
 }
 
