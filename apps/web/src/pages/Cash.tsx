@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Plus, Trash2, Undo2 } from 'lucide-react';
 import type { OwnerFinancingKey } from '@calc3d/shared';
 import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, Select, Stat } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
@@ -11,30 +11,35 @@ import {
   type CashSummary,
   useAddMovement,
   useCash,
-  useDeleteCount,
+  useConfirmReconciliation,
   useDeleteMovement,
-  useSaveCount,
+  useSaveReconciliation,
+  useVoidReconciliation,
 } from '@/features/cash/api';
 
 /**
  * CAJA — la hoja "Caja" del Excel y el bloque "Quién puso la plata" de
  * "Inversion".
  *
- * Toda la plata vive en la misma cuenta de Binance, mezclada con la personal.
- * El conteo de los lunes no busca que los números coincidan: busca que en la
- * cuenta NUNCA haya menos de lo que es del negocio.
+ * El negocio y su contraparte comparten UNA cuenta, con la plata de los dos
+ * mezclada. Por eso conciliar NO es comparar el total de la cuenta contra lo
+ * que el negocio debería tener: son CUATRO números —esperado, total, personal
+ * declarado y real del negocio— y la diferencia sale del real contra el
+ * esperado.
  *
- * Las compras que paga Vanan NO se cargan acá: se marcan en Gastos con
- * "Pagado por: Vanan" y el aporte sale solo. Acá va solo la plata pura.
+ * Las compras que paga la contraparte NO se cargan acá: se marcan en Gastos
+ * con "¿Quién lo pagó?" y el aporte sale solo. Acá va solo la plata pura.
  */
 export function CashPage() {
   const { data, isLoading } = useCash();
   const { money } = useMoney();
-  const [contando, setContando] = useState(false);
+  const [conciliando, setConciliando] = useState(false);
   const [moviendo, setMoviendo] = useState(false);
 
   if (isLoading || !data) return <PageSkeleton />;
-  const ultimo = data.counts[0];
+  const nombre = data.counterparty.name;
+  /** El faltante más reciente que ya está CONFIRMADO: un borrador no acusa nada. */
+  const faltante = data.reconciliations.find((c) => c.status === 'CONFIRMED' && c.kind === 'SHORT');
 
   return (
     <div className="space-y-5">
@@ -52,22 +57,23 @@ export function CashPage() {
           <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setMoviendo(true)}>
             <Plus className="h-4 w-4" /> Movimiento
           </Button>
-          <Button className="flex-1 sm:flex-none" onClick={() => setContando(true)}>
-            <Plus className="h-4 w-4" /> Conteo del lunes
+          <Button className="flex-1 sm:flex-none" onClick={() => setConciliando(true)}>
+            <Plus className="h-4 w-4" /> Conciliación de caja
           </Button>
         </div>
       </div>
 
-      {ultimo?.short && (
+      {faltante && (
         <div
           role="alert"
           className="flex items-start gap-3 rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-sm"
         >
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
           <p>
-            <strong>En Binance había {money(-ultimo.personal)} menos</strong> de lo que el negocio
-            debería tener el {fecha(ultimo.date)}. Se usó plata del negocio sin anotarla: cargala
-            como “Pago a Vanan” o revisá qué gasto falta.
+            <strong>Faltan {money(Math.abs(faltante.differenceUsd))}</strong> en la cuenta: el{' '}
+            {fecha(faltante.date)} quedaban {money(faltante.businessActualUsd)} para el negocio y
+            debería haber {money(faltante.expectedUsd)}. Se usó plata del negocio sin anotarla:
+            cargala como “Pago a {nombre}” o revisá qué gasto falta.
           </p>
         </div>
       )}
@@ -75,7 +81,7 @@ export function CashPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Saldo del negocio" value={money(data.balance.balance)} accent="yellow" />
         <Stat
-          label="Le debe a Vanan"
+          label={`Le debe a ${nombre}`}
           value={money(data.financing.owedToOwner)}
           sub="diseñador, compras, cuotas y la A1"
         />
@@ -93,11 +99,11 @@ export function CashPage() {
         <FinanciamientoCard data={data} />
       </div>
 
-      <ConteosCard data={data} onNuevo={() => setContando(true)} />
+      <ConciliacionesCard data={data} onNuevo={() => setConciliando(true)} />
       <MovimientosCard data={data} onNuevo={() => setMoviendo(true)} />
 
-      <CountDialog open={contando} onClose={() => setContando(false)} />
-      <MovementDialog open={moviendo} onClose={() => setMoviendo(false)} />
+      <ReconciliationDialog open={conciliando} onClose={() => setConciliando(false)} data={data} />
+      <MovementDialog open={moviendo} onClose={() => setMoviendo(false)} data={data} />
     </div>
   );
 }
@@ -107,13 +113,16 @@ const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-VE', { timeZ
 function SaldoCard({ data }: { data: CashSummary }) {
   const { money } = useMoney();
   const b = data.balance;
+  const nombre = data.counterparty.name;
   const lineas: [string, number][] = [
     ['Ventas cobradas', b.collected],
     ['Gastos generales', -b.expenses],
     ['Filamento comprado', -b.filament],
     ['Equipos pagados por la caja', -b.equipment],
-    ['Aportes de Vanan', b.contributions],
-    ['Pagos a Vanan', -b.withdrawals],
+    [`Aportes de ${nombre} (se devuelven)`, b.contributionsRefundable],
+    [`Aportes de capital de ${nombre}`, b.contributionsCapital],
+    [`Devoluciones a ${nombre}`, -b.debtRepayments],
+    [`Retiros de ${nombre}`, -b.ownerDraws],
     ['Cuotas pagadas por la caja', -b.loanPayments],
   ];
 
@@ -140,7 +149,8 @@ function SaldoCard({ data }: { data: CashSummary }) {
         </dl>
         <p className="text-xs text-muted-foreground">
           Caja no es ganancia: un rollo sin usar o una cuota sacan plata sin ser pérdida, y un
-          aporte tuyo la sube sin ser venta.
+          aporte tuyo la sube sin ser venta. Una devolución baja la caja y la deuda a la vez:
+          no es un gasto.
         </p>
       </CardContent>
     </Card>
@@ -149,7 +159,7 @@ function SaldoCard({ data }: { data: CashSummary }) {
 
 const FUENTE: Record<OwnerFinancingKey, string> = {
   designer: 'Diseñador',
-  purchases: 'Compras de tu bolsillo',
+  purchases: 'Compras y aportes',
   loanPayments: 'Cuotas del préstamo',
   equipment: 'Equipos (la A1)',
 };
@@ -157,6 +167,7 @@ const FUENTE: Record<OwnerFinancingKey, string> = {
 function FinanciamientoCard({ data }: { data: CashSummary }) {
   const { money } = useMoney();
   const f = data.financing;
+  const nombre = data.counterparty.name;
 
   return (
     <Card>
@@ -175,7 +186,7 @@ function FinanciamientoCard({ data }: { data: CashSummary }) {
             <tbody>
               {f.rows.map((r) => (
                 <tr key={r.key} className="border-b border-border/40">
-                  <td className="py-2 pr-3">Vanan · {FUENTE[r.key]}</td>
+                  <td className="py-2 pr-3">{`${nombre} · ${FUENTE[r.key]}`}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{money(r.put)}</td>
                   <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{money(r.recovered)}</td>
                   <td className="py-2 text-right tabular-nums">{money(r.missing)}</td>
@@ -197,8 +208,8 @@ function FinanciamientoCard({ data }: { data: CashSummary }) {
           </table>
         </div>
         <p className="text-xs text-muted-foreground">
-          Lo que sacás para vos se descuenta en este orden: diseñador, compras, cuotas y de último la
-          impresora. Al prestamista se le paga con las cuotas, no con la caja.
+          Lo que sacás para vos se descuenta de las deudas, de la más antigua a la más reciente. Al
+          prestamista se le paga con las cuotas, no con la caja.
         </p>
         {f.overWithdrawn > 0 && (
           <p className="text-xs font-medium text-destructive">
@@ -210,69 +221,130 @@ function FinanciamientoCard({ data }: { data: CashSummary }) {
   );
 }
 
-function ConteosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => void }) {
+/** El veredicto de una conciliación, con las palabras que usa la pantalla. */
+const ESTADO = {
+  SQUARE: 'Cuadrado',
+  FAVOR: 'Diferencia a favor',
+  SHORT: 'Diferencia en contra',
+} as const;
+
+function ConciliacionesCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => void }) {
   const { money } = useMoney();
   const confirm = useConfirm();
-  const borrar = useDeleteCount();
+  const anular = useVoidReconciliation();
+  const nombre = data.counterparty.name;
 
   return (
     <Card>
       <CardContent className="space-y-3 p-4 sm:p-5">
         <div>
-          <h2 className="font-display text-lg font-bold">Conteo de los lunes</h2>
+          <h2 className="font-display text-lg font-bold">Conciliaciones de caja</h2>
           <p className="text-sm text-muted-foreground">
-            Mirá Binance y anotá el total. Lo del negocio se calcula a esa fecha; la diferencia es
-            tuya. En rojo: se usó plata del negocio sin anotarla.
+            Mirá la cuenta y anotá el total, y cuánto de eso es personal de {nombre}. Lo del
+            negocio se calcula a esa fecha. En rojo: hay MENOS de lo que debería haber.
           </p>
         </div>
-        {data.counts.length === 0 ? (
+        {data.reconciliations.length === 0 ? (
           <EmptyState
-            title="Todavía no contaste"
-            description="Cada lunes, antes de abrir. Si se te pasa, contá el martes: lo grave es dejar pasar dos semanas."
-            action={<Button onClick={onNuevo}>Primer conteo</Button>}
+            title="Todavía no conciliaste"
+            description="Una vez por semana, antes de abrir. Si se te pasa, hacelo al otro día: lo grave es dejar pasar dos semanas."
+            action={<Button onClick={onNuevo}>Primera conciliación</Button>}
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[28rem] text-sm">
+            <table className="w-full min-w-[42rem] text-sm">
               <thead>
                 <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <th className="py-2 pr-3 font-semibold">Fecha</th>
-                  <th className="py-2 pr-3 text-right font-semibold">En Binance</th>
+                  <th className="py-2 pr-3 text-right font-semibold">En la cuenta</th>
+                  <th className="py-2 pr-3 text-right font-semibold">Personal</th>
                   <th className="py-2 pr-3 text-right font-semibold">Del negocio</th>
-                  <th className="py-2 pr-3 text-right font-semibold">Tuyo</th>
+                  <th className="py-2 pr-3 text-right font-semibold">Esperado</th>
+                  <th className="py-2 pr-3 text-right font-semibold">Diferencia</th>
+                  <th className="py-2 pr-3 font-semibold">Estado</th>
                   <th className="w-10" />
                 </tr>
               </thead>
               <tbody>
-                {data.counts.map((c) => (
-                  <tr key={c.id} className="border-b border-border/40 last:border-0">
-                    <td className="py-2 pr-3 tabular-nums text-muted-foreground">
-                      {fecha(c.date)}
+                {data.reconciliations.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={cn(
+                      'border-b border-border/40 last:border-0',
+                      c.status === 'VOID' && 'opacity-50 line-through',
+                    )}
+                  >
+                    <td className="py-2 pr-3 align-top tabular-nums text-muted-foreground">
+                      <span className="flex flex-wrap items-center gap-2">
+                        {fecha(c.date)}
+                        {/* Solo lo que vino del Excel: MIGRATION y RECONCILIATION no son
+                            importaciones y una insignia de más vuelve ruido a todas. */}
+                        {c.source === 'EXCEL_IMPORT' && <Badge variant="outline">Importado</Badge>}
+                      </span>
                       {c.note && <span className="block text-xs">{c.note}</span>}
+                      {c.explanation && <span className="block text-xs">{c.explanation}</span>}
+                      {c.adjustment && (
+                        <span className="block text-xs">Ajustada con {money(c.adjustment.amount)}</span>
+                      )}
+                      {c.stale && (
+                        <span className="block text-xs">
+                          Hoy daría {money(c.expectedNow)}: entraron movimientos con fecha anterior.
+                        </span>
+                      )}
                     </td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{money(c.total)}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{money(c.business)}</td>
+                    <td className="py-2 pr-3 text-right align-top tabular-nums">{money(c.totalUsd)}</td>
+                    <td className="py-2 pr-3 text-right align-top tabular-nums text-muted-foreground">
+                      {money(c.personalUsd)}
+                    </td>
+                    <td className="py-2 pr-3 text-right align-top tabular-nums">
+                      {money(c.businessActualUsd)}
+                    </td>
+                    <td className="py-2 pr-3 text-right align-top tabular-nums text-muted-foreground">
+                      {money(c.expectedUsd)}
+                    </td>
                     <td
                       className={cn(
-                        'py-2 pr-3 text-right font-semibold tabular-nums',
-                        c.short ? 'text-destructive' : 'text-success',
+                        'py-2 pr-3 text-right align-top font-semibold tabular-nums',
+                        c.kind === 'SHORT' && 'text-destructive',
+                        c.kind === 'FAVOR' && 'text-success',
                       )}
                     >
-                      {money(c.personal)}
+                      {money(c.differenceUsd)}
                     </td>
-                    <td className="py-2 text-right">
-                      <button
-                        type="button"
-                        aria-label={`Borrar el conteo del ${fecha(c.date)}`}
-                        className="text-muted-foreground transition-colors hover:text-destructive"
-                        onClick={async () => {
-                          if (await confirm({ title: `¿Borrar el conteo del ${fecha(c.date)}?` })) {
-                            borrar.mutate(c.id, { onSuccess: () => notify.success('Conteo borrado') });
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                    <td className="py-2 pr-3 align-top">
+                      <span className="flex flex-wrap items-center gap-2">
+                        {ESTADO[c.kind]}
+                        {c.status === 'DRAFT' && <Badge variant="warning">Borrador</Badge>}
+                        {c.status === 'VOID' && <Badge variant="outline">Anulada</Badge>}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right align-top">
+                      {/* Anular solo tiene sentido sobre lo confirmado: un borrador no
+                          movió nada todavía. */}
+                      {c.status === 'CONFIRMED' && (
+                        <button
+                          type="button"
+                          aria-label={`Anular la conciliación del ${fecha(c.date)}`}
+                          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `¿Anular la conciliación del ${fecha(c.date)}?`,
+                              description: c.adjustment
+                                ? `Se borra el ajuste de ${money(c.adjustment.amount)} y sus aplicaciones a deudas. La conciliación queda en el historial.`
+                                : 'La conciliación queda en el historial, marcada como anulada.',
+                              confirmLabel: 'Anular',
+                              tone: 'destructive',
+                            });
+                            if (ok) {
+                              anular.mutate(c.id, {
+                                onSuccess: () => notify.success('Conciliación anulada'),
+                              });
+                            }
+                          }}
+                        >
+                          <Undo2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -289,6 +361,7 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
   const { money } = useMoney();
   const confirm = useConfirm();
   const borrar = useDeleteMovement();
+  const nombre = data.counterparty.name;
 
   return (
     <Card>
@@ -297,7 +370,7 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
           <h2 className="font-display text-lg font-bold">Movimientos con tu bolsillo</h2>
           <p className="text-sm text-muted-foreground">
             Solo la plata pura: lo que sacás para vos o lo que metés sin comprar nada. Una compra que
-            pagaste vos va en Gastos con “Pagado por: Vanan”, no acá.
+            pagaste vos va en Gastos con “¿Quién lo pagó?”, no acá.
           </p>
         </div>
         {data.movements.length === 0 ? (
@@ -311,13 +384,18 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
             {data.movements.map((m) => {
               const sale = m.kind === 'WITHDRAWAL';
               const Icono = sale ? ArrowUpRight : ArrowDownLeft;
+              const etiqueta = sale
+                ? `Pago a ${nombre}`
+                : m.refundable
+                  ? `Aporte de ${nombre}`
+                  : `Aporte de capital de ${nombre}`;
               return (
                 <li key={m.id} className="flex items-center gap-3 py-2.5 text-sm">
                   <Icono className={cn('h-4 w-4 shrink-0', sale ? 'text-destructive' : 'text-success')} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate">{m.concept}</p>
                     <p className="text-xs text-muted-foreground">
-                      {fecha(m.date)} · <Badge variant="outline">{sale ? 'Pago a Vanan' : 'Aporte de Vanan'}</Badge>
+                      {fecha(m.date)} · <Badge variant="outline">{etiqueta}</Badge>
                       {m.note && ` · ${m.note}`}
                     </p>
                   </div>
@@ -328,7 +406,7 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
                   <button
                     type="button"
                     aria-label={`Borrar ${m.concept}`}
-                    className="text-muted-foreground transition-colors hover:text-destructive"
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={async () => {
                       if (await confirm({ title: '¿Borrar este movimiento?', description: m.concept })) {
                         borrar.mutate(m.id, { onSuccess: () => notify.success('Movimiento borrado') });
@@ -347,58 +425,277 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
   );
 }
 
-function CountDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [date, setDate] = useState(todayKey);
-  const [total, setTotal] = useState(0);
-  const [note, setNote] = useState('');
-  const guardar = useSaveCount();
+/**
+ * El reparto exacto: qué deuda, de qué fecha, cuánto.
+ *
+ * ⚠️ Esto DUPLICA A PROPÓSITO la lógica de `applyPayment` del servidor. Sirve
+ * nada más para previsualizar el faltante ANTES de confirmar, sin guardar: lo
+ * que se persiste lo calcula el servidor. Si el reparto viajara desde el front,
+ * cualquiera lo inventaría y la deuda se daría por pagada donde conviniera.
+ */
+function Reparto({ data, monto }: { data: CashSummary; monto: number }) {
+  const { money } = useMoney();
+  let resto = monto;
+  const filas: { id: string; date: string; amount: number }[] = [];
+  const cola =
+    data.applicationOrder === 'NEWEST_FIRST' ? [...data.obligations].reverse() : data.obligations;
+
+  for (const o of cola) {
+    if (resto <= 0) break;
+    if (o.outstanding <= 0) continue;
+    const cuota = Math.min(resto, o.outstanding);
+    filas.push({ id: o.sourceId, date: o.date, amount: cuota });
+    resto = Math.round((resto - cuota) * 100) / 100;
+  }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()} title="Conteo del lunes">
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          guardar.mutate(
-            { date, total, note: note.trim() || null },
-            {
-              onSuccess: () => {
-                notify.success('Conteo guardado');
-                setNote('');
-                onClose();
+    <ul className="space-y-1 text-xs text-muted-foreground">
+      {filas.map((f) => (
+        <li key={f.id} className="flex justify-between gap-3">
+          <span>Deuda del {f.date}</span>
+          <span className="tabular-nums">{money(f.amount)}</span>
+        </li>
+      ))}
+      <li className="flex justify-between gap-3 font-medium">
+        <span>Excedente como retiro</span>
+        <span className="tabular-nums">{money(resto)}</span>
+      </li>
+    </ul>
+  );
+}
+
+/**
+ * CONCILIAR EN DOS PASOS: primero se guarda un BORRADOR con lo contado y recién
+ * después, viendo las cuatro líneas y el reparto, se confirma.
+ *
+ * El paso de más no es ceremonia: confirmar puede registrar el faltante como
+ * salida a la contraparte y dar deudas por saldadas. Nadie debería firmar eso
+ * sin ver antes, con números, qué deuda se cancela.
+ */
+function ReconciliationDialog({
+  open,
+  onClose,
+  data,
+}: {
+  open: boolean;
+  onClose: () => void;
+  data: CashSummary;
+}) {
+  const { money } = useMoney();
+  const nombre = data.counterparty.name;
+  const cuenta = data.accounts.find((a) => a.isDefault) ?? data.accounts[0];
+  /** Lo personal NO se deriva: se sugiere lo declarado la vez anterior. */
+  const sugerido = data.reconciliations.find((c) => c.status === 'CONFIRMED')?.personalAmount ?? 0;
+
+  const [date, setDate] = useState(todayKey);
+  const [total, setTotal] = useState(0);
+  const [personal, setPersonal] = useState(sugerido);
+  const [rate, setRate] = useState(0);
+  const [note, setNote] = useState('');
+  const [explanation, setExplanation] = useState('');
+  const [atribuir, setAtribuir] = useState(true);
+
+  const guardar = useSaveReconciliation();
+  const confirmar = useConfirmReconciliation();
+
+  // Al abrir se vuelve a sugerir lo personal y se limpia lo del paso B: dejar
+  // una explicación vieja escrita sería firmar la conciliación de otro día.
+  useEffect(() => {
+    if (!open) return;
+    setPersonal(sugerido);
+    setExplanation('');
+    setAtribuir(true);
+  }, [open, sugerido]);
+
+  if (!cuenta) return null;
+
+  const esUsd = cuenta.currency === 'USD';
+  /** El borrador de ESA fecha: es lo que se previsualiza y lo que se confirma. */
+  const borrador = data.reconciliations.find(
+    (c) => c.date.slice(0, 10) === date && c.status === 'DRAFT',
+  );
+  const falta = borrador ? Math.abs(borrador.differenceUsd) : 0;
+  const atribuible =
+    !!borrador && borrador.kind === 'SHORT' && cuenta.shared && cuenta.autoAttributeShortfall;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()} title="Conciliación de caja">
+      <div className="space-y-5">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            guardar.mutate(
+              {
+                accountId: cuenta.id,
+                date,
+                totalAmount: total,
+                personalAmount: cuenta.shared ? personal : 0,
+                currency: cuenta.currency,
+                rate: esUsd ? null : rate,
+                note: note.trim() || null,
               },
-            },
-          );
-        }}
-      >
-        <Field label="Fecha" hint="Si ya contaste ese día, se corrige el conteo anterior">
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} autoFocus />
-        </Field>
-        <Field label="Total en Binance (USD)" required>
-          <NumberInput value={total} onChange={setTotal} />
-        </Field>
-        <Field label="Nota (opcional)">
-          <Input value={note} onChange={(e) => setNote(e.target.value)} />
-        </Field>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={total < 0 || !date || guardar.isPending}>
-            Guardar
-          </Button>
-        </div>
-      </form>
+              { onSuccess: () => notify.success('Borrador guardado') },
+            );
+          }}
+        >
+          <Field label="Fecha" hint="Si ya hay un borrador de ese día, se corrige">
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} autoFocus />
+          </Field>
+          <Field label={`Total en ${cuenta.name} (${cuenta.currency})`} required>
+            <NumberInput value={total} onChange={setTotal} />
+          </Field>
+          {!esUsd && (
+            <Field label={`Tasa del día (${cuenta.currency} por USD)`} required>
+              <NumberInput value={rate} onChange={setRate} />
+            </Field>
+          )}
+          {cuenta.shared && (
+            <Field
+              label={`De eso, cuánto es personal de ${nombre}`}
+              hint="Lo declarás vos: el sistema no puede saberlo. Se sugiere lo de la conciliación anterior."
+            >
+              <NumberInput value={personal} onChange={setPersonal} />
+            </Field>
+          )}
+          <Field label="Nota (opcional)">
+            <Input value={note} onChange={(e) => setNote(e.target.value)} />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={total < 0 || !date || (!esUsd && rate <= 0) || guardar.isPending}
+            >
+              Guardar borrador
+            </Button>
+          </div>
+        </form>
+
+        {borrador && (
+          <section className="space-y-3 rounded-xl border border-border bg-muted/30 p-3">
+            <h3 className="font-display text-sm font-bold">Antes de confirmar</h3>
+            <dl className="divide-y divide-border/50 text-sm">
+              <div className="flex justify-between gap-3 py-1.5">
+                <dt className="text-muted-foreground">Saldo esperado del negocio</dt>
+                <dd className="tabular-nums">{money(borrador.expectedUsd)}</dd>
+              </div>
+              <div className="flex justify-between gap-3 py-1.5">
+                <dt className="text-muted-foreground">Saldo total de la cuenta</dt>
+                <dd className="tabular-nums">{money(borrador.totalUsd)}</dd>
+              </div>
+              <div className="flex justify-between gap-3 py-1.5">
+                <dt className="text-muted-foreground">Personal de {nombre}</dt>
+                <dd className="tabular-nums">−{money(borrador.personalUsd)}</dd>
+              </div>
+              <div className="flex justify-between gap-3 py-1.5">
+                <dt className="text-muted-foreground">Saldo real del negocio</dt>
+                <dd className="tabular-nums">{money(borrador.businessActualUsd)}</dd>
+              </div>
+            </dl>
+            <p
+              className={cn(
+                'text-sm font-bold',
+                borrador.kind === 'SHORT' && 'text-destructive',
+                borrador.kind === 'FAVOR' && 'text-success',
+              )}
+            >
+              {ESTADO[borrador.kind]}: {money(borrador.differenceUsd)}
+            </p>
+
+            {/* La regla peligrosa: convierte "no sé dónde está la plata" en una
+                deuda saldada. Por eso se muestra el reparto EXACTO antes de
+                confirmar y se puede apagar o explicar de otra manera. */}
+            {atribuible && (
+              <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={atribuir}
+                    onChange={(e) => setAtribuir(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    Registrar {money(falta)} como salida a {nombre}, aplicada a sus deudas{' '}
+                    {data.applicationOrder === 'NEWEST_FIRST'
+                      ? 'de la más reciente a la más antigua'
+                      : 'de la más antigua a la más reciente'}
+                    .
+                  </span>
+                </label>
+                {atribuir && <Reparto data={data} monto={falta} />}
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ Es una regla del negocio para la cuenta compartida, no una causa comprobada del
+                  faltante.
+                </p>
+              </div>
+            )}
+
+            {/* La asimetría: lo que sobra NUNCA se convierte en venta, ganancia
+                ni aporte. */}
+            {borrador.kind === 'FAVOR' && (
+              <p className="text-xs text-muted-foreground">
+                Sobra plata. No se registra nada automáticamente: no se sabe de dónde salió.
+              </p>
+            )}
+
+            <Field label="Otra explicación (opcional)">
+              <Input
+                value={explanation}
+                onChange={(e) => setExplanation(e.target.value)}
+                placeholder="Ej. le pagué al diseñador y no lo anoté"
+              />
+            </Field>
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                disabled={confirmar.isPending}
+                onClick={() =>
+                  confirmar.mutate(
+                    {
+                      id: borrador.id,
+                      attributeShortfall: atribuible && atribuir,
+                      explanation: explanation.trim() || null,
+                    },
+                    {
+                      onSuccess: () => {
+                        notify.success('Conciliación confirmada');
+                        onClose();
+                      },
+                    },
+                  )
+                }
+              >
+                Confirmar
+              </Button>
+            </div>
+          </section>
+        )}
+      </div>
     </Dialog>
   );
 }
 
-function MovementDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function MovementDialog({
+  open,
+  onClose,
+  data,
+}: {
+  open: boolean;
+  onClose: () => void;
+  data: CashSummary;
+}) {
+  const nombre = data.counterparty.name;
   const [date, setDate] = useState(todayKey);
   const [kind, setKind] = useState<'WITHDRAWAL' | 'CONTRIBUTION'>('WITHDRAWAL');
   const [amount, setAmount] = useState(0);
   const [concept, setConcept] = useState('');
   const [note, setNote] = useState('');
+  /** Un aporte con `false` es CAPITAL: sube la caja y no genera deuda. */
+  const [refundable, setRefundable] = useState(true);
   const agregar = useAddMovement();
 
   return (
@@ -408,13 +705,14 @@ function MovementDialog({ open, onClose }: { open: boolean; onClose: () => void 
         onSubmit={(e) => {
           e.preventDefault();
           agregar.mutate(
-            { date, kind, amount, concept: concept.trim(), note: note.trim() || null },
+            { date, kind, amount, concept: concept.trim(), refundable, note: note.trim() || null },
             {
               onSuccess: () => {
                 notify.success('Movimiento anotado');
                 setAmount(0);
                 setConcept('');
                 setNote('');
+                setRefundable(true);
                 onClose();
               },
             },
@@ -423,10 +721,23 @@ function MovementDialog({ open, onClose }: { open: boolean; onClose: () => void 
       >
         <Field label="Tipo">
           <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
-            <option value="WITHDRAWAL">Pago a Vanan (sacaste plata del negocio)</option>
-            <option value="CONTRIBUTION">Aporte de Vanan (metiste plata tuya)</option>
+            <option value="WITHDRAWAL">{`Pago a ${nombre} (sacaste plata del negocio)`}</option>
+            <option value="CONTRIBUTION">{`Aporte de ${nombre} (metiste plata tuya)`}</option>
           </Select>
         </Field>
+        {kind === 'CONTRIBUTION' && (
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={!refundable}
+              onChange={(e) => setRefundable(!e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              Es aporte de capital: sube la caja y el negocio <strong>no</strong> te lo debe.
+            </span>
+          </label>
+        )}
         <Field label="Fecha">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
