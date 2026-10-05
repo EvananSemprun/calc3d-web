@@ -15,6 +15,7 @@ import {
   Sprout,
   Trash2,
   User,
+  Wallet,
   SlidersHorizontal,
 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
@@ -52,7 +53,8 @@ export function SettingsPage() {
   const sections = [
     { key: 'cuenta', label: 'Cuenta', icon: User, Comp: MyAccount },
     { key: 'calculo', label: 'Cálculo', icon: SlidersHorizontal, Comp: GeneralSettings },
-    { key: 'moneda', label: 'Moneda', icon: Coins, Comp: MoneyAndCounterparties },
+    { key: 'moneda', label: 'Moneda', icon: Coins, Comp: CurrencySettings },
+    { key: 'caja', label: 'Caja', icon: Wallet, Comp: CashSettings },
     { key: 'fijos', label: 'Costos fijos', icon: PiggyBank, Comp: FixedCostsSettings },
     { key: 'productos', label: 'Productos', icon: Boxes, Comp: ProductSettings },
     { key: 'negocio', label: 'Negocio', icon: Building2, Comp: BusinessSettings },
@@ -279,17 +281,24 @@ function GeneralSettings() {
   );
 }
 
-// ---------------- Moneda y tasa (Bs) ----------------
+// ---------------- Caja ----------------
 
-/** La sección "Moneda": las tasas y, debajo, quién pone la plata en el negocio. */
-function MoneyAndCounterparties() {
+/**
+ * La sección "Caja": contrapartes y cuentas.
+ *
+ * Va aparte de "Moneda" a propósito: las tasas son presentación (cuántos
+ * bolívares es un dólar) y esto es quién pone la plata y dónde vive. Juntarlas
+ * dejaba tres tarjetas bajo un título que solo describía una.
+ */
+function CashSettings() {
   return (
     <div className="space-y-5">
-      <CurrencySettings />
       <CounterpartiesCard />
     </div>
   );
 }
+
+// ---------------- Moneda y tasa (Bs) ----------------
 
 function CurrencySettings() {
   const { data: settings } = useSettings();
