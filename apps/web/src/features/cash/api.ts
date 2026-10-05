@@ -1,17 +1,36 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  ApplicationOrder,
   BusinessCash,
-  CashCountUpsertDto,
+  CashReconciliationConfirmDto,
+  CashReconciliationUpsertDto,
+  Obligation,
   OwnerFinancingKey,
   OwnerMovementCreateDto,
+  ReconciliationKind,
 } from '@calc3d/shared';
 import { api } from '@/lib/api';
 
 /**
- * CAJA — todo lo que muestra lo DERIVA el servidor (saldo del negocio, lo
- * personal de cada conteo, lo que se le debe a Vanan). Acá no se recalcula.
+ * CAJA — todo lo que muestra lo DERIVA el servidor. Acá no se recalcula.
+ *
+ * Una conciliación CONFIRMADA muestra lo que se congeló el día que se
+ * confirmó: es un documento, no una vista. `stale` avisa si DESPUÉS entraron
+ * movimientos con fecha anterior (el ajuste propio de la conciliación no
+ * cuenta: el servidor ya lo descuenta).
  */
 export interface CashSummary {
+  counterparty: { id: string; name: string; kind: 'OWNER' | 'PARTNER' | 'EXTERNAL_LENDER' };
+  accounts: {
+    id: string;
+    name: string;
+    currency: string;
+    shared: boolean;
+    sharedWithId: string | null;
+    autoAttributeShortfall: boolean;
+    isDefault: boolean;
+  }[];
+  applicationOrder: ApplicationOrder;
   balance: BusinessCash;
   financing: {
     rows: { key: OwnerFinancingKey; put: number; recovered: number; missing: number }[];
@@ -20,6 +39,7 @@ export interface CashSummary {
     totalOwed: number;
     overWithdrawn: number;
   };
+  obligations: Obligation[];
   movements: {
     id: string;
     date: string;
@@ -27,19 +47,42 @@ export interface CashSummary {
     amount: number;
     concept: string;
     note: string | null;
+    refundable: boolean;
+    source: RecordSource;
+    counterpartyId: string;
+    /** Cuánto de este pago fue contra deudas. El resto es retiro puro. */
+    applied: number;
+    cashReconciliationId: string | null;
   }[];
-  counts: {
+  reconciliations: {
     id: string;
+    accountId: string;
     date: string;
-    total: number;
+    status: 'DRAFT' | 'CONFIRMED' | 'VOID';
+    currency: string;
+    rate: number | null;
+    totalAmount: number;
+    personalAmount: number;
+    /** Las cuatro líneas de la conciliación. */
+    expectedUsd: number;
+    totalUsd: number;
+    personalUsd: number;
+    businessActualUsd: number;
+    differenceUsd: number;
+    kind: ReconciliationKind;
+    expectedNow: number;
+    /** Entraron movimientos con fecha anterior DESPUÉS de confirmar. */
+    stale: boolean;
+    explanation: string | null;
     note: string | null;
-    /** Lo que era del negocio ESE día. */
-    business: number;
-    personal: number;
-    /** En Binance había MENOS de lo que es del negocio. */
-    short: boolean;
+    source: RecordSource;
+    confirmedAt: string | null;
+    voidedAt: string | null;
+    adjustment: { id: string; amount: number; concept: string } | null;
   }[];
 }
+
+export type RecordSource = 'MANUAL' | 'EXCEL_IMPORT' | 'RECONCILIATION' | 'MIGRATION';
 
 export function useCash() {
   return useQuery({
@@ -63,8 +106,15 @@ export const useAddMovement = () =>
 export const useDeleteMovement = () =>
   useCashMutation((id: string) => api.delete<CashSummary>(`/cash/movements/${id}`));
 
-export const useSaveCount = () =>
-  useCashMutation((dto: CashCountUpsertDto) => api.put<CashSummary>('/cash/counts', dto));
+export const useSaveReconciliation = () =>
+  useCashMutation((dto: CashReconciliationUpsertDto) =>
+    api.put<CashSummary>('/cash/reconciliations', dto),
+  );
 
-export const useDeleteCount = () =>
-  useCashMutation((id: string) => api.delete<CashSummary>(`/cash/counts/${id}`));
+export const useConfirmReconciliation = () =>
+  useCashMutation(({ id, ...dto }: CashReconciliationConfirmDto & { id: string }) =>
+    api.post<CashSummary>(`/cash/reconciliations/${id}/confirm`, dto),
+  );
+
+export const useVoidReconciliation = () =>
+  useCashMutation((id: string) => api.post<CashSummary>(`/cash/reconciliations/${id}/void`, {}));
