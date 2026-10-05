@@ -410,7 +410,21 @@ export function AppLayout() {
         </div>
       )}
 
-      <main className="flex min-h-screen flex-1 flex-col overflow-x-hidden">
+      {/* ⚠️ `overflow-x-clip` + `min-w-0`, NO `overflow-x-hidden`. Los tres recortan
+          el desborde horizontal igual, pero:
+
+          1. `hidden` convierte a <main> en contenedor de scroll (si un eje no es
+             `visible`, el otro computa `auto`), y entonces el `sticky` del header de
+             abajo se ancla a <main> — que con `min-h-screen` crece con el contenido y
+             NUNCA scrollea. El que scrollea es el documento, así que el header se iba
+             con la página en TODAS las pantallas. `clip` no crea scrollport: el
+             header se ancla al viewport y se pega de verdad.
+          2. `min-w-0` NO es decorativo. <main> es un flex item (`flex-1`), y era
+             `hidden` quien le suprimía el `min-width: auto` de flexbox. `clip` no lo
+             suprime, así que sin `min-w-0` <main> crece hasta el ancho intrínseco de
+             su contenido (medido: 512 px en /cash y 481 en /loans a 375 de viewport)
+             y el desborde pasa a ser scroll horizontal de toda la página. */}
+      <main className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-clip">
         {/* Navbar superior fija */}
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border/70 bg-background/70 px-4 py-3 backdrop-blur-xl md:px-8">
           <button

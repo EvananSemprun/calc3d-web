@@ -120,6 +120,44 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   (`if (!open) return null`) conservando la animación de entrada. Afectó a
   `CommandPalette` y al **drawer móvil de `AppLayout`** (backdrop y X no cerraban).
 
+### Regla de `sticky` y `overflow` en el layout (IMPORTANTE)
+
+El header del panel (`AppLayout.tsx`) está declarado `sticky top-0` desde el
+split del repo y **no se pegó nunca, en ninguna pantalla**: se iba con la página
+al scrollear. Arreglado el 2026-10-05.
+
+- **`overflow` distinto de `visible` en UN eje hace que el otro compute `auto`**,
+  y eso convierte al elemento en **contenedor de scroll**. Un `sticky`
+  descendiente se ancla a ESE contenedor, no al viewport. Como `<main>` es
+  `min-h-screen` y crece con el contenido, **nunca scrollea él mismo** (el que
+  scrollea es el documento), así que el header se iba con la página.
+- **La solución es `overflow-x-clip`, no `overflow-x-hidden`.** `clip` recorta
+  igual pero **no crea scrollport**, así que el `sticky` vuelve a anclarse al
+  viewport.
+- ⚠️ **`clip` obliga a poner `min-w-0` a mano.** Era `hidden` quien le suprimía
+  al flex item su `min-width: auto`; `clip` no lo hace. Sin `min-w-0`, `<main>`
+  crece hasta el ancho intrínseco de su contenido (medido: **512 px en /cash y
+  481 en /loans** con viewport de 375) y el desborde que antes se recortaba pasa
+  a ser **scroll horizontal de toda la página**. Es el error fácil de cometer al
+  "arreglar" esto.
+- ⚠️ **Ese `overflow-x` SÍ está tapando desborde real**: `/loans` tiene una tabla
+  con `min-w-[26rem]` (416 px) y `/settings` botones que llegan a 528 px, con
+  viewport de 375. No lo saques "porque no hace falta".
+- **Piso de navegador**: `overflow: clip` es Chrome/Edge 90+, Firefox 81+,
+  **Safari 16+** (2022). En Safari viejo la declaración se descarta y esas dos
+  pantallas scrollean de lado; se degrada, no se rompe. No hay `browserslist`
+  declarado en el repo.
+- ⚠️ **Para medir scroll hay que forzar `behavior: 'instant'`.** `index.css` pone
+  `html { scroll-behavior: smooth }`, y un `window.scrollTo(0, N)` seguido de una
+  lectura inmediata devuelve **`scrollY: 0`** — parece que la página no scrollea
+  y no es cierto. Perdí dos mediciones así.
+- **El panel del escritorio de Claude no scrollea nunca** (renderiza a altura
+  completa) y sus capturas salen en negro a tamaño móvil: esto se verifica con
+  un Chrome real (Playwright), no con el pane.
+- Verificado tras el arreglo en **17 rutas a 375×812 y 9 a 1440×900**: cero
+  desborde horizontal, header pegado en las 14 que scrollean, y la sidebar
+  (`sticky h-screen`, que sí funcionaba) sin cambios.
+
 ### Primitivas y patrones UX (`components/ui.tsx`, `overlays.tsx`)
 - **`Select` de marca** — sobre `@radix-ui/react-select` (popup propio temable;
   adiós a la lista nativa del SO que rompía el oscuro). Es **drop-in** del
