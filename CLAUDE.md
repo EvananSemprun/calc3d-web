@@ -429,9 +429,30 @@ la fecha de una campaña nueva y el nombre del archivo del reporte.
   - La atribución automática del faltante está **apagada por defecto** y es por
     cuenta; una diferencia **a favor no ofrece nada**. Anular revierte el ajuste
     y deja la fila tachada en el historial.
-  - ⚠️ **Nombres dinámicos a medias**: `Cash.tsx`, el Dashboard y el reporte en
-    Excel usan `counterparty.name`, pero **`Expenses.tsx`, `Loans.tsx` y
-    `features/finance/api.ts` (`PAID_BY`) todavía dicen "Vanan"**. Es fase 2.
+  - **Nombres dinámicos en TODO el panel** (fase 2, 2026-10-05): `grep -rn
+    "Vanan" apps/web/src` da **vacío**. `PAID_BY_LABELS` pasó a ser la función
+    `paidByLabels(nombre)` en `features/finance/api.ts` — con una constante
+    volvía el nombre propio al código. El nombre sale de **`useOwnerName()`**
+    (`features/cash/api.ts`), que lee `useCounterparties()`: ⚠️ **no uses
+    `useCash()` para esto**, ese resumen trae el ledger entero, las obligaciones
+    y todas las conciliaciones. Es un hook: va en el cuerpo del componente,
+    nunca dentro de un `map` ni un callback.
+  - **Configuración → Caja** (sección propia, no bajo "Moneda": las tasas son
+    presentación y esto es quién pone la plata). Dos tarjetas en
+    `features/cash/`: `CounterpartiesCard` (contrapartes, con sus 409 del
+    servidor mostrados tal cual vía `apiErrorMessage`) y `CashAccountsCard`
+    (cuentas + reglas de conciliación).
+    - ⚠️ La casilla de **atribución automática** escala a ámbar con icono
+      cuando se enciende: el riesgo se vuelve real justo ahí, y una advertencia
+      gris constante se lee como pie de página.
+    - ⚠️ El selector de contraparte **incluye la inactiva que ya tiene atada la
+      cuenta**. Filtrando solo activas, editar una cuenta vieja mostraría el
+      select en blanco y guardar le cambiaría la contraparte sin que nadie lo
+      pida.
+    - ⚠️ **No hay hook compartido para guardar settings**: cada tarjeta arma su
+      `useMutation` con `api.patch('/settings', ...)` e invalida `['settings']`.
+    - El límite de multicuenta va **al pie de la tarjeta**, no escondido: solo se
+      concilia la cuenta principal.
 - **Producción** (`pages/Production.tsx`): dos mediciones que se cargan en dos
   lugares, y no da lo mismo:
   - **Horas** → `ReadingsCard` en esa misma pantalla: una lectura por mes con
