@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ApplicationOrder,
   BusinessCash,
+  CashCategory,
   CashAccountUpsertDto,
   CashReconciliationConfirmDto,
   CashReconciliationUpsertDto,
@@ -108,6 +109,20 @@ export interface CashSummary {
 
 export type RecordSource = 'MANUAL' | 'EXCEL_IMPORT' | 'RECONCILIATION' | 'MIGRATION';
 
+/**
+ * El detalle de UNA linea de "De donde sale el saldo".
+ *
+ * `total` lo recalcula el servidor sobre los asientos que devuelve; NO lo copia
+ * de la linea del resumen. Si alguna vez no coincidieran, la pantalla tiene que
+ * mostrar la diferencia en vez de taparla con un numero prestado.
+ */
+export type CashBreakdown = {
+  category: CashCategory;
+  total: number;
+  /** Del mas nuevo al mas viejo, como los ordena el servidor. */
+  entries: { date: string; amount: number; label: string; source: RecordSource }[];
+};
+
 export function useCash() {
   return useQuery({
     queryKey: ['cash'],
@@ -115,12 +130,37 @@ export function useCash() {
   });
 }
 
-/** Cada escritura devuelve el resumen entero: se guarda directo en la caché. */
+/**
+ * El detalle de una categoria, PEREZOSO: con `category` en null no pide nada.
+ *
+ * Son nueve categorias y la mas grande tiene mas de cien asientos; traerlas
+ * todas al abrir la pantalla seria pagar nueve consultas para mostrar cero.
+ */
+export function useCashBreakdown(category: CashCategory | null) {
+  return useQuery({
+    queryKey: ['cash', 'breakdown', category],
+    queryFn: async () => (await api.get<CashBreakdown>(`/cash/breakdown/${category}`)).data,
+    enabled: category != null,
+  });
+}
+
+/**
+ * Cada escritura devuelve el resumen entero: se guarda directo en la caché.
+ *
+ * ⚠️ Y ADEMÁS se invalida `['cash', 'breakdown']`. El resumen se pisa a mano
+ * (`setQueryData`), así que nada refresca el detalle por su cuenta: sin esta
+ * línea el desplegable abierto seguiría mostrando los asientos viejos mientras
+ * la línea de arriba ya cambió — la pantalla de dinero contradiciéndose a sí
+ * misma, que es justo lo que el detalle existe para evitar.
+ */
 function useCashMutation<T>(fn: (v: T) => Promise<{ data: CashSummary }>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: ({ data }) => qc.setQueryData(['cash'], data),
+    onSuccess: ({ data }) => {
+      qc.setQueryData(['cash'], data);
+      qc.invalidateQueries({ queryKey: ['cash', 'breakdown'] });
+    },
   });
 }
 
@@ -200,6 +240,11 @@ export function useCashAccounts() {
 /**
  * Tocar contrapartes o cuentas cambia lo que muestra Caja (el nombre al que se
  * le debe, qué cuenta se concilia), así que se invalida también `['cash']`.
+ *
+ * Eso alcanza para el desplegable: React Query invalida por PREFIJO, y
+ * `['cash', 'breakdown', categoria]` empieza con `['cash']`. Repetirlo acá
+ * sería ruido. Lo que no alcanza es un `setQueryData(['cash'], …)`, que no
+ * invalida nada — por eso `useCashMutation` sí lo nombra.
  */
 function useCatalogMutation<T>(clave: string, fn: (v: T) => Promise<unknown>) {
   const qc = useQueryClient();
