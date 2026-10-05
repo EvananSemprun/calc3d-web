@@ -27,12 +27,13 @@ import {
   expenseLink,
   useExpenses,
   type ExpenseRow,
-  PAID_BY_LABELS,
+  paidByLabels,
   type PaidBy,
 } from '@/features/finance/api';
 import { catalogs } from '@/features/catalogs/config';
 import { Combobox } from '@/components/Combobox';
 import { useCampaigns } from '@/features/campaigns/api';
+import { useOwnerName } from '@/features/cash/api';
 import { useExchangeRates } from '@/features/settings/useExchangeRates';
 
 const todayIso = () => {
@@ -81,6 +82,8 @@ const numericDefaults: Record<string, number> = {
 };
 
 export function ExpensesPage() {
+  const nombre = useOwnerName();
+  const etiquetas = paidByLabels(nombre);
   const range = useDateRange('MONTH', 'expenses');
   const { money } = useMoney();
   const qc = useQueryClient();
@@ -168,7 +171,7 @@ export function ExpensesPage() {
             <option value="advertising">Publicidad</option>
             <option value="design">Diseño</option>
             <option value="investment">Inversión</option>
-            <option value="owner">Pagados por Vanan</option>
+            <option value="owner">{`Pagados por ${nombre}`}</option>
             <option value="general">General</option>
           </Select>
         </FilterBar>
@@ -266,9 +269,9 @@ export function ExpensesPage() {
                               cambiarPagador.mutate({ id: e.id, paidBy: ev.target.value as PaidBy })
                             }
                           >
-                            {(Object.keys(PAID_BY_LABELS) as PaidBy[]).map((k) => (
+                            {(Object.keys(etiquetas) as PaidBy[]).map((k) => (
                               <option key={k} value={k}>
-                                {PAID_BY_LABELS[k]}
+                                {etiquetas[k]}
                               </option>
                             ))}
                           </Select>
@@ -319,6 +322,7 @@ export function ExpensesPage() {
 }
 
 function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const nombre = useOwnerName();
   const qc = useQueryClient();
   const [typeKey, setTypeKey] = useState('filament');
   const [mode, setMode] = useState<'existing' | 'new'>('new');
@@ -342,7 +346,7 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const [updatePrice, setUpdatePrice] = useState(true);
   const [catForm, setCatForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
-  // Por defecto lo paga el negocio; si lo pagó Vanan, la Caja lo cuenta como aporte.
+  // Por defecto lo paga el negocio; si lo pagó el propietario, la Caja lo cuenta como aporte.
   const [paidBy, setPaidBy] = useState<PaidBy>('BUSINESS');
 
   const type = EXPENSE_TYPES.find((t) => t.key === typeKey)!;
@@ -676,7 +680,7 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
       >
         <Select value={paidBy} onChange={(e) => setPaidBy(e.target.value as PaidBy)}>
           <option value="BUSINESS">La caja del negocio</option>
-          <option value="OWNER">Vanan, de su bolsillo</option>
+          <option value="OWNER">{`${nombre}, de su bolsillo`}</option>
           <option value="LOAN">El préstamo</option>
         </Select>
       </Field>

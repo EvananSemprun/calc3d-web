@@ -16,11 +16,18 @@ export interface SaleRow {
 /** Quién puso la plata de un gasto o de una cuota. */
 export type PaidBy = 'BUSINESS' | 'OWNER' | 'LOAN';
 
-export const PAID_BY_LABELS: Record<PaidBy, string> = {
+/**
+ * Quién pagó, en palabras. Es una FUNCIÓN y no una constante porque el nombre
+ * de la contraparte sale de la base: con un objeto fijo volvía el nombre propio
+ * al código, que es justo lo que la fase 2 vino a sacar.
+ *
+ * `nombre` sale de `useOwnerName()` (`features/cash/api.ts`).
+ */
+export const paidByLabels = (nombre: string): Record<PaidBy, string> => ({
   BUSINESS: 'Negocio',
-  OWNER: 'Vanan',
+  OWNER: nombre,
   LOAN: 'Préstamo',
-};
+});
 
 export interface ExpenseLink {
   id: string;
@@ -31,7 +38,7 @@ export interface ExpenseRow {
   id: string;
   date: string;
   category: 'EQUIPMENT' | 'CONSUMABLE' | 'MAINTENANCE' | 'SHIPPING' | 'OTHER' | 'ADVERTISING' | 'DESIGN';
-  /** Quién lo pagó: alimenta la Caja y lo que el negocio le debe a Vanan. */
+  /** Quién lo pagó: alimenta la Caja y lo que el negocio le debe a la contraparte. */
   paidBy: PaidBy;
   description: string;
   amount: number;

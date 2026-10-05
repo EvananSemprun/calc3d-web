@@ -6,7 +6,8 @@ import { Dialog, useConfirm } from '@/components/overlays';
 import { useMoney } from '@/features/settings/useSettings';
 import { notify } from '@/components/toast';
 import { todayKey } from '@/lib/today';
-import { PAID_BY_LABELS } from '@/features/finance/api';
+import { useOwnerName } from '@/features/cash/api';
+import { paidByLabels } from '@/features/finance/api';
 import {
   type Loan,
   useAddLoanPayment,
@@ -83,6 +84,7 @@ export function LoansPage() {
 }
 
 function LoanCard({ loan }: { loan: Loan }) {
+  const etiquetas = paidByLabels(useOwnerName());
   const { money } = useMoney();
   const confirm = useConfirm();
   const [pagando, setPagando] = useState(false);
@@ -176,7 +178,7 @@ function LoanCard({ loan }: { loan: Loan }) {
                     </td>
                     <td className="py-2 pr-3">
                       <Badge variant={p.paidBy === 'OWNER' ? 'brand' : 'outline'}>
-                        {PAID_BY_LABELS[p.paidBy]}
+                        {etiquetas[p.paidBy]}
                       </Badge>
                     </td>
                     <td className="py-2 text-right">
@@ -220,6 +222,7 @@ function PaymentDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const nombre = useOwnerName();
   const [date, setDate] = useState(hoy);
   const [amount, setAmount] = useState(loan.monthlyPayment || 0);
   const [reference, setReference] = useState('');
@@ -259,7 +262,7 @@ function PaymentDialog({
         >
           <Select value={paidBy} onChange={(e) => setPaidBy(e.target.value as 'BUSINESS' | 'OWNER')}>
             <option value="BUSINESS">La caja del negocio</option>
-            <option value="OWNER">Vanan, de su bolsillo</option>
+            <option value="OWNER">{`${nombre}, de su bolsillo`}</option>
           </Select>
         </Field>
         <div className="flex justify-end gap-2">
