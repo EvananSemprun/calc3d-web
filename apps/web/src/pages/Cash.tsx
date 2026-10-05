@@ -4,21 +4,25 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CalendarClock,
+  ChevronRight,
   Plus,
   Trash2,
   Undo2,
 } from 'lucide-react';
-import type { OwnerFinancingKey } from '@calc3d/shared';
-import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, Select, Stat } from '@/components/ui';
+import { CASH_SIGN, type CashCategory, type OwnerFinancingKey } from '@calc3d/shared';
+import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, Select, Stat, TableSkeleton } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
 import { todayKey } from '@/lib/today';
+import { apiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
+  type CashBreakdown,
   type CashSummary,
   useAddMovement,
   useCash,
+  useCashBreakdown,
   useConfirmReconciliation,
   useDeleteMovement,
   useSaveReconciliation,
@@ -158,43 +162,114 @@ function tocaConciliar(data: CashSummary, frecuencia: string) {
   return dias >= cada ? { dias, cada } : null;
 }
 
+/**
+ * Las nueve líneas de "De dónde sale el saldo", en el orden de `CASH_SIGN`.
+ *
+ * ⚠️ El texto sale del nombre DINÁMICO de la contraparte (fase 2): nunca un
+ * nombre propio escrito a mano. Y las categorías se recorren desde `CASH_SIGN`,
+ * que es la única lista: una categoría nueva en el motor aparece sola en vez de
+ * quedarse afuera en silencio.
+ */
+function etiquetasSaldo(nombre: string): Record<CashCategory, string> {
+  return {
+    collected: 'Ventas cobradas',
+    expenses: 'Gastos generales',
+    filament: 'Filamento comprado',
+    equipment: 'Equipos pagados por la caja',
+    contributionsRefundable: `Aportes de ${nombre} (se devuelven)`,
+    contributionsCapital: `Aportes de capital de ${nombre}`,
+    debtRepayments: `Devoluciones a ${nombre}`,
+    ownerDraws: `Retiros de ${nombre}`,
+    loanPayments: 'Cuotas pagadas por la caja',
+  };
+}
+
 function SaldoCard({ data }: { data: CashSummary }) {
   const { money } = useMoney();
   const b = data.balance;
-  const nombre = data.counterparty.name;
-  const lineas: [string, number][] = [
-    ['Ventas cobradas', b.collected],
-    ['Gastos generales', -b.expenses],
-    ['Filamento comprado', -b.filament],
-    ['Equipos pagados por la caja', -b.equipment],
-    [`Aportes de ${nombre} (se devuelven)`, b.contributionsRefundable],
-    [`Aportes de capital de ${nombre}`, b.contributionsCapital],
-    [`Devoluciones a ${nombre}`, -b.debtRepayments],
-    [`Retiros de ${nombre}`, -b.ownerDraws],
-    ['Cuotas pagadas por la caja', -b.loanPayments],
-  ];
+  const etiquetas = etiquetasSaldo(data.counterparty.name);
+
+  /**
+   * UNA sola categoría abierta por vez: dos listas largas abiertas en un
+   * teléfono dejan la tarjeta ilegible.
+   */
+  const [abierta, setAbierta] = useState<CashCategory | null>(null);
+  // Perezoso: con `abierta` en null el hook no pide nada.
+  const detalle = useCashBreakdown(abierta);
+
+  /**
+   * El signo lo pone la categoría (`CASH_SIGN`), no la línea. Es el mismo que
+   * usa el motor para armar el saldo, así que el detalle y el resumen no pueden
+   * discrepar en el sentido de un número.
+   */
+  const lineas = (Object.keys(CASH_SIGN) as CashCategory[])
+    .map((category) => ({
+      category,
+      etiqueta: etiquetas[category],
+      valor: CASH_SIGN[category] * b[category],
+    }))
+    .filter((l) => l.valor !== 0);
 
   return (
     <Card>
       <CardContent className="space-y-3 p-4 sm:p-5">
-        <h2 className="font-display text-lg font-bold">De dónde sale el saldo</h2>
-        <dl className="divide-y divide-border/50 text-sm">
-          {lineas
-            .filter(([, v]) => v !== 0)
-            .map(([etiqueta, v]) => (
-              <div key={etiqueta} className="flex justify-between gap-3 py-2">
-                <dt className="text-muted-foreground">{etiqueta}</dt>
-                <dd className={cn('tabular-nums', v < 0 && 'text-destructive')}>
-                  {v > 0 ? '+' : ''}
-                  {money(v)}
-                </dd>
-              </div>
-            ))}
-          <div className="flex justify-between gap-3 pt-2 font-semibold">
-            <dt>Saldo del negocio</dt>
-            <dd className="tabular-nums">{money(b.balance)}</dd>
-          </div>
-        </dl>
+        <div>
+          <h2 className="font-display text-lg font-bold">De dónde sale el saldo</h2>
+          <p className="text-sm text-muted-foreground">
+            Tocá una línea para ver de qué movimientos sale.
+          </p>
+        </div>
+        <ul className="divide-y divide-border/50 text-sm">
+          {lineas.map((l) => {
+            const abierto = abierta === l.category;
+            const idRegion = `saldo-detalle-${l.category}`;
+            return (
+              <li key={l.category}>
+                <button
+                  type="button"
+                  onClick={() => setAbierta(abierto ? null : l.category)}
+                  aria-expanded={abierto}
+                  aria-controls={idRegion}
+                  className="flex w-full items-center justify-between gap-3 rounded-md py-2 text-left transition-colors hover:text-brand-yellow-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <ChevronRight
+                      aria-hidden
+                      className={cn(
+                        'h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform',
+                        abierto && 'rotate-90',
+                      )}
+                    />
+                    <span className="truncate text-muted-foreground">{l.etiqueta}</span>
+                  </span>
+                  <span className={cn('shrink-0 tabular-nums', l.valor < 0 && 'text-destructive')}>
+                    {l.valor > 0 ? '+' : ''}
+                    {money(l.valor)}
+                  </span>
+                </button>
+                {abierto && (
+                  <div
+                    id={idRegion}
+                    role="region"
+                    aria-label={`Detalle de ${l.etiqueta}`}
+                    className="pb-3 pl-5"
+                  >
+                    <DetalleSaldo
+                      linea={l}
+                      datos={detalle.data}
+                      cargando={detalle.isPending}
+                      error={detalle.error}
+                    />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+          <li className="flex justify-between gap-3 pt-2 font-semibold">
+            <span>Saldo del negocio</span>
+            <span className="tabular-nums">{money(b.balance)}</span>
+          </li>
+        </ul>
         <p className="text-xs text-muted-foreground">
           Caja no es ganancia: un rollo sin usar o una cuota sacan plata sin ser pérdida, y un
           aporte tuyo la sube sin ser venta. Una devolución baja la caja y la deuda a la vez:
@@ -202,6 +277,94 @@ function SaldoCard({ data }: { data: CashSummary }) {
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * El detalle de UNA categoría, ya abierto.
+ *
+ * ⚠️ El total va al PIE y sale de lo que devolvió el servidor, no de la línea
+ * de arriba. Si alguna vez no coinciden, el aviso lo dice con todas las letras:
+ * un detalle que se "corrige" solo para cuadrar con el resumen esconde
+ * justamente el día en que una de las dos cuentas se rompió.
+ */
+function DetalleSaldo({
+  linea,
+  datos,
+  cargando,
+  error,
+}: {
+  linea: { category: CashCategory; etiqueta: string; valor: number };
+  datos: CashBreakdown | undefined;
+  cargando: boolean;
+  error: unknown;
+}) {
+  const { money } = useMoney();
+  const signo = CASH_SIGN[linea.category];
+
+  if (error) {
+    return (
+      <p role="alert" className="py-2 text-xs text-destructive">
+        No pude traer el detalle: {apiErrorMessage(error)}
+      </p>
+    );
+  }
+  if (cargando || !datos) return <TableSkeleton rows={3} cols={3} />;
+
+  // Una línea solo se dibuja si vale distinto de cero, así que acá un detalle
+  // vacío NUNCA es "no hubo movimientos": es que el detalle y el saldo dejaron
+  // de salir del mismo lugar.
+  if (datos.entries.length === 0) {
+    return (
+      <p role="alert" className="py-2 text-xs font-medium text-destructive">
+        Esta línea vale {money(linea.valor)} y el detalle vino vacío. Eso es un BUG, no una
+        categoría sin movimientos: no te fíes de este número hasta que se arregle.
+      </p>
+    );
+  }
+
+  const total = signo * datos.total;
+  // Centavo de tolerancia: lo que importa es una diferencia de plata, no el
+  // ruido de coma flotante.
+  const descuadre = Math.abs(total - linea.valor) >= 0.005;
+
+  return (
+    <>
+      <ul className="divide-y divide-border/30 text-xs">
+        {datos.entries.map((e, i) => (
+          <li key={`${e.date}-${i}`} className="flex items-center justify-between gap-2 py-1.5">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 tabular-nums text-muted-foreground">{fecha(e.date)}</span>
+              <span className="truncate" title={e.label}>
+                {e.label}
+              </span>
+              {/* Solo EXCEL_IMPORT: MIGRATION y RECONCILIATION no son importaciones. */}
+              {e.source === 'EXCEL_IMPORT' && (
+                <Badge variant="outline" className="shrink-0">
+                  Importado
+                </Badge>
+              )}
+            </span>
+            <span className={cn('shrink-0 tabular-nums', signo < 0 && 'text-destructive')}>
+              {money(signo * e.amount)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-1 flex items-center justify-between gap-3 border-t border-border/50 pt-2 text-xs font-semibold">
+        <span>
+          Total del detalle &middot; {datos.entries.length}{' '}
+          {datos.entries.length === 1 ? 'movimiento' : 'movimientos'}
+        </span>
+        <span className={cn('tabular-nums', descuadre && 'text-destructive')}>{money(total)}</span>
+      </div>
+      {descuadre && (
+        <p role="alert" className="mt-1 text-xs font-medium text-destructive">
+          El detalle suma {money(total)} y la línea de arriba dice {money(linea.valor)}. Son la
+          misma cuenta: que no coincidan es un BUG.
+        </p>
+      )}
+    </>
   );
 }
 
