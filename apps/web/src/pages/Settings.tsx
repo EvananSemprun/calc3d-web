@@ -30,6 +30,7 @@ import {
   useSetRate,
 } from '@/features/settings/useExchangeRates';
 import { CounterpartiesCard } from '@/features/cash/CounterpartiesCard';
+import { CashAccountsCard } from '@/features/cash/CashAccountsCard';
 import { useAuth } from '@/auth/AuthContext';
 import {
   Badge,
@@ -294,6 +295,7 @@ function CashSettings() {
   return (
     <div className="space-y-5">
       <CounterpartiesCard />
+      <CashAccountsCard />
     </div>
   );
 }

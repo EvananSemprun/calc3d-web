@@ -23,6 +23,12 @@ export interface Settings {
   productAlertMinMarginPct: number;
   defaultRateLabel: string | null;
   protectionRateLabel: string | null;
+  /** Cada cuánto conviene conciliar. Es un RECORDATORIO: no bloquea nada. */
+  reconciliationFrequency: 'NONE' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+  /** 1 = lunes … 7 = domingo. Solo aplica con WEEKLY/BIWEEKLY. */
+  reconciliationWeekday: number | null;
+  /** Contra qué deuda se aplica primero un pago a la contraparte. */
+  debtApplicationOrder: 'OLDEST_FIRST' | 'NEWEST_FIRST';
   /** Nombre del negocio (vive en la organización; es el emisor de los documentos). */
   businessName: string;
   businessRif: string | null;
