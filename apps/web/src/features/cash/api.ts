@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ApplicationOrder,
   BusinessCash,
+  CashAccountUpsertDto,
   CashReconciliationConfirmDto,
   CashReconciliationUpsertDto,
+  CounterpartyUpsertDto,
   Obligation,
   OwnerFinancingKey,
   OwnerMovementCreateDto,
@@ -140,3 +142,96 @@ export const useConfirmReconciliation = () =>
 
 export const useVoidReconciliation = () =>
   useCashMutation((id: string) => api.post<CashSummary>(`/cash/reconciliations/${id}/void`, {}));
+
+export type CounterpartyKind = 'OWNER' | 'PARTNER' | 'EXTERNAL_LENDER';
+export type CashAccountKind = 'EXCHANGE' | 'BANK' | 'CASH' | 'WALLET' | 'OTHER';
+
+export interface Counterparty {
+  id: string;
+  name: string;
+  kind: CounterpartyKind;
+  isDefault: boolean;
+  active: boolean;
+  notes: string | null;
+}
+
+export interface CashAccountRow {
+  id: string;
+  name: string;
+  kind: CashAccountKind;
+  currency: string;
+  shared: boolean;
+  sharedWithId: string | null;
+  autoAttributeShortfall: boolean;
+  isDefault: boolean;
+  active: boolean;
+}
+
+export function useCounterparties() {
+  return useQuery({
+    queryKey: ['counterparties'],
+    queryFn: async () => (await api.get<Counterparty[]>('/counterparties')).data,
+  });
+}
+
+/**
+ * El nombre de la contraparte por defecto, para los textos de Gastos y Deuda.
+ *
+ * ⚠️ NO usa `useCash()`: ese resumen trae el ledger entero, las obligaciones y
+ * todas las conciliaciones. Una pantalla que solo necesita un nombre no tiene
+ * por qué arrastrar todo eso en cada carga.
+ */
+export function useOwnerName() {
+  const { data } = useCounterparties();
+  return (
+    data?.find((c) => c.isDefault && c.kind === 'OWNER')?.name ??
+    data?.find((c) => c.kind === 'OWNER')?.name ??
+    'el propietario'
+  );
+}
+
+export function useCashAccounts() {
+  return useQuery({
+    queryKey: ['cash-accounts'],
+    queryFn: async () => (await api.get<CashAccountRow[]>('/cash-accounts')).data,
+  });
+}
+
+/**
+ * Tocar contrapartes o cuentas cambia lo que muestra Caja (el nombre al que se
+ * le debe, qué cuenta se concilia), así que se invalida también `['cash']`.
+ */
+function useCatalogMutation<T>(clave: string, fn: (v: T) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [clave] });
+      qc.invalidateQueries({ queryKey: ['cash'] });
+    },
+  });
+}
+
+export const useSaveCounterparty = () =>
+  useCatalogMutation('counterparties', ({ id, ...dto }: CounterpartyUpsertDto & { id?: string }) =>
+    id ? api.put(`/counterparties/${id}`, dto) : api.post('/counterparties', dto),
+  );
+
+export const useDeleteCounterparty = () =>
+  useCatalogMutation('counterparties', (id: string) => api.delete(`/counterparties/${id}`));
+
+export const useSetDefaultCounterparty = () =>
+  useCatalogMutation('counterparties', (id: string) =>
+    api.post(`/counterparties/${id}/default`, {}),
+  );
+
+export const useSaveCashAccount = () =>
+  useCatalogMutation('cash-accounts', ({ id, ...dto }: CashAccountUpsertDto & { id?: string }) =>
+    id ? api.put(`/cash-accounts/${id}`, dto) : api.post('/cash-accounts', dto),
+  );
+
+export const useDeleteCashAccount = () =>
+  useCatalogMutation('cash-accounts', (id: string) => api.delete(`/cash-accounts/${id}`));
+
+export const useSetDefaultCashAccount = () =>
+  useCatalogMutation('cash-accounts', (id: string) => api.post(`/cash-accounts/${id}/default`, {}));
