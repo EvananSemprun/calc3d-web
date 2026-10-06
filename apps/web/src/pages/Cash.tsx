@@ -9,8 +9,14 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react';
-import { CASH_SIGN, type CashCategory, type OwnerFinancingKey } from '@calc3d/shared';
-import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, Select, Stat, TableSkeleton } from '@/components/ui';
+import {
+  CASH_SIGN,
+  type ApplicationOrder,
+  type CashCategory,
+  type ObligationCategory,
+  type OwnerFinancingKey,
+} from '@calc3d/shared';
+import { Badge, Button, Card, CardContent, EmptyState, Field, FieldGrid, Input, NumberInput, PageSkeleton, Select, Stat, TableSkeleton } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
@@ -20,12 +26,15 @@ import { cn } from '@/lib/utils';
 import {
   type CashBreakdown,
   type CashSummary,
+  type ObligationTarget,
+  type ShortfallPlan,
   useAddMovement,
   useCash,
   useCashBreakdown,
   useConfirmReconciliation,
   useDeleteMovement,
   useSaveReconciliation,
+  useShortfallPlan,
   useVoidReconciliation,
 } from '@/features/cash/api';
 
@@ -858,6 +867,36 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
 }
 
 /**
+ * De qué es cada deuda, con las palabras de "Quién puso la plata". Un aporte
+ * de plata pura va a la misma fila que las compras, igual que en el motor.
+ */
+const CONCEPTO: Record<ObligationCategory, string> = {
+  DESIGN: 'Diseño',
+  PURCHASE: 'Compra',
+  CONTRIBUTION: 'Aporte',
+  LOAN_PAYMENT: 'Cuota del préstamo',
+  EQUIPMENT: 'Equipo',
+};
+
+/** Cómo se nombra una deuda en el selector y en el reparto. */
+const deudaTxt = (categoria: ObligationCategory | null, iso: string) =>
+  `${categoria ? CONCEPTO[categoria] : 'Deuda'} del ${fecha(iso)}`;
+
+/**
+ * Cómo se llama "dejar que el servidor reparta solo", según el orden
+ * configurado.
+ *
+ * ⚠️ El texto NO está fijo en "la más antigua": el orden es una preferencia de
+ * la organización y con `NEWEST_FIRST` esa etiqueta nombraría exactamente la
+ * deuda contraria a la que cobra primero. La opción por defecto del selector
+ * tiene que decir la verdad, igual que ya la dice la frase de la casilla.
+ */
+const automatico = (order: ApplicationOrder) =>
+  order === 'NEWEST_FIRST'
+    ? { frase: 'de la más reciente a la más antigua', opcion: 'La más reciente (automático)' }
+    : { frase: 'de la más antigua a la más reciente', opcion: 'La más antigua (automático)' };
+
+/**
  * El reparto exacto: qué deuda, de qué fecha, cuánto.
  *
  * ⚠️ Lo calcula el SERVIDOR y acá solo se dibuja. No se recalcula con
@@ -866,15 +905,24 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
  * la conciliación y usa la contraparte de la cuenta. Al conciliar con retraso
  * —lo normal— un reparto calculado acá ofrecería deudas posteriores que el
  * servidor va a ignorar, y el dueño estaría aprobando algo que no ocurre.
+ *
+ * `elegida` es la deuda que el dueño eligió, tal como la devolvió el servidor
+ * (no el estado local del selector): marcarla acá es la única confirmación de
+ * que la elección efectivamente cambió el reparto.
  */
-function Reparto({ plan }: { plan: NonNullable<CashSummary['reconciliations'][number]['plan']> }) {
+function Reparto({ plan, elegida }: { plan: ShortfallPlan; elegida?: ObligationTarget | null }) {
   const { money } = useMoney();
 
   return (
     <ul className="space-y-1 text-xs text-muted-foreground">
       {plan.applications.map((a) => (
-        <li key={a.sourceId} className="flex justify-between gap-3">
-          <span>Deuda del {a.date}</span>
+        <li key={`${a.source}:${a.sourceId}`} className="flex justify-between gap-3">
+          <span>
+            {deudaTxt(a.category, a.date)}
+            {elegida?.source === a.source && elegida.sourceId === a.sourceId && (
+              <span className="font-medium text-brand-yellow-ink"> · elegida</span>
+            )}
+          </span>
           <span className="tabular-nums">{money(a.amount)}</span>
         </li>
       ))}
@@ -916,9 +964,38 @@ function ReconciliationDialog({
   const [note, setNote] = useState('');
   const [explanation, setExplanation] = useState('');
   const [atribuir, setAtribuir] = useState(true);
+  /** La deuda destino del faltante; `null` = el orden configurado. */
+  const [destino, setDestino] = useState<ObligationTarget | null>(null);
 
   const guardar = useSaveReconciliation();
   const confirmar = useConfirmReconciliation();
+
+  const esUsd = cuenta?.currency === 'USD';
+  /** El borrador de ESA fecha: es lo que se previsualiza y lo que se confirma. */
+  const borrador = data.reconciliations.find(
+    (c) => c.date.slice(0, 10) === date && c.status === 'DRAFT',
+  );
+
+  /**
+   * TODO lo que decide este bloque sale del servidor: si va a atribuir, qué
+   * deudas se pueden elegir y cómo queda el reparto con la elegida.
+   *
+   * La consulta solo corre con el diálogo abierto y con un borrador delante
+   * (es cara: arma el ledger entero), y una elección ya vista sale de la
+   * caché, con la deuda dentro de la clave.
+   *
+   * ⚠️ Y se apaga MIENTRAS se confirma. Confirmar invalida esta clave, y con
+   * la consulta encendida eso dispara una previsualización de un borrador que
+   * en ese mismo instante dejó de serlo: el servidor la rechaza con un 400
+   * —correctamente, porque ya no hay faltante que atribuir— y queda una
+   * consulta fallida en el registro de una pantalla de dinero, sin que nadie
+   * haya hecho nada mal. Si el confirm falla, la consulta se vuelve a
+   * encender sola y se refresca, que es lo que corresponde para reintentar.
+   */
+  const vista = useShortfallPlan(borrador?.id ?? null, destino, {
+    enabled: open && !confirmar.isPending,
+  });
+  const previo = vista.data;
 
   // Al abrir se vuelve a sugerir lo personal y se limpia lo del paso B: dejar
   // una explicación vieja escrita sería firmar la conciliación de otro día.
@@ -929,16 +1006,27 @@ function ReconciliationDialog({
     setAtribuir(true);
   }, [open, sugerido]);
 
+  /**
+   * Un borrador distinto —o el mismo corregido— cambia las deudas elegibles y
+   * el monto a repartir, así que la elección anterior deja de tener sentido.
+   * Arrastrarla pediría el plan de una deuda que el servidor puede rechazar
+   * con un 400, y peor: confirmaría contra una deuda que el dueño eligió para
+   * otros números.
+   */
+  useEffect(() => {
+    setDestino(null);
+  }, [borrador?.id, borrador?.kind, borrador?.differenceUsd]);
+
   if (!cuenta) return null;
 
-  const esUsd = cuenta.currency === 'USD';
-  /** El borrador de ESA fecha: es lo que se previsualiza y lo que se confirma. */
-  const borrador = data.reconciliations.find(
-    (c) => c.date.slice(0, 10) === date && c.status === 'DRAFT',
-  );
   const falta = borrador ? Math.abs(borrador.differenceUsd) : 0;
-  const atribuible =
-    !!borrador && borrador.kind === 'SHORT' && cuenta.shared && cuenta.autoAttributeShortfall;
+  /**
+   * ⚠️ El veredicto es del SERVIDOR (`willAttribute`), no una regla copiada
+   * acá: es la misma condición exacta que evalúa confirmar.
+   */
+  const atribuible = previo?.willAttribute ?? false;
+  const elegibles = previo?.obligations ?? [];
+  const clave = (o: ObligationTarget) => `${o.source}:${o.sourceId}`;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()} title="Conciliación de caja">
@@ -1030,24 +1118,77 @@ function ReconciliationDialog({
             {/* La regla peligrosa: convierte "no sé dónde está la plata" en una
                 deuda saldada. Por eso se muestra el reparto EXACTO antes de
                 confirmar y se puede apagar o explicar de otra manera. */}
+            {vista.isError && (
+              <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                <p className="text-destructive">{apiErrorMessage(vista.error)}</p>
+                {destino && (
+                  <Button type="button" variant="ghost" onClick={() => setDestino(null)}>
+                    Volver al reparto automático
+                  </Button>
+                )}
+              </div>
+            )}
+
             {atribuible && (
               <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
                 <label className="flex items-start gap-2 text-sm">
                   <input
                     type="checkbox"
                     checked={atribuir}
-                    onChange={(e) => setAtribuir(e.target.checked)}
+                    onChange={(e) => {
+                      setAtribuir(e.target.checked);
+                      // Elegir una deuda y pedir que no se atribuya nada es
+                      // contradictorio, y el servidor lo rechaza con un 400.
+                      if (!e.target.checked) setDestino(null);
+                    }}
                     className="mt-1"
                   />
                   <span>
                     Registrar {money(falta)} como salida a {nombre}, aplicada a sus deudas{' '}
-                    {data.applicationOrder === 'NEWEST_FIRST'
-                      ? 'de la más reciente a la más antigua'
-                      : 'de la más antigua a la más reciente'}
-                    .
+                    {automatico(previo?.applicationOrder ?? data.applicationOrder).frase}.
                   </span>
                 </label>
-                {atribuir && borrador.plan && <Reparto plan={borrador.plan} />}
+
+                {atribuir && elegibles.length > 0 && (
+                  <FieldGrid min="11rem">
+                    <div className="col-span-full">
+                      <Field
+                        label="Contra qué deuda va el faltante"
+                        hint="Solo las deudas de la cuenta compartida anteriores al conteo."
+                      >
+                        {/* El valor es el estado LOCAL, no el eco del servidor:
+                            el control tiene que mostrar lo que el dueño acaba
+                            de elegir sin esperar la consulta. Lo que sí sale
+                            del servidor es el reparto de abajo. */}
+                        <Select
+                          value={destino ? clave(destino) : ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const o = elegibles.find((d) => clave(d) === v);
+                            setDestino(o ? { source: o.source, sourceId: o.sourceId } : null);
+                          }}
+                        >
+                          <option value="">
+                            {automatico(previo?.applicationOrder ?? data.applicationOrder).opcion}
+                          </option>
+                          {elegibles.map((o) => (
+                            <option key={clave(o)} value={clave(o)}>
+                              {`${deudaTxt(o.category, o.date)} · faltan ${money(o.outstanding)}`}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </div>
+                  </FieldGrid>
+                )}
+
+                {atribuir &&
+                  (vista.isFetching ? (
+                    <p className="text-xs text-muted-foreground">Calculando el reparto…</p>
+                  ) : (
+                    previo?.plan && <Reparto plan={previo.plan} elegida={previo.target} />
+                  ))}
+
                 <p className="text-xs text-muted-foreground">
                   ⚠️ Es una regla del negocio para la cuenta compartida, no una causa comprobada del
                   faltante.
@@ -1072,21 +1213,35 @@ function ReconciliationDialog({
             </Field>
 
             <div className="flex justify-end">
+              {/* ⚠️ No se confirma a ciegas: mientras la previsualización no
+                  responda no se sabe si esto va a registrar una salida y
+                  saldar deudas, y si falló, menos todavía. Confirmar igual
+                  mandaría `attributeShortfall: false` sin que nadie lo haya
+                  decidido — la atribución se saltaría en silencio. */}
               <Button
                 type="button"
-                disabled={confirmar.isPending}
+                disabled={confirmar.isPending || vista.isPending || vista.isError}
                 onClick={() =>
                   confirmar.mutate(
                     {
                       id: borrador.id,
                       attributeShortfall: atribuible && atribuir,
                       explanation: explanation.trim() || null,
+                      // Los dos campos o ninguno, y solo si se atribuye:
+                      // mandar un destino sin atribuir es un 400.
+                      ...(atribuible && atribuir && destino
+                        ? { targetSource: destino.source, targetSourceId: destino.sourceId }
+                        : {}),
                     },
                     {
                       onSuccess: () => {
                         notify.success('Conciliación confirmada');
                         onClose();
                       },
+                      // El servidor rechaza una deuda destino que no sea
+                      // elegible, y su mensaje explica por qué. Sin esto el
+                      // botón no haría nada y el dueño no sabría qué pasó.
+                      onError: (e) => notify.error(apiErrorMessage(e)),
                     },
                   )
                 }

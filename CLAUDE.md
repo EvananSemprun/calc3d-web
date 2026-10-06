@@ -464,6 +464,36 @@ al scrollear. Arreglado el 2026-10-05.
     que el servidor arma por el mismo camino que `confirm()`. Deducirlo de
     `obligations` (sin filtro de fecha, contraparte por defecto) mostraría
     deudas que el servidor va a ignorar al conciliar una fecha pasada.
+  - **Elegir la deuda destino del faltante** (fase 4, 2026-10-06, shared
+    0.24.0): un `Select` en el diálogo, con "La más antigua (automático)" por
+    defecto. Lo alimenta **`useShortfallPlan`** (`features/cash/api.ts`), que
+    pega a `GET /cash/reconciliations/:id/plan?targetSource&targetSourceId`.
+    - ⚠️ **Las opciones salen de `obligations` de ESE endpoint, nunca de
+      `summary().obligations`.** Es el mismo bug de la fase 1 corrido a la
+      lista de opciones: la del resumen viene sin filtro de fecha y con la
+      contraparte por defecto de la organización, así que ofrecería deudas que
+      confirmar rechaza con un 400.
+    - ⚠️ **Si va a atribuir lo decide el servidor** (`willAttribute`), no una
+      copia de la regla en el front. Mientras esa consulta no responda, el
+      botón **Confirmar va deshabilitado**: confirmar a ciegas mandaría
+      `attributeShortfall: false` y saltearía la atribución en silencio.
+    - El endpoint es **caro** (arma el ledger entero): la consulta solo corre
+      con el diálogo abierto y con un borrador, lleva la deuda elegida en la
+      `queryKey` con `staleTime` de 60 s —volver a una elección reciente no
+      pide nada— y **se apaga mientras se confirma**, porque si no la
+      invalidación de `useCashMutation` dispara una previsualización de un
+      borrador que acaba de dejar de serlo y el servidor la rechaza con un 400.
+    - ⚠️ **`useCashMutation` también invalida `['cash','shortfall-plan']`**, por
+      lo mismo que invalida `breakdown`: corregir un borrador NO cambia su id,
+      así que sin eso quedaría en pantalla el reparto del total anterior.
+    - El texto de la opción por defecto **sigue a `applicationOrder`** ("La más
+      reciente" con `NEWEST_FIRST`): fijarlo en "la más antigua" nombraría
+      justo la deuda contraria a la que cobra primero.
+    - ⚠️ Con opciones tan largas, el popup del `Select` **sobresale ~9 px del
+      viewport a 375** (el primitivo no le pone `collisionPadding`). Medido: el
+      texto y el tilde de la opción elegida se ven enteros y la página no
+      scrollea de lado, así que se dejó; si alguna vez hay que arreglarlo, va
+      en el primitivo, no en esta pantalla.
   - La atribución automática del faltante está **apagada por defecto** y es por
     cuenta; una diferencia **a favor no ofrece nada**. Anular revierte el ajuste
     y deja la fila tachada en el historial.

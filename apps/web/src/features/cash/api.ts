@@ -8,6 +8,8 @@ import type {
   CashReconciliationUpsertDto,
   CounterpartyUpsertDto,
   Obligation,
+  ObligationCategory,
+  ObligationSource,
   OwnerFinancingKey,
   OwnerMovementCreateDto,
   ReconciliationKind,
@@ -84,27 +86,76 @@ export interface CashSummary {
     adjustment: { id: string; amount: number; concept: string } | null;
     /**
      * El reparto que el servidor VA A HACER si se confirma este borrador, o
-     * `null` si no habría ajuste.
-     *
-     * ⚠️ No se deduce de `obligations`: esa lista viene sin filtro de fecha y
-     * con la contraparte por defecto de la organización, mientras que
-     * confirmar filtra hasta la fecha de la conciliación y usa la contraparte
-     * de la cuenta. Recalcularlo acá le mostraría al dueño un reparto que no
-     * es el que ocurre.
+     * `null` si no habría ajuste. Es el reparto POR DEFECTO (sin deuda
+     * elegida); el de una deuda elegida sale de `useShortfallPlan`.
      */
-    plan: {
-      applications: {
-        sourceId: string;
-        source: 'EXPENSE' | 'LOAN_PAYMENT' | 'MOVEMENT';
-        amount: number;
-        date: string;
-        category: string | null;
-      }[];
-      /** Lo que sobra después de cancelar todo: se registra como retiro. */
-      leftover: number;
-      order: ApplicationOrder;
-    } | null;
+    plan: ShortfallPlan | null;
   }[];
+}
+
+/**
+ * El reparto de un faltante: qué deuda cobra cuánto y qué sobra como retiro.
+ *
+ * ⚠️ Lo calcula el SERVIDOR, siempre. No se deduce de `obligations` del
+ * resumen: esa lista viene sin filtro de fecha y con la contraparte por
+ * defecto de la organización, mientras que confirmar filtra hasta la fecha de
+ * la conciliación y usa la contraparte de la cuenta. Recalcularlo acá le
+ * mostraría al dueño un reparto que no es el que ocurre.
+ */
+export interface ShortfallPlan {
+  applications: {
+    sourceId: string;
+    source: ObligationSource;
+    amount: number;
+    date: string;
+    category: ObligationCategory | null;
+  }[];
+  /** Lo que sobra después de cancelar todo: se registra como retiro. */
+  leftover: number;
+  order: ApplicationOrder;
+}
+
+/**
+ * Apunta a UNA deuda concreta: contra ella va el faltante, antes que el resto.
+ *
+ * ⚠️ Van los DOS campos. Hoy los ids de las tres tablas no chocan, pero eso es
+ * un detalle del generador de ids y no una garantía del contrato: con el
+ * origen explícito, un id de gasto no puede hacerse pasar por una cuota.
+ */
+export interface ObligationTarget {
+  source: ObligationSource;
+  sourceId: string;
+}
+
+/**
+ * La previsualización de `GET /cash/reconciliations/:id/plan`: qué pasaría si
+ * se confirmara esta conciliación, con o sin una deuda elegida.
+ *
+ * ⚠️ `obligations` son las deudas ELEGIBLES — las que el servidor derivó para
+ * la contraparte de la CUENTA y hasta la fecha del conteo. La lista que la
+ * pantalla ofrece para elegir sale de acá y NO de `summary().obligations`: esa
+ * otra viene sin filtro de fecha y con la contraparte por defecto de la
+ * organización, así que ofrecería deudas que confirmar rechaza con un 400.
+ */
+export interface ShortfallPlanPreview {
+  reconciliationId: string;
+  accountId: string;
+  /** `AAAA-MM-DD`: el día del conteo, que es hasta dónde filtran las deudas. */
+  date: string;
+  status: 'DRAFT' | 'CONFIRMED' | 'VOID';
+  expectedUsd: number;
+  totalUsd: number;
+  personalUsd: number;
+  businessActualUsd: number;
+  differenceUsd: number;
+  kind: ReconciliationKind;
+  applicationOrder: ApplicationOrder;
+  /** Si confirmar HOY registraría el ajuste. Con `false`, `plan` es null. */
+  willAttribute: boolean;
+  counterpartyId: string | null;
+  target: ObligationTarget | null;
+  obligations: Obligation[];
+  plan: ShortfallPlan | null;
 }
 
 export type RecordSource = 'MANUAL' | 'EXCEL_IMPORT' | 'RECONCILIATION' | 'MIGRATION';
@@ -144,14 +195,58 @@ export function useCashBreakdown(category: CashCategory | null) {
   });
 }
 
+/** La raíz de la caché de la previsualización del reparto. */
+const PLAN_KEY = ['cash', 'shortfall-plan'] as const;
+
+/**
+ * QUÉ PASARÍA al confirmar: el reparto del faltante y las deudas ELEGIBLES.
+ *
+ * Es solo lectura, pero CARO: por dentro arma el ledger entero del negocio.
+ * Por eso vive en la caché con la deuda elegida dentro de la clave —volver a
+ * una ya consultada no vuelve a pedir nada— y con un `staleTime`: sin él,
+ * React Query refresca en segundo plano cada vez que la clave cambia a una
+ * cacheada, y el ir y venir del selector sería una ráfaga de consultas.
+ *
+ * Que el dato no se quede viejo NO depende de ese tiempo: toda escritura de
+ * Caja invalida esta clave (ver `useCashMutation`). El `staleTime` solo evita
+ * repetir la consulta mientras nada cambió.
+ *
+ * ⚠️ `enabled` existe porque el diálogo está SIEMPRE montado (se abre y cierra
+ * con una prop). Sin él, cualquier borrador abierto dispararía esta consulta
+ * al entrar a la pantalla, con el diálogo cerrado.
+ */
+export function useShortfallPlan(
+  reconciliationId: string | null,
+  target: ObligationTarget | null,
+  { enabled = true }: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: [...PLAN_KEY, reconciliationId, target?.source ?? null, target?.sourceId ?? null],
+    queryFn: async () =>
+      (
+        await api.get<ShortfallPlanPreview>(`/cash/reconciliations/${reconciliationId}/plan`, {
+          // Los dos o ninguno: el servidor rechaza con 400 un destino a medias.
+          params: target
+            ? { targetSource: target.source, targetSourceId: target.sourceId }
+            : undefined,
+        })
+      ).data,
+    enabled: enabled && reconciliationId != null,
+    staleTime: 60_000,
+  });
+}
+
 /**
  * Cada escritura devuelve el resumen entero: se guarda directo en la caché.
  *
- * ⚠️ Y ADEMÁS se invalida `['cash', 'breakdown']`. El resumen se pisa a mano
- * (`setQueryData`), así que nada refresca el detalle por su cuenta: sin esta
- * línea el desplegable abierto seguiría mostrando los asientos viejos mientras
- * la línea de arriba ya cambió — la pantalla de dinero contradiciéndose a sí
- * misma, que es justo lo que el detalle existe para evitar.
+ * ⚠️ Y ADEMÁS se invalidan `['cash', 'breakdown']` y la previsualización del
+ * reparto. El resumen se pisa a mano (`setQueryData`), así que nada las
+ * refresca por su cuenta: sin estas líneas el desplegable abierto seguiría
+ * mostrando los asientos viejos, y corregir un borrador dejaría en pantalla el
+ * reparto del total anterior —con el MISMO id de conciliación, así que ni
+ * siquiera cambia la clave— mientras las cuatro líneas de arriba ya muestran
+ * el nuevo. La pantalla de dinero contradiciéndose a sí misma, que es justo lo
+ * que esta previsualización existe para evitar.
  */
 function useCashMutation<T>(fn: (v: T) => Promise<{ data: CashSummary }>) {
   const qc = useQueryClient();
@@ -160,6 +255,7 @@ function useCashMutation<T>(fn: (v: T) => Promise<{ data: CashSummary }>) {
     onSuccess: ({ data }) => {
       qc.setQueryData(['cash'], data);
       qc.invalidateQueries({ queryKey: ['cash', 'breakdown'] });
+      qc.invalidateQueries({ queryKey: PLAN_KEY });
     },
   });
 }
