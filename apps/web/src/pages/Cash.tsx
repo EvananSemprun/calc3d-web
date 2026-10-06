@@ -16,7 +16,7 @@ import {
   type ObligationCategory,
   type OwnerFinancingKey,
 } from '@calc3d/shared';
-import { Badge, Button, Card, CardContent, EmptyState, Field, FieldGrid, Input, NumberInput, PageSkeleton, Select, Stat, TableSkeleton } from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, Select, Stat, TableSkeleton } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
@@ -1150,36 +1150,32 @@ function ReconciliationDialog({
                 </label>
 
                 {atribuir && elegibles.length > 0 && (
-                  <FieldGrid min="11rem">
-                    <div className="col-span-full">
-                      <Field
-                        label="Contra qué deuda va el faltante"
-                        hint="Solo las deudas de la cuenta compartida anteriores al conteo."
-                      >
-                        {/* El valor es el estado LOCAL, no el eco del servidor:
-                            el control tiene que mostrar lo que el dueño acaba
-                            de elegir sin esperar la consulta. Lo que sí sale
-                            del servidor es el reparto de abajo. */}
-                        <Select
-                          value={destino ? clave(destino) : ''}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            const o = elegibles.find((d) => clave(d) === v);
-                            setDestino(o ? { source: o.source, sourceId: o.sourceId } : null);
-                          }}
-                        >
-                          <option value="">
-                            {automatico(previo?.applicationOrder ?? data.applicationOrder).opcion}
-                          </option>
-                          {elegibles.map((o) => (
-                            <option key={clave(o)} value={clave(o)}>
-                              {`${deudaTxt(o.category, o.date)} · faltan ${money(o.outstanding)}`}
-                            </option>
-                          ))}
-                        </Select>
-                      </Field>
-                    </div>
-                  </FieldGrid>
+                  <Field
+                    label="Contra qué deuda va el faltante"
+                    hint="Solo las deudas de la cuenta compartida anteriores al conteo."
+                  >
+                    {/* El valor es el estado LOCAL, no el eco del servidor:
+                        el control tiene que mostrar lo que el dueño acaba
+                        de elegir sin esperar la consulta. Lo que sí sale
+                        del servidor es el reparto de abajo. */}
+                    <Select
+                      value={destino ? clave(destino) : ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const o = elegibles.find((d) => clave(d) === v);
+                        setDestino(o ? { source: o.source, sourceId: o.sourceId } : null);
+                      }}
+                    >
+                      <option value="">
+                        {automatico(previo?.applicationOrder ?? data.applicationOrder).opcion}
+                      </option>
+                      {elegibles.map((o) => (
+                        <option key={clave(o)} value={clave(o)}>
+                          {`${deudaTxt(o.category, o.date)} · faltan ${money(o.outstanding)}`}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
                 )}
 
                 {atribuir &&
