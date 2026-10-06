@@ -51,8 +51,18 @@ export function CashPage() {
 
   if (isLoading || !data) return <PageSkeleton />;
   const nombre = data.counterparty.name;
-  /** El faltante más reciente que ya está CONFIRMADO: un borrador no acusa nada. */
-  const faltante = data.reconciliations.find((c) => c.status === 'CONFIRMED' && c.kind === 'SHORT');
+  /**
+   * El faltante más reciente que ya está CONFIRMADO: un borrador no acusa nada.
+   *
+   * ⚠️ Y que NO haya sido atribuido. Sin el `!c.adjustment`, el aviso seguía
+   * apareciendo después de mandar la diferencia a la deuda, pidiéndole al dueño
+   * que la cargue como pago a la contraparte — que es justo lo que acababa de
+   * hacer. Una pantalla de dinero no puede afirmar algo falso sobre lo que el
+   * dueño hizo hace un minuto.
+   */
+  const faltante = data.reconciliations.find(
+    (c) => c.status === 'CONFIRMED' && c.kind === 'SHORT' && !c.adjustment,
+  );
   const toca = tocaConciliar(data, settings?.reconciliationFrequency ?? 'NONE');
 
   return (
