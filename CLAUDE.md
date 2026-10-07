@@ -440,6 +440,27 @@ al scrollear. Arreglado el 2026-10-05.
   curso** (no la del rango del filtro: una meta mensual solo significa algo
   contra su mes). La barra se recorta al 100 % pero el número no: pasarse de la
   meta es información.
+  - **Selector de mes y "Sugerir metas"** (2026-10-07, shared 0.25.0).
+  - ⚠️ **Sugerir NO guarda.** Rellena el formulario y nada se escribe hasta
+    "Guardar". El endpoint (`GET /goals/suggestion`) es de solo lectura y hay un
+    test que recorre el mock exigiendo que en ese camino no exista ni un método
+    de escritura. El hook es **lazy**: cero peticiones hasta tocar el botón.
+  - ⚠️ **La explicación NOMBRA los meses usados**, no solo los cuenta. La base
+    son los últimos 3 completos que existen **hoy**, no los 3 anteriores al mes
+    elegido: el dueño carga con meses de anticipación y los previos a enero
+    todavía no terminaron. Cargando enero puede estar sugiriendo sobre
+    julio-septiembre — defendible solo si se ve.
+  - **Tres estados de mes**, decididos en hora local con `currentMonthKey()`:
+    **futuro** muestra la meta y "Aún no empezó" (sin porcentaje ni barra: un
+    0 % al lado de una meta de $450 se lee como un fracaso que no ocurrió),
+    **en curso** muestra el avance parcial rotulado, **cerrado** como siempre.
+  - Un mes **sin meta** igual muestra su resultado, con "Sin meta definida".
+    Para eso existe `GET /goals/actuals`, aparte de `GET /goals?month=`:
+    ⚠️ **esa devuelve `null` sin meta y el Dashboard cuenta con eso** para no
+    dibujar su tarjeta.
+  - El aviso de temporada va **arriba de Guardar**, y cuando no hay un año de
+    historial lo dice: *que no haya aviso no quiere decir que no pase*. El
+    primer mes medible es febrero 2027.
 - **Deuda** (`pages/Loans.tsx`, `features/loans/api.ts`, en Finanzas): préstamos
   con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
   préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
