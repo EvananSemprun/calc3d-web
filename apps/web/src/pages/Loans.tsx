@@ -370,6 +370,11 @@ function Pagos({ loan, ownerName }: { loan: Loan; ownerName: string }) {
   const { money } = useMoney();
   const confirm = useConfirm();
   const anular = useVoidLoanPayment();
+  // Quién puso la plata de una cuota NO es siempre el acreedor del préstamo:
+  // las 4 cuotas históricas las pagó el propietario. Resolver el nombre contra
+  // `loan.counterparty` dejaba a todas esas como "Una contraparte".
+  const { data: contrapartes = [] } = useCounterparties();
+  const nombrePorId = new Map(contrapartes.map((c) => [c.id, c.name]));
 
   const anularPago = async (p: LoanPayment) => {
     const ok = await confirm({
@@ -403,9 +408,7 @@ function Pagos({ loan, ownerName }: { loan: Loan; ownerName: string }) {
     // fila decía "La caja · Genera deuda", que es contradictorio: si pagó la
     // caja no hay a quién deberle. Muere con la migración 2.
     quien: p.counterpartyId
-      ? loan.counterparty?.id === p.counterpartyId
-        ? loan.counterparty.name
-        : 'Una contraparte'
+      ? (nombrePorId.get(p.counterpartyId) ?? 'Una contraparte')
       : p.paidBy === 'BUSINESS'
         ? 'La caja'
         : ownerName,
