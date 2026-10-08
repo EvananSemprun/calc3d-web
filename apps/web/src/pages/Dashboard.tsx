@@ -23,7 +23,7 @@ import {
   monthlyLoanPayments,
   campaignHealth,
 } from '@calc3d/shared';
-import { useLoans } from '@/features/loans/api';
+import { paraEquilibrio, useLoans } from '@/features/loans/api';
 import { useGoalForMonth } from '@/features/goals/api';
 import { useEquipmentRecovery } from '@/features/equipment/api';
 import { useCash } from '@/features/cash/api';
@@ -217,7 +217,7 @@ export function DashboardPage() {
   const niveles = breakEvenLevels({
     fixedMonthly: fijosMensuales,
     marginPct: settings?.breakEvenMarginPct ?? 0,
-    loanPayment: monthlyLoanPayments(loans),
+    loanPayment: monthlyLoanPayments(paraEquilibrio(loans)),
     equipmentReserve: settings?.equipmentReserve ?? 0,
   });
   const breakEven = niveles.survive;
@@ -372,8 +372,8 @@ export function DashboardPage() {
                   {
                     titulo: 'Además pagar la cuota',
                     meta: niveles.withDebt,
-                    detalle: `Suma ${money(monthlyLoanPayments(loans))} de préstamos al mes.`,
-                    oculto: monthlyLoanPayments(loans) <= 0,
+                    detalle: `Suma ${money(monthlyLoanPayments(paraEquilibrio(loans)))} de préstamos al mes.`,
+                    oculto: monthlyLoanPayments(paraEquilibrio(loans)) <= 0,
                   },
                   {
                     titulo: 'Además reservar para equipos',
