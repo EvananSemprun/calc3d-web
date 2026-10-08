@@ -481,6 +481,13 @@ al scrollear. Arreglado el 2026-10-05.
     `paidBy`. Sin el fallback, los pagos históricos del propietario se leían
     como "La caja" **y a la vez** "Genera deuda", que es contradictorio. Muere
     con la migración 2. **Esto se vio en la pantalla, no en los tests.**
+  - ⚠️ **Quién paga una cuota NO es el acreedor del préstamo.** Las 4 cuotas
+    históricas las puso el **propietario**, no el prestamista. La primera
+    versión del puente resolvía el nombre contra `loan.counterparty`, así que
+    apenas el backfill llenó `counterpartyId` las cuatro filas pasaron a decir
+    "Una contraparte". Se resuelve contra `useCounterparties()`, que la pantalla
+    ya tenía cargada. **Con `counterpartyId` nulo el bug no se ve**: apareció
+    recién al correr el backfill contra la base local.
   - ⚠️ **El Dashboard y esta pantalla pasan los préstamos por `paraEquilibrio()`**
     antes de `monthlyLoanPayments`: la cuota viene en SU frecuencia y hay que
     normalizarla. Pasar el préstamo crudo contaría una cuota semanal de $50 como
