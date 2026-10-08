@@ -465,6 +465,26 @@ al scrollear. Arreglado el 2026-10-05.
   con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
   préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
   equipo ya está ahí como inversión.
+  - **Muestra LAS DOS DEUDAS** (2026-10-08): lo que le debés al **prestamista** y
+    lo que el negocio le debe a la **contraparte**, obligación por obligación.
+    Caja muestra el resumen por fuente; acá se ve **cuál** gasto concreto sigue
+    sin devolverse. ⚠️ Las dos salen del mismo `CashService`: si esta pantalla
+    recalculara, el día que un filtro cambie dirían cosas distintas.
+  - **"Faltan X" son DOS lecturas**, al ritmo objetivo y al real. Una sola miente
+    con pagos irregulares, que es el caso real.
+  - **Anular reemplaza a borrar**: el pago queda tachado en el historial con su
+    motivo y el saldo vuelve a subir.
+  - Que un pago personal **genere deuda se pregunta**: la casilla aparece solo
+    cuando lo puso una persona, no la caja.
+  - ⚠️ **Puente temporal en "lo puso"**: mientras el backfill de pagadores no
+    corra en producción, `counterpartyId` está nulo y quién pagó vive en
+    `paidBy`. Sin el fallback, los pagos históricos del propietario se leían
+    como "La caja" **y a la vez** "Genera deuda", que es contradictorio. Muere
+    con la migración 2. **Esto se vio en la pantalla, no en los tests.**
+  - ⚠️ **El Dashboard y esta pantalla pasan los préstamos por `paraEquilibrio()`**
+    antes de `monthlyLoanPayments`: la cuota viene en SU frecuencia y hay que
+    normalizarla. Pasar el préstamo crudo contaría una cuota semanal de $50 como
+    $50 al mes.
 - **Caja** (`pages/Cash.tsx`, `features/cash/api.ts`, en Finanzas; rediseñada el
   2026-10-05, shared 0.21.0): saldo del negocio, lo que se le debe a la
   contraparte y al prestamista, las **conciliaciones** y los movimientos de
