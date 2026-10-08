@@ -858,6 +858,22 @@ rechaza crear `ENCARGO`). Lo demás:
   queda en $X"). El tipo **Publicidad** con
   "pagué en bolívares" elige una tasa VES + monto Bs y guarda `amount` en USD base
   (= Bs ÷ tasa) + `rate`/`currencyCode='VES'` para presentación.
+  - **"¿Quién lo pagó?" son CONTRAPARTES, no un enum** (2026-10-08, shared
+    0.26.0): la columna de la tabla y el campo del formulario listan las
+    contrapartes reales (`useCounterparties()`), con `''` = la caja. Ya no hay
+    una opción "El préstamo" suelta: si lo puso un prestamista, se elige al
+    prestamista. El filtro dejó de ser "Pagados por X" y pasó a **"Los puso una
+    persona"**, porque ahora incluye al prestamista y no solo al dueño.
+  - ⚠️ **`contraparteDe()` (`features/finance/api.ts`) es un PUENTE y muere con
+    la migración 2.** Un gasto anterior al backfill tiene `counterparty` nulo y
+    quién pagó vive en el enum; sin traducirlo, esos gastos aparecerían como
+    "la caja del negocio", que es **exactamente al revés** de lo que dicen: son
+    los que el dueño puso de su bolsillo. Usa la misma regla que el servidor.
+  - ⚠️ **El `Select` de `components/ui.tsx` no pasaba `aria-label` al trigger de
+    Radix.** Siete llamadas lo mandaban y se perdía en silencio —no estaba
+    declarado en las props, así que el objeto desestructurado lo descartaba— y
+    el lector de pantalla leía solo el valor. Arreglado el 2026-10-08; se ve con
+    `document.querySelectorAll('[aria-label]')` en una pantalla con desplegables.
 - **La ficha de un filamento vive en Stock del mes** (2026-09-14, shared 0.15.0;
   antes era la página Materiales, que se quitó por decisión del dueño). Tocar la
   marca de una fila abre `FichaDialog` (`features/filament/FichaDialog.tsx`):

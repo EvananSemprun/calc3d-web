@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { DateRange } from '@/features/finance/DateRange';
+import type { Counterparty, CounterpartyKind } from '@/features/cash/api';
 
 export interface SaleRow {
   id: string;
@@ -17,17 +18,26 @@ export interface SaleRow {
 export type PaidBy = 'BUSINESS' | 'OWNER' | 'LOAN';
 
 /**
- * Quién pagó, en palabras. Es una FUNCIÓN y no una constante porque el nombre
- * de la contraparte sale de la base: con un objeto fijo volvía el nombre propio
- * al código, que es justo lo que la fase 2 vino a sacar.
+ * El id de la contraparte que puso la plata, o `''` si fue la caja — que es lo
+ * que el desplegable necesita como valor.
  *
- * `nombre` sale de `useOwnerName()` (`features/cash/api.ts`).
+ * ⚠️ **PUENTE TEMPORAL.** Un gasto anterior al backfill tiene `counterparty`
+ * nulo y quién pagó vive en el enum. Sin esta traducción, esos gastos se verían
+ * como "la caja del negocio" en el desplegable, que es exactamente al revés de
+ * lo que dicen: son los que el dueño puso de su bolsillo. Se deduce con la
+ * MISMA regla del servidor (`quienPago` en `expenses.service.ts`): la
+ * propietaria por defecto y el único prestamista. Muere con la migración 2.
  */
-export const paidByLabels = (nombre: string): Record<PaidBy, string> => ({
-  BUSINESS: 'Negocio',
-  OWNER: nombre,
-  LOAN: 'Préstamo',
-});
+export function contraparteDe(e: ExpenseRow, contrapartes: Counterparty[]): string {
+  if (e.counterparty) return e.counterparty.id;
+  if (e.paidBy === 'BUSINESS') return '';
+  if (e.paidBy === 'LOAN') {
+    const prestamistas = contrapartes.filter((c) => c.kind === 'EXTERNAL_LENDER');
+    return prestamistas.length === 1 ? prestamistas[0].id : '';
+  }
+  const duenos = contrapartes.filter((c) => c.kind === 'OWNER' || c.kind === 'PARTNER');
+  return (duenos.find((c) => c.isDefault) ?? duenos[0])?.id ?? '';
+}
 
 export interface ExpenseLink {
   id: string;
@@ -38,8 +48,15 @@ export interface ExpenseRow {
   id: string;
   date: string;
   category: 'EQUIPMENT' | 'CONSUMABLE' | 'MAINTENANCE' | 'SHIPPING' | 'OTHER' | 'ADVERTISING' | 'DESIGN';
-  /** Quién lo pagó: alimenta la Caja y lo que el negocio le debe a la contraparte. */
+  /**
+   * Quién lo pagó: alimenta la Caja y lo que el negocio le debe a la contraparte.
+   *
+   * ⚠️ Lo reemplaza `counterparty` y muere con la migración 2. Mientras tanto
+   * sigue siendo lo que Caja lee, así que el servidor los escribe parejos.
+   */
   paidBy: PaidBy;
+  /** QUIÉN lo pagó. `null` = la caja del negocio… o un gasto sin migrar. */
+  counterparty: { id: string; name: string; kind: CounterpartyKind } | null;
   description: string;
   amount: number;
   isInvestment: boolean;

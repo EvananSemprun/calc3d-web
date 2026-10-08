@@ -130,10 +130,29 @@ export const Select = React.forwardRef<
     className?: string;
     placeholder?: string;
     children?: React.ReactNode;
+    /**
+     * ⚠️ Un desplegable sin etiqueta visible la necesita acá, y hay que PASARLA
+     * al trigger: Radix no la hereda del wrapper. Siete llamadas la mandaban y
+     * se perdía en silencio —el lector de pantalla leía solo el valor— porque
+     * esta prop no estaba declarada y el objeto desestructurado la descartaba.
+     */
+    'aria-label'?: string;
   }
 >(
   (
-    { value, defaultValue, onChange, onValueChange, onBlur, name, disabled, className, placeholder, children },
+    {
+      value,
+      defaultValue,
+      onChange,
+      onValueChange,
+      onBlur,
+      name,
+      disabled,
+      className,
+      placeholder,
+      children,
+      'aria-label': ariaLabel,
+    },
     ref,
   ) => {
     const opts: SelectOpt[] = [];
@@ -165,6 +184,7 @@ export const Select = React.forwardRef<
         <SelectPrimitive.Trigger
           ref={ref}
           onBlur={onBlur}
+          aria-label={ariaLabel}
           className={cn(
             'flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background/50 px-3 py-2 text-sm shadow-sm transition-all hover:border-brand-blue/50 focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground [&>span]:line-clamp-1 [&>span]:text-left',
             className,

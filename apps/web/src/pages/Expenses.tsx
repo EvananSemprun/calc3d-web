@@ -27,13 +27,12 @@ import {
   expenseLink,
   useExpenses,
   type ExpenseRow,
-  paidByLabels,
-  type PaidBy,
+  contraparteDe,
 } from '@/features/finance/api';
 import { catalogs } from '@/features/catalogs/config';
 import { Combobox } from '@/components/Combobox';
 import { useCampaigns } from '@/features/campaigns/api';
-import { useOwnerName } from '@/features/cash/api';
+import { useCounterparties } from '@/features/cash/api';
 import { useExchangeRates } from '@/features/settings/useExchangeRates';
 
 const todayIso = () => {
@@ -82,8 +81,7 @@ const numericDefaults: Record<string, number> = {
 };
 
 export function ExpensesPage() {
-  const nombre = useOwnerName();
-  const etiquetas = paidByLabels(nombre);
+  const { data: contrapartes = [] } = useCounterparties();
   const range = useDateRange('MONTH', 'expenses');
   const { money } = useMoney();
   const qc = useQueryClient();
@@ -98,7 +96,7 @@ export function ExpensesPage() {
       case 'maintenance': return e.category === 'MAINTENANCE';
       case 'advertising': return e.category === 'ADVERTISING';
       case 'design': return e.category === 'DESIGN';
-      case 'owner': return e.paidBy === 'OWNER';
+      case 'owner': return contraparteDe(e, contrapartes) !== '';
       case 'investment': return e.isInvestment;
       case 'general': return !e.material && !e.printer && !e.component && e.category !== 'MAINTENANCE' && e.category !== 'ADVERTISING' && e.category !== 'DESIGN';
       default: return true;
@@ -120,8 +118,8 @@ export function ExpensesPage() {
   // Quién lo pagó se corrige desde la tabla: los gastos viejos nacieron todos
   // como "Negocio" y la Caja depende de que esto esté bien.
   const cambiarPagador = useMutation({
-    mutationFn: ({ id, paidBy }: { id: string; paidBy: PaidBy }) =>
-      api.patch(`/expenses/${id}`, { paidBy }),
+    mutationFn: ({ id, counterpartyId }: { id: string; counterpartyId: string | null }) =>
+      api.patch(`/expenses/${id}`, { counterpartyId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['cash'] });
@@ -171,7 +169,7 @@ export function ExpensesPage() {
             <option value="advertising">Publicidad</option>
             <option value="design">Diseño</option>
             <option value="investment">Inversión</option>
-            <option value="owner">{`Pagados por ${nombre}`}</option>
+            <option value="owner">Los puso una persona</option>
             <option value="general">General</option>
           </Select>
         </FilterBar>
@@ -262,16 +260,20 @@ export function ExpensesPage() {
                         <td className="px-4 py-3 text-right tabular font-semibold">{money(e.amount)}</td>
                         <td className="px-4 py-3">
                           <Select
-                            className="h-8 w-[7.5rem] text-xs"
-                            value={e.paidBy}
+                            className="h-8 w-[9rem] text-xs"
+                            value={contraparteDe(e, contrapartes)}
                             aria-label={`Quién pagó: ${e.description}`}
                             onChange={(ev) =>
-                              cambiarPagador.mutate({ id: e.id, paidBy: ev.target.value as PaidBy })
+                              cambiarPagador.mutate({
+                                id: e.id,
+                                counterpartyId: ev.target.value || null,
+                              })
                             }
                           >
-                            {(Object.keys(etiquetas) as PaidBy[]).map((k) => (
-                              <option key={k} value={k}>
-                                {etiquetas[k]}
+                            <option value="">Negocio</option>
+                            {contrapartes.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
                               </option>
                             ))}
                           </Select>
@@ -322,7 +324,7 @@ export function ExpensesPage() {
 }
 
 function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const nombre = useOwnerName();
+  const { data: contrapartes = [] } = useCounterparties();
   const qc = useQueryClient();
   const [typeKey, setTypeKey] = useState('filament');
   const [mode, setMode] = useState<'existing' | 'new'>('new');
@@ -347,7 +349,9 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const [catForm, setCatForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   // Por defecto lo paga el negocio; si lo pagó el propietario, la Caja lo cuenta como aporte.
-  const [paidBy, setPaidBy] = useState<PaidBy>('BUSINESS');
+  // `''` = la caja del negocio. No hay opción "préstamo" suelta: si lo puso un
+  // prestamista, se elige al prestamista.
+  const [counterpartyId, setCounterpartyId] = useState('');
 
   const type = EXPENSE_TYPES.find((t) => t.key === typeKey)!;
   const linksCatalog = !!type.catalog;
@@ -411,7 +415,7 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
             isInvestment: !!type.investment,
             quantity: type.perUnit ? quantity : null,
             providerId: providerId || null,
-            paidBy,
+            counterpartyId: counterpartyId || null,
           },
           link: {
             kind,
@@ -441,7 +445,7 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           category: type.category,
           isInvestment: !!type.investment,
           quantity: type.perUnit ? quantity : null,
-          paidBy,
+          counterpartyId: counterpartyId || null,
         };
         const payload: Record<string, unknown> = { ...base, description, endDate: endDate || null, providerId: providerId || null };
         if (type.key === 'maintenance' && selectedId) payload.printerId = selectedId;
@@ -678,10 +682,13 @@ function ExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         label="¿Quién lo pagó?"
         hint="Si lo pagaste de tu bolsillo, la Caja lo cuenta como aporte que el negocio te debe."
       >
-        <Select value={paidBy} onChange={(e) => setPaidBy(e.target.value as PaidBy)}>
-          <option value="BUSINESS">La caja del negocio</option>
-          <option value="OWNER">{`${nombre}, de su bolsillo`}</option>
-          <option value="LOAN">El préstamo</option>
+        <Select value={counterpartyId} onChange={(e) => setCounterpartyId(e.target.value)}>
+          <option value="">La caja del negocio</option>
+          {contrapartes.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.kind === 'EXTERNAL_LENDER' ? c.name : `${c.name}, de su bolsillo`}
+            </option>
+          ))}
         </Select>
       </Field>
 
