@@ -896,11 +896,11 @@ rechaza crear `ENCARGO`). Lo demás:
     una opción "El préstamo" suelta: si lo puso un prestamista, se elige al
     prestamista. El filtro dejó de ser "Pagados por X" y pasó a **"Los puso una
     persona"**, porque ahora incluye al prestamista y no solo al dueño.
-  - ⚠️ **`contraparteDe()` (`features/finance/api.ts`) es un PUENTE y muere con
-    la migración 2.** Un gasto anterior al backfill tiene `counterparty` nulo y
-    quién pagó vive en el enum; sin traducirlo, esos gastos aparecerían como
-    "la caja del negocio", que es **exactamente al revés** de lo que dicen: son
-    los que el dueño puso de su bolsillo. Usa la misma regla que el servidor.
+  - Entre el 08 y el 10 de octubre hubo un puente, `contraparteDe()`, que
+    deducía quién pagó cuando `counterparty` venía nulo: sin él, los gastos que
+    el dueño había puesto de su bolsillo aparecían como "la caja del negocio",
+    **exactamente al revés** de lo que decían. **Ya no está**: con el enum
+    borrado, `counterparty` nulo significa la caja y punto.
   - ⚠️ **El `Select` de `components/ui.tsx` no pasaba `aria-label` al trigger de
     Radix.** Siete llamadas lo mandaban y se perdía en silencio —no estaba
     declarado en las props, así que el objeto desestructurado lo descartaba— y
