@@ -8,6 +8,7 @@ import {
   Target,
   Calculator,
   Disc3,
+  FileText,
   LayoutDashboard,
   PieChart,
   ShoppingCart,
@@ -76,6 +77,8 @@ const navGroups: {
       // Acceso directo a una PESTAÑA de Encargos: es consulta frecuente y el
       // dueño no quiso perder el click directo.
       { to: '/orders/por-cobrar', label: 'Por cobrar', icon: HandCoins },
+      // El espejo de "Por cobrar": lo que VOS debés por lo que encargaste.
+      { to: '/compras', label: 'Compras', icon: FileText },
       { to: '/cash', label: 'Caja', icon: Wallet },
       { to: '/loans', label: 'Deuda', icon: Landmark },
       { to: '/goals', label: 'Metas', icon: Target },

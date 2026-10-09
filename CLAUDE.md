@@ -870,6 +870,24 @@ rechaza crear `ENCARGO`). Lo demás:
   - En los catálogos con `costDefinition` (impresoras, insumos) **no hay botón
     "Agregar"**: la ficha nace al registrar la compra. Ese botón es ahora
     "Registrar compra" y abre el mismo modal, en vez de mandarte a Gastos.
+- **Compras** (`pages/Purchases.tsx`, `features/purchases/api.ts`, en Finanzas,
+  2026-10-09): facturas y encargos de **filamento e impresoras**. Lo que
+  pediste, lo que abonaste y lo que falta llegar. Está al lado de "Por cobrar"
+  a propósito: es su espejo — lo que VOS debés.
+  - ⚠️ **Son DOS estados, no uno**, y la tarjeta muestra los dos: una factura
+    puede estar *Pagada* y *Sin llegar*, que es lo normal cuando encargás algo.
+    Un solo "estado" tendría que elegir cuál de las dos verdades contar.
+  - ⚠️ **Cargar la factura NO mueve la Caja; abonar SÍ.** El formulario lo dice
+    en el pie. Y al recibir, el diálogo aclara que *la plata ya se contó al
+    abonar*: si no, el dueño vería entrar mercadería y esperaría que el saldo
+    bajara otra vez.
+  - Una línea puede ser **algo que todavía no tenés**: la ficha se crea al
+    recibirla, con el precio de la compra y 1000 g. Marca, tipo y color se
+    corrigen después desde Stock del mes.
+  - **Recepción parcial**: pediste 10, llegaron 6, la línea queda esperando 4.
+    El campo se recorta solo a lo que falta.
+  - Abonar de más **no se bloquea** —esa plata salió— pero se avisa antes de
+    guardar y la factura queda marcada como *Pagada de más*.
   - **Una compra de filamento se CORRIGE desde su lista** (2026-10-09,
     `features/filament/EditarCompra.tsx`): el lápiz en la tabla, la tarjeta
     entera en el teléfono. Se puede cambiar todo, incluso a qué ficha se le

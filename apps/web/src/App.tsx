@@ -19,6 +19,7 @@ import { CalendarPage } from '@/pages/Calendar';
 import { ReceivablesPage } from '@/pages/Receivables';
 import { LoansPage } from '@/pages/Loans';
 import { CashPage } from '@/pages/Cash';
+import { PurchasesPage } from '@/pages/Purchases';
 import { GoalsPage } from '@/pages/Goals';
 import { ProductionPage } from '@/pages/Production';
 // La lista de Publicidad carga Recharts (gráficos) → chunk aparte bajo demanda.
@@ -88,6 +89,7 @@ export function App() {
         {/* Direcciones viejas: redirigen para no romper favoritos. */}
         <Route path="/calendar" element={<Navigate to="/orders/calendario" replace />} />
         <Route path="/receivables" element={<Navigate to="/orders/por-cobrar" replace />} />
+        <Route path="/compras" element={<PurchasesPage />} />
         <Route path="/cash" element={<CashPage />} />
         <Route path="/loans" element={<LoansPage />} />
         <Route path="/goals" element={<GoalsPage />} />
