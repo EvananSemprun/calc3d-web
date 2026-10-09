@@ -17,6 +17,7 @@ import { catalogs } from '@/features/catalogs/config';
 import { Combobox } from '@/components/Combobox';
 import { useCampaigns } from '@/features/campaigns/api';
 import { useCounterparties } from '@/features/cash/api';
+import { useContacts } from '@/features/contacts/api';
 import { useExchangeRates } from '@/features/settings/useExchangeRates';
 
 /**
@@ -29,6 +30,9 @@ import { useExchangeRates } from '@/features/settings/useExchangeRates';
  *
  * Con `tipoFijo` el tipo no se elige: entraste por Filamento, es filamento.
  */
+
+/** Valor centinela del desplegable: "no está en la lista, lo escribo". */
+const OTRO = '__otro__';
 
 const todayIso = () => {
   const d = new Date();
@@ -110,7 +114,11 @@ export function ExpenseModal({
   const [quantity, setQuantity] = useState(1);
   const [description, setDescription] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  // El proveedor es un contacto del directorio. `OTRO` abre el campo de texto
+  // para uno que todavía no existe: el servidor lo crea al guardar, para no
+  // cortarte el formulario y mandarte a Contactos a mitad de camino.
   const [providerId, setProviderId] = useState('');
+  const [providerName, setProviderName] = useState('');
   const [updatePrice, setUpdatePrice] = useState(true);
   const [catForm, setCatForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
@@ -133,11 +141,10 @@ export function ExpenseModal({
   });
   const elegidaDescontinuada = items.find((i) => i.id === selectedId)?.status === 'DISCONTINUED';
 
-  // Proveedores (opcional, para cualquier tipo de gasto).
-  const { data: providers = [] } = useQuery({
-    queryKey: ['providers'],
-    queryFn: async () => (await api.get<{ id: string; name: string }[]>('/providers')).data,
-  });
+  // Proveedores (opcional, para cualquier tipo de gasto): los contactos con
+  // tipo Proveedor. Mezclar los clientes haría crecer el desplegable sin control.
+  const { data: contactos = [] } = useContacts();
+  const providers = contactos.filter((c) => c.type === 'SUPPLIER');
 
   const initCatForm = (key: string) => {
     const c = EXPENSE_TYPES.find((t) => t.key === key)?.catalog;
@@ -180,7 +187,7 @@ export function ExpenseModal({
             description: description || name,
             isInvestment: !!type.investment,
             quantity: type.perUnit ? quantity : null,
-            providerId: providerId || null,
+            ...proveedorParaGuardar,
             counterpartyId: counterpartyId || null,
           },
           link: {
@@ -213,7 +220,7 @@ export function ExpenseModal({
           quantity: type.perUnit ? quantity : null,
           counterpartyId: counterpartyId || null,
         };
-        const payload: Record<string, unknown> = { ...base, description, endDate: endDate || null, providerId: providerId || null };
+        const payload: Record<string, unknown> = { ...base, description, endDate: endDate || null, ...proveedorParaGuardar };
         if (type.key === 'maintenance' && selectedId) payload.printerId = selectedId;
         if (type.key === 'advertising' && campaignId) payload.campaignId = campaignId;
         if (useBs) {
@@ -228,6 +235,16 @@ export function ExpenseModal({
       setSaving(false);
     }
   };
+
+  /**
+   * Lo que viaja: el id de un proveedor que ya existe, o el NOMBRE de uno
+   * nuevo. Nunca los dos — el servidor le daría prioridad al id y el nombre
+   * que escribiste se perdería sin decir nada.
+   */
+  const proveedorParaGuardar =
+    providerId === OTRO
+      ? { providerName: providerName.trim() || null }
+      : { providerId: providerId || null };
 
   const needsDescription = !linksCatalog; // general/mantenimiento
   const bsActive = type.key === 'advertising' && payBs;
@@ -436,7 +453,10 @@ export function ExpenseModal({
         />
       </Field>
 
-      <Field label="Proveedor (opcional)">
+      <Field
+        label="Proveedor (opcional)"
+        hint={providerId === OTRO ? 'Se agrega al directorio como proveedor.' : undefined}
+      >
         <Select value={providerId} onChange={(e) => setProviderId(e.target.value)}>
           <option value="">Sin proveedor</option>
           {providers.map((p) => (
@@ -444,8 +464,17 @@ export function ExpenseModal({
               {p.name}
             </option>
           ))}
+          <option value={OTRO}>Otro (escribirlo)…</option>
         </Select>
       </Field>
+      {providerId === OTRO && (
+        <Input
+          value={providerName}
+          onChange={(e) => setProviderName(e.target.value)}
+          placeholder="Nombre del proveedor"
+          aria-label="Nombre del proveedor nuevo"
+        />
+      )}
 
       <Field
         label="¿Quién lo pagó?"

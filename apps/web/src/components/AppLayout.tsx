@@ -20,7 +20,6 @@ import {
   Printer,
   Puzzle,
   Users,
-  Truck,
   MapPin,
   Store,
   Inbox,
@@ -122,7 +121,6 @@ const navGroups: {
     items: [
       { to: '/catalogs/printers', label: 'Impresoras', icon: Printer },
       { to: '/catalogs/components', label: 'Insumos', icon: Puzzle },
-      { to: '/catalogs/providers', label: 'Proveedores', icon: Truck },
     ],
   },
   { items: [{ to: '/settings', label: 'Configuración', icon: SettingsIcon }] },

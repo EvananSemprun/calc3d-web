@@ -3,7 +3,6 @@ import {
   ComponentSchema,
   MaterialSchema,
   PrinterSchema,
-  ProviderSchema,
   type CatalogOptionKind,
 } from '@calc3d/shared';
 import type { ZodSchema } from 'zod';
@@ -129,21 +128,6 @@ export const catalogs: Record<string, CatalogConfig> = {
     title: 'Clientes',
     singular: 'cliente',
     schema: ClientSchema,
-    fields: [
-      { name: 'name', label: 'Nombre', type: 'text' },
-      { name: 'contact', label: 'Contacto (correo/teléfono)', type: 'text', optional: true },
-    ],
-    columns: [
-      { key: 'name', label: 'Nombre' },
-      { key: 'contact', label: 'Contacto' },
-    ],
-  },
-  providers: {
-    route: 'providers',
-    endpoint: 'providers',
-    title: 'Proveedores',
-    singular: 'proveedor',
-    schema: ProviderSchema,
     fields: [
       { name: 'name', label: 'Nombre', type: 'text' },
       { name: 'contact', label: 'Contacto (correo/teléfono)', type: 'text', optional: true },

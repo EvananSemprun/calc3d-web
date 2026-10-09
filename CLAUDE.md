@@ -873,6 +873,19 @@ rechaza crear `ENCARGO`). Lo demás:
   - En los catálogos con `costDefinition` (impresoras, insumos) **no hay botón
     "Agregar"**: la ficha nace al registrar la compra. Ese botón es ahora
     "Registrar compra" y abre el mismo modal, en vez de mandarte a Gastos.
+  - **Proveedores: una sola puerta, la del directorio** (2026-10-09). Había una
+    página `/catalogs/providers` con su propia tabla de dos campos, y además el
+    tipo "Proveedor" de Contactos, que guarda teléfono, RIF, ciudad y mapa. Se
+    fue la página: la ruta **redirige a `/contacts`** (podía estar en
+    favoritos) y el campo "Proveedor (opcional)" del gasto lista los contactos
+    con `type === 'SUPPLIER'`. Mezclar los clientes haría crecer ese
+    desplegable sin control.
+  - La opción **"Otro (escribirlo)…"** abre un campo de texto y manda
+    `providerName`: el servidor crea el contacto al guardar. Es el mismo
+    principio que el alta inline de la ficha de filamento — no cortarte el
+    formulario para mandarte a otra pantalla. **Se manda el id O el nombre,
+    nunca los dos**: el servidor prioriza el id y el nombre escrito se
+    perdería sin avisar.
   - **"¿Quién lo pagó?" son CONTRAPARTES, no un enum** (2026-10-08, shared
     0.26.0): la columna de la tabla y el campo del formulario listan las
     contrapartes reales (`useCounterparties()`), con `''` = la caja. Ya no hay

@@ -19,7 +19,6 @@ import {
   Puzzle,
   Users,
   MapPin,
-  Truck,
   Settings as SettingsIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -53,7 +52,6 @@ const PAGES: Cmd[] = [
   { key: 'p-fil-stats', group: 'Ir a', label: 'Análisis de filamento', to: '/filament/analisis', icon: LayoutDashboard },
   { key: 'p-print', group: 'Ir a', label: 'Impresoras', to: '/catalogs/printers', icon: Printer },
   { key: 'p-comp', group: 'Ir a', label: 'Insumos', to: '/catalogs/components', icon: Puzzle },
-  { key: 'p-prov', group: 'Ir a', label: 'Proveedores', to: '/catalogs/providers', icon: Truck },
   { key: 'p-settings', group: 'Ir a', label: 'Configuración', to: '/settings', icon: SettingsIcon },
 ];
 
