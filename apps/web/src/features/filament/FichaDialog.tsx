@@ -10,13 +10,25 @@ import { useCorrectMaterial, useDeleteMaterial, useSetMaterialStatus } from '@/f
 
 /**
  * LA FICHA DE UN ROLLO, desde Stock del mes. Reemplaza a la página Materiales
- * (se quitó el 2026-09-14). Solo se corrigen nombre y color — tipeos: el precio
- * sale de la compra y marca, tipo y gramos quedan como nacieron (decisión del
- * dueño). Cada acción cierra el diálogo: la fila se refresca con lo nuevo.
+ * (se quitó el 2026-09-14).
+ *
+ * Se corrigen **nombre, color, marca y tipo**. Marca y tipo entraron el
+ * 2026-10-09: sin ellos, un rollo cargado como "PLA mate" que resultó ser otra
+ * cosa no tenía arreglo. ⚠️ Corregirlos **reagrupa el análisis** por marca y
+ * por tipo — que es para lo que sirve.
+ *
+ * ⚠️ Los **gramos del rollo** y el **precio** no están, y no es un olvido: los
+ * gramos reescriben el costo por gramo de todas las compras pasadas de esa
+ * ficha, y el precio sale SIEMPRE de la última compra. El servidor los
+ * descarta aunque se los manden.
+ *
+ * Cada acción cierra el diálogo: la fila se refresca con lo nuevo.
  */
 export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: () => void }) {
   const [name, setName] = useState(fila.name);
   const [color, setColor] = useState(fila.color ?? '');
+  const [brand, setBrand] = useState(fila.brand ?? '');
+  const [type, setType] = useState(fila.type ?? '');
   const corregir = useCorrectMaterial();
   const cambiarEstado = useSetMaterialStatus();
   const borrar = useDeleteMaterial();
@@ -26,12 +38,18 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
   const descontinuada = fila.status === 'DISCONTINUED';
   const nombreLimpio = name.trim();
   const colorLimpio = color.trim() || null;
-  const sinCambios = nombreLimpio === fila.name && colorLimpio === (fila.color ?? null);
+  const marcaLimpia = brand.trim() || null;
+  const tipoLimpio = type.trim() || null;
+  const sinCambios =
+    nombreLimpio === fila.name &&
+    colorLimpio === (fila.color ?? null) &&
+    marcaLimpia === (fila.brand ?? null) &&
+    tipoLimpio === (fila.type ?? null);
   const titulo = [fila.type, fila.color].filter(Boolean).join(' ') || fila.name;
 
   const guardar = () =>
     corregir.mutate(
-      { id: fila.materialId, name: nombreLimpio, color: colorLimpio },
+      { id: fila.materialId, name: nombreLimpio, color: colorLimpio, brand: marcaLimpia, type: tipoLimpio },
       {
         onSuccess: () => {
           notify.success('Ficha corregida');
@@ -113,6 +131,12 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
           <h3 className="text-sm font-semibold">Corregir</h3>
           <Field label="Nombre">
             <Input value={name} onChange={(e) => setName(e.target.value)} disabled={ocupado} autoFocus />
+          </Field>
+          <Field label="Marca (opcional)" hint="Agrupa el análisis: corregirla reacomoda el histórico.">
+            <Combobox kind="MATERIAL_BRAND" value={brand} onChange={setBrand} />
+          </Field>
+          <Field label="Tipo (PLA, PETG…) (opcional)" hint="Escribí uno nuevo y queda en la lista.">
+            <Combobox kind="MATERIAL_TYPE" value={type} onChange={setType} />
           </Field>
           <Field label="Color (opcional)">
             <Combobox kind="MATERIAL_COLOR" value={color} onChange={setColor} />

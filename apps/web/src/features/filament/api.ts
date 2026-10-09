@@ -147,8 +147,17 @@ function useInvalidarFichas() {
 export function useCorrectMaterial() {
   const invalidar = useInvalidarFichas();
   return useMutation({
-    mutationFn: async ({ id, name, color }: { id: string; name: string; color: string | null }) => {
-      const { data } = await api.patch(`/materials/${id}`, { name, color });
+    mutationFn: async ({
+      id,
+      ...correccion
+    }: {
+      id: string;
+      name: string;
+      color: string | null;
+      brand: string | null;
+      type: string | null;
+    }) => {
+      const { data } = await api.patch(`/materials/${id}`, correccion);
       return data;
     },
     onSuccess: invalidar,

@@ -122,7 +122,9 @@ export function Combobox({
           <div id="combobox-list" role="listbox" className="max-h-56 overflow-y-auto p-1">
             {filtered.map((o, i) => (
               <div
-                key={o.id}
+                // Sin `id` (valor en uso, no registrado) la clave sale del
+                // valor: con varios `null`, React los trata como el mismo.
+                key={o.id ?? o.value}
                 id={`combobox-opt-${i}`}
                 role="option"
                 aria-selected={o.value === value}
@@ -145,10 +147,17 @@ export function Combobox({
                   />
                   <span className="truncate">{o.value}</span>
                 </button>
+                {/*
+                  Sin `id` el valor está EN USO en una ficha pero no es una
+                  fila de la lista administrada: no hay nada que borrar, y
+                  esconder la papelera dice la verdad mejor que un error.
+                */}
                 <button
                   type="button"
                   title="Quitar de la lista"
+                  hidden={o.id == null}
                   onClick={async () => {
+                    if (o.id == null) return;
                     if (
                       await confirm({
                         title: `¿Quitar "${o.value}" de la lista?`,

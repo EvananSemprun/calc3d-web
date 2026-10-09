@@ -930,8 +930,13 @@ rechaza crear `ENCARGO`). Lo demás:
 - **La ficha de un filamento vive en Stock del mes** (2026-09-14, shared 0.15.0;
   antes era la página Materiales, que se quitó por decisión del dueño). Tocar la
   marca de una fila abre `FichaDialog` (`features/filament/FichaDialog.tsx`):
-  **corregir SOLO nombre y color** (`PATCH /materials/:id`; marca, tipo, gramos y
-  precio quedan como nacieron; `<form>` con Enter=Guardar y `autoFocus`),
+  **corregir nombre, color, marca y tipo** (`PATCH /materials/:id`; `<form>` con
+  Enter=Guardar y `autoFocus`). ⚠️ Marca y tipo entraron el 2026-10-09
+  revirtiendo la decisión del 2026-09-14: sin ellos, un rollo cargado como "PLA
+  mate" que era otra cosa no tenía arreglo. **Gramos y precio siguen fuera**:
+  los gramos reescriben el costo por gramo de todas sus compras pasadas.
+  Corregir marca o tipo **reagrupa el análisis**, que sale de
+  `filament-purchases` y ya está en la lista que se invalida. También:
   **Descontinuar / Reactivar** con confirmación (`PATCH /materials/:id/status`) y
   **Borrar** solo si `canDelete` (sin compras ni conteos; si no, la API da 409).
   Cada acción invalida `materials`, `filament-stock`, `filament-summary` y
