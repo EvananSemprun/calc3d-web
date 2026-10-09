@@ -899,7 +899,7 @@ rechaza crear `ENCARGO`). Lo demás:
     declarado en las props, así que el objeto desestructurado lo descartaba— y
     el lector de pantalla leía solo el valor. Arreglado el 2026-10-08; se ve con
     `document.querySelectorAll('[aria-label]')` en una pantalla con desplegables.
-  - **El `Select` trae BUSCADOR solo?si la lista es larga** (2026-10-09,
+  - **El `Select` trae BUSCADOR solo si la lista es larga** (2026-10-09,
     `MINIMO_PARA_BUSCAR = 8`). Debajo de eso un campo de texto arriba de cuatro
     opciones estorba; arriba, encontrar un filamento entre 53 a fuerza de
     scroll es el problema real. No hay que pedirlo en cada llamada: sale solo.
