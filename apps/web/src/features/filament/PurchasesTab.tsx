@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
-import { ShoppingCart } from 'lucide-react';
-import { Card, CardContent, EmptyState, FilterBar, Select, Stat, TableSkeleton } from '@/components/ui';
+import { useMemo, useState } from 'react';
+import { Plus, ShoppingCart } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Button, Card, CardContent, EmptyState, FilterBar, Select, Stat, TableSkeleton } from '@/components/ui';
+import { ExpenseModal } from '@/features/finance/ExpenseModal';
 import { useMoney } from '@/features/settings/useSettings';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { usePersistentState } from '@/lib/usePersistentState';
@@ -16,6 +18,10 @@ import { useFilamentPurchases } from '@/features/filament/api';
  */
 export function PurchasesTab() {
   const range = useDateRange('ALL', 'filament-purchases');
+  // La compra se registra ACÁ, que es donde está la lista. Antes había que ir a
+  // Gastos y volver a decir "filamento", un dato que esta pantalla ya sabe.
+  const [registrando, setRegistrando] = useState(false);
+  const qc = useQueryClient();
   const { money } = useMoney();
   const [materialF, setMaterialF] = usePersistentState('filament:purchases:material', '');
   const [proveedorF, setProveedorF] = usePersistentState('filament:purchases:provider', '');
@@ -62,6 +68,13 @@ export function PurchasesTab() {
             </option>
           ))}
         </Select>
+        <Button
+          variant="accent"
+          className="col-span-full w-full sm:ml-auto sm:w-auto"
+          onClick={() => setRegistrando(true)}
+        >
+          <Plus className="h-4 w-4" /> Registrar compra
+        </Button>
       </FilterBar>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -78,7 +91,7 @@ export function PurchasesTab() {
           title="Sin compras de filamento"
           description={
             compras.length === 0
-              ? 'Las compras se registran desde Gastos, con el tipo "Filamento".'
+              ? 'Todavía no registraste ninguna. Usá "Registrar compra" acá arriba.'
               : 'Ninguna compra coincide con los filtros.'
           }
         />
@@ -144,6 +157,16 @@ export function PurchasesTab() {
             </div>
           </CardContent>
         </Card>
+      )}
+      {registrando && (
+        <ExpenseModal
+          tipoFijo="filament"
+          onClose={() => setRegistrando(false)}
+          onSaved={() => {
+            setRegistrando(false);
+            qc.invalidateQueries({ queryKey: ['expenses'] });
+          }}
+        />
       )}
     </div>
   );

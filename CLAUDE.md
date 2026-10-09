@@ -848,8 +848,8 @@ rechaza crear `ENCARGO`). Lo demás:
   impresoras, componentes/insumos, proveedores). Los combobox de marca/tipo/color del
   filamento se renderizan aquí vía `Controller`. Alta con **detección de duplicados**
   por nombre.
-- **Registro dinámico de gastos** (`pages/Expenses.tsx`): un modal elige el **tipo**
-  (Filamento/Impresora/Componente/Empaque/Mantenimiento/General/Publicidad) y, si mapea
+- **Registro dinámico de gastos** (`features/finance/ExpenseModal.tsx`, usado por
+  `pages/Expenses.tsx`): un modal elige el **tipo** y, si mapea
   a catálogo, deja **reusar** un item existente o **crearlo inline** (reusa
   `features/catalogs/config.ts`) → crea catálogo + gasto enlazado en una acción. Check
   "usar como precio de referencia" → `PATCH` PARCIAL al item (**no en Filamento**: el
@@ -858,6 +858,21 @@ rechaza crear `ENCARGO`). Lo demás:
   queda en $X"). El tipo **Publicidad** con
   "pagué en bolívares" elige una tasa VES + monto Bs y guarda `amount` en USD base
   (= Bs ÷ tasa) + `rate`/`currencyCode='VES'` para presentación.
+  - **Cada compra se registra EN SU ÁREA** (2026-10-09): el filamento en
+    `/filament/compras`, la impresora y el insumo en su catálogo. Antes había
+    que salir a Gastos y volver a decir de qué era — un dato que la pantalla de
+    la que venías ya sabía. El modal vive en `features/finance/ExpenseModal.tsx`
+    justamente para poder abrirse desde las tres; con `tipoFijo` el selector de
+    tipo **no se dibuja** y el título dice "Registrar compra de X".
+  - ⚠️ **`zona` en `EXPENSE_TYPES` y el desplegable de Gastos son un PAR.** El
+    tipo que tiene `zona` NO se ofrece en Gastos (`TIPOS_SIN_ZONA`), porque
+    habría dos caminos para lo mismo. Si agregás un botón en una pantalla
+    nueva, marcá su tipo con `zona`; si sacás el botón, sacá la marca, o **el
+    tipo se queda sin ninguna puerta**. Hoy Gastos ofrece solo Mantenimiento,
+    General, Diseño y Publicidad.
+  - En los catálogos con `costDefinition` (impresoras, insumos) **no hay botón
+    "Agregar"**: la ficha nace al registrar la compra. Ese botón es ahora
+    "Registrar compra" y abre el mismo modal, en vez de mandarte a Gastos.
   - **"¿Quién lo pagó?" son CONTRAPARTES, no un enum** (2026-10-08, shared
     0.26.0): la columna de la tabla y el campo del formulario listan las
     contrapartes reales (`useCounterparties()`), con `''` = la caja. Ya no hay

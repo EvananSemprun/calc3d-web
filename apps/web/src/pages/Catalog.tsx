@@ -23,6 +23,16 @@ import { Dialog, useConfirm, Tooltip } from '@/components/overlays';
 import { Combobox } from '@/components/Combobox';
 import { notify } from '@/components/toast';
 import { catalogs, type CatalogConfig, type CatalogField } from '@/features/catalogs/config';
+import { ExpenseModal } from '@/features/finance/ExpenseModal';
+
+/**
+ * El tipo de gasto que corresponde a este catálogo, si comprarlo es un gasto.
+ *
+ * ⚠️ Son justo los catálogos con `costDefinition`: su ficha NO se crea a mano
+ * (el botón "Agregar" está oculto), nace al registrar la compra. Antes eso
+ * obligaba a salir a Gastos; ahora la compra se registra desde acá.
+ */
+const TIPO_DE_GASTO: Record<string, string> = { printers: 'printer', components: 'component' };
 
 type Row = Record<string, unknown> & { id: string };
 
@@ -43,6 +53,8 @@ export function CatalogPage() {
 
 function CatalogView({ config }: { config: CatalogConfig }) {
   const qc = useQueryClient();
+  const tipoDeGasto = TIPO_DE_GASTO[config.route];
+  const [comprando, setComprando] = useState(false);
   const { money } = useMoney();
   const [editing, setEditing] = useState<Row | null>(null);
   const [open, setOpen] = useState(false);
@@ -95,7 +107,13 @@ function CatalogView({ config }: { config: CatalogConfig }) {
             <p className="text-sm text-muted-foreground">Catálogo reutilizable en tus presupuestos.</p>
           </div>
         </div>
-        {!config.costDefinition && (
+        {config.costDefinition ? (
+          tipoDeGasto && (
+            <Button variant="accent" className="w-full sm:w-auto" onClick={() => setComprando(true)}>
+              <Plus className="h-4 w-4" /> Registrar compra
+            </Button>
+          )
+        ) : (
           <Button variant="accent" className="w-full sm:w-auto" onClick={startCreate}>
             <Plus className="h-4 w-4" /> Agregar
           </Button>
@@ -126,10 +144,16 @@ function CatalogView({ config }: { config: CatalogConfig }) {
               </span>
               <p className="text-sm text-muted-foreground">
                 {config.costDefinition
-                  ? `Aún no registras ${config.title.toLowerCase()}. Se crean al registrar su compra en Gastos.`
+                  ? `Aún no registras ${config.title.toLowerCase()}. La ficha nace al registrar su compra.`
                   : `No hay ${config.title.toLowerCase()} todavía. Agrega el primero.`}
               </p>
-              {!config.costDefinition && (
+              {config.costDefinition ? (
+                tipoDeGasto && (
+                  <Button variant="outline" size="sm" onClick={() => setComprando(true)}>
+                    <Plus className="h-4 w-4" /> Registrar compra
+                  </Button>
+                )
+              ) : (
                 <Button variant="outline" size="sm" onClick={startCreate}>
                   <Plus className="h-4 w-4" /> Agregar
                 </Button>
@@ -207,6 +231,19 @@ function CatalogView({ config }: { config: CatalogConfig }) {
           onSaved={() => {
             setOpen(false);
             qc.invalidateQueries({ queryKey: [config.endpoint] });
+          }}
+        />
+      )}
+
+      {comprando && tipoDeGasto && (
+        <ExpenseModal
+          tipoFijo={tipoDeGasto}
+          onClose={() => setComprando(false)}
+          onSaved={() => {
+            setComprando(false);
+            // La compra crea o actualiza la ficha: la lista de acá cambia.
+            qc.invalidateQueries({ queryKey: [config.endpoint] });
+            qc.invalidateQueries({ queryKey: ['expenses'] });
           }}
         />
       )}
