@@ -13,9 +13,9 @@ export interface LoanPayment {
   date: string;
   amount: number;
   reference: string | null;
-  /** Quién puso la plata de la cuota: la caja o la contraparte. */
-  paidBy: 'BUSINESS' | 'OWNER' | 'LOAN';
+  /** QUIÉN puso la plata de la cuota. `null` = la caja del negocio. */
   counterpartyId: string | null;
+  counterparty: { id: string; name: string } | null;
   accountId: string | null;
   /** Si el que lo pagó de su bolsillo queda con una deuda a favor. */
   generatesDebt: boolean;

@@ -476,18 +476,14 @@ al scrollear. Arreglado el 2026-10-05.
     motivo y el saldo vuelve a subir.
   - Que un pago personal **genere deuda se pregunta**: la casilla aparece solo
     cuando lo puso una persona, no la caja.
-  - ⚠️ **Puente temporal en "lo puso"**: mientras el backfill de pagadores no
-    corra en producción, `counterpartyId` está nulo y quién pagó vive en
-    `paidBy`. Sin el fallback, los pagos históricos del propietario se leían
-    como "La caja" **y a la vez** "Genera deuda", que es contradictorio. Muere
-    con la migración 2. **Esto se vio en la pantalla, no en los tests.**
   - ⚠️ **Quién paga una cuota NO es el acreedor del préstamo.** Las 4 cuotas
-    históricas las puso el **propietario**, no el prestamista. La primera
-    versión del puente resolvía el nombre contra `loan.counterparty`, así que
-    apenas el backfill llenó `counterpartyId` las cuatro filas pasaron a decir
-    "Una contraparte". Se resuelve contra `useCounterparties()`, que la pantalla
-    ya tenía cargada. **Con `counterpartyId` nulo el bug no se ve**: apareció
-    recién al correr el backfill contra la base local.
+    históricas las puso el **propietario**, no el prestamista. Una versión del
+    puente resolvía el nombre contra `loan.counterparty` y las cuatro filas
+    pasaron a decir "Una contraparte" apenas el backfill llenó
+    `counterpartyId`. Hoy el **nombre viaja CON el pago** (`p.counterparty`):
+    buscarlo por separado ya se leyó mal una vez. `null` = la caja.
+    **Con `counterpartyId` nulo el bug no se veía**: apareció recién al correr
+    el backfill contra la base local, no en los tests.
   - ⚠️ **El Dashboard y esta pantalla pasan los préstamos por `paraEquilibrio()`**
     antes de `monthlyLoanPayments`: la cuota viene en SU frecuencia y hay que
     normalizarla. Pasar el préstamo crudo contaría una cuota semanal de $50 como
@@ -498,7 +494,7 @@ al scrollear. Arreglado el 2026-10-05.
   plata pura. Todo lo DERIVA el servidor; las mutaciones devuelven el resumen y
   se guardan directo en la caché `['cash']`. ⚠️ Las compras que paga la
   contraparte NO se cargan acá: van en **Gastos** con **"¿Quién lo pagó?"**
-  (`paidBy`, también editable desde la columna "Pagó"), y las cuotas en
+  (la contraparte, también editable desde la columna "Pagó"), y las cuotas en
   **Deuda** con el mismo campo. Categoría de gasto: **Diseño**.
   - ⚠️ **La cuenta es COMPARTIDA: son CUATRO números, no dos.** Esperado del
     negocio · total de la cuenta · personal declarado · real del negocio
@@ -547,8 +543,9 @@ al scrollear. Arreglado el 2026-10-05.
     y deja la fila tachada en el historial.
   - **Nombres dinámicos en TODO el panel** (fase 2, 2026-10-05): `grep -rn
     "Vanan" apps/web/src` da **vacío**. `PAID_BY_LABELS` pasó a ser la función
-    `paidByLabels(nombre)` en `features/finance/api.ts` — con una constante
-    volvía el nombre propio al código. El nombre sale de **`useOwnerName()`**
+    `paidByLabels(nombre)` — con una constante volvía el nombre propio al
+    código — y en 2026-10-09 se borró del todo: los nombres salen ahora de la
+    contraparte de cada fila. El del dueño sale de **`useOwnerName()`**
     (`features/cash/api.ts`), que lee `useCounterparties()`: ⚠️ **no uses
     `useCash()` para esto**, ese resumen trae el ledger entero, las obligaciones
     y todas las conciliaciones. Es un hook: va en el cuerpo del componente,

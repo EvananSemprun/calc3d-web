@@ -22,7 +22,6 @@ import {
   expenseLink,
   useExpenses,
   type ExpenseRow,
-  contraparteDe,
 } from '@/features/finance/api';
 import { ExpenseModal } from '@/features/finance/ExpenseModal';
 import { useCounterparties } from '@/features/cash/api';
@@ -49,7 +48,7 @@ export function ExpensesPage() {
       case 'maintenance': return e.category === 'MAINTENANCE';
       case 'advertising': return e.category === 'ADVERTISING';
       case 'design': return e.category === 'DESIGN';
-      case 'owner': return contraparteDe(e, contrapartes) !== '';
+      case 'owner': return e.counterparty != null;
       case 'investment': return e.isInvestment;
       case 'general': return !e.material && !e.printer && !e.component && e.category !== 'MAINTENANCE' && e.category !== 'ADVERTISING' && e.category !== 'DESIGN';
       default: return true;
@@ -214,7 +213,7 @@ export function ExpensesPage() {
                         <td className="px-4 py-3">
                           <Select
                             className="h-8 w-[9rem] text-xs"
-                            value={contraparteDe(e, contrapartes)}
+                            value={e.counterparty?.id ?? ''}
                             aria-label={`Quién pagó: ${e.description}`}
                             onChange={(ev) =>
                               cambiarPagador.mutate({

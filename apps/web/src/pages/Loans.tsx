@@ -106,7 +106,7 @@ export function LoansPage() {
               />
             </div>
             {loans.map((l) => (
-              <LoanCard key={l.id} loan={l} ownerName={owner.counterparty.name} />
+              <LoanCard key={l.id} loan={l} />
             ))}
           </>
         )}
@@ -237,7 +237,7 @@ function ListaObligaciones({ obligaciones }: { obligaciones: Obligation[] }) {
   );
 }
 
-function LoanCard({ loan, ownerName }: { loan: Loan; ownerName: string }) {
+function LoanCard({ loan }: { loan: Loan }) {
   const { money } = useMoney();
   const confirm = useConfirm();
   const [pagando, setPagando] = useState(false);
@@ -305,7 +305,7 @@ function LoanCard({ loan, ownerName }: { loan: Loan; ownerName: string }) {
           {!pagado && <Estimacion estimate={e} />}
         </div>
 
-        {loan.payments.length > 0 && <Pagos loan={loan} ownerName={ownerName} />}
+        {loan.payments.length > 0 && <Pagos loan={loan} />}
 
         {loan.nextDueDate && (
           <p className="text-xs text-muted-foreground">
@@ -366,15 +366,10 @@ function Estimacion({ estimate }: { estimate: Loan['estimate'] }) {
   );
 }
 
-function Pagos({ loan, ownerName }: { loan: Loan; ownerName: string }) {
+function Pagos({ loan }: { loan: Loan }) {
   const { money } = useMoney();
   const confirm = useConfirm();
   const anular = useVoidLoanPayment();
-  // Quién puso la plata de una cuota NO es siempre el acreedor del préstamo:
-  // las 4 cuotas históricas las pagó el propietario. Resolver el nombre contra
-  // `loan.counterparty` dejaba a todas esas como "Una contraparte".
-  const { data: contrapartes = [] } = useCounterparties();
-  const nombrePorId = new Map(contrapartes.map((c) => [c.id, c.name]));
 
   const anularPago = async (p: LoanPayment) => {
     const ok = await confirm({
@@ -402,17 +397,10 @@ function Pagos({ loan, ownerName }: { loan: Loan; ownerName: string }) {
     fecha: new Date(p.date).toLocaleDateString('es-VE', { timeZone: 'UTC' }),
     monto: money(p.amount),
     referencia: p.reference ?? '—',
-    // ⚠️ PUENTE TEMPORAL: mientras el backfill de pagadores no corra,
-    // `counterpartyId` está nulo y quién pagó sigue viviendo en el enum. Sin
-    // esto, los 4 pagos historicos del propietario se leían como "La caja" y la
-    // fila decía "La caja · Genera deuda", que es contradictorio: si pagó la
-    // caja no hay a quién deberle. Muere con la migración 2.
-    quien: p.counterpartyId
-      ? (nombrePorId.get(p.counterpartyId) ?? 'Una contraparte')
-      : p.paidBy === 'BUSINESS'
-        ? 'La caja'
-        : ownerName,
-    deLaCaja: p.counterpartyId == null && p.paidBy === 'BUSINESS',
+    // El nombre viaja CON el pago: quien puso la plata de una cuota no es el
+    // acreedor del préstamo, y buscarlo por separado ya se leyó mal una vez.
+    quien: p.counterparty?.name ?? 'La caja',
+    deLaCaja: p.counterparty == null,
     deuda: p.generatesDebt,
     importado: p.source === 'EXCEL_IMPORT',
     motivo: p.voidReason,
@@ -530,7 +518,6 @@ function PaymentDialog({ loan, open, onClose }: { loan: Loan; open: boolean; onC
               date,
               amount,
               reference: reference.trim() || null,
-              paidBy: deLaCaja ? 'BUSINESS' : 'OWNER',
               counterpartyId: quien || null,
               generatesDebt: !deLaCaja && generatesDebt,
             },
