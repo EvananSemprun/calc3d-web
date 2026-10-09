@@ -899,6 +899,27 @@ rechaza crear `ENCARGO`). Lo demás:
     declarado en las props, así que el objeto desestructurado lo descartaba— y
     el lector de pantalla leía solo el valor. Arreglado el 2026-10-08; se ve con
     `document.querySelectorAll('[aria-label]')` en una pantalla con desplegables.
+  - **El `Select` trae BUSCADOR solo?si la lista es larga** (2026-10-09,
+    `MINIMO_PARA_BUSCAR = 8`). Debajo de eso un campo de texto arriba de cuatro
+    opciones estorba; arriba, encontrar un filamento entre 53 a fuerza de
+    scroll es el problema real. No hay que pedirlo en cada llamada: sale solo.
+    Busca **sin acentos y sin mayúsculas** (`senora nandu` encuentra `Señora
+    Ñandú`) y aplana el `label`, que es un `ReactNode`: sin aplanarlo, una
+    opción con formato no coincidiría NUNCA y el buscador la escondería.
+  - ⚠️ **Tres cosas que Radix hace y hay que contrarrestar**, todas verificadas
+    en pantalla:
+    1. **Se lleva el foco** a la opción marcada DESPUÉS de montar el contenido,
+       así que `autoFocus` no alcanza: el input se enfoca en el tick siguiente.
+    2. **`Select.Value` sin hijos lee la etiqueta del `Select.Item` montado.**
+       Al filtrar, el elegido deja de estarlo y **el select se quedaba en
+       blanco mientras escribías**. Por eso la etiqueta se le pasa a mano.
+    3. Su **"escribí para saltar"** se come las teclas: el contenedor del input
+       frena la propagación de todo salvo flechas, Enter, Escape y Tab — esas
+       tienen que llegar a la lista para poder navegarla sin soltar el teclado.
+  - ⚠️ **La lista se salía de la pantalla en el teléfono**: tenía `min-w` del
+    trigger pero ningún `max-w`, así que crecía con la opción más larga (medido:
+    431 px de lista en 375 de ancho). Ahora se acota al ancho disponible que
+    calcula Radix, con `collisionPadding`.
 - **La ficha de un filamento vive en Stock del mes** (2026-09-14, shared 0.15.0;
   antes era la página Materiales, que se quitó por decisión del dueño). Tocar la
   marca de una fila abre `FichaDialog` (`features/filament/FichaDialog.tsx`):

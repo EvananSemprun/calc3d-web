@@ -117,6 +117,34 @@ NumberInput.displayName = 'NumberInput';
 const SELECT_EMPTY = '__empty__';
 type SelectOpt = { value: string; label: React.ReactNode; disabled?: boolean };
 
+/**
+ * A partir de cuántas opciones aparece el buscador.
+ *
+ * Debajo de esto es ruido: un campo de texto arriba de cuatro opciones estorba
+ * más de lo que ayuda. Arriba de esto la lista ya no entra en pantalla y
+ * encontrar un filamento entre 53 a fuerza de scroll es el problema real.
+ */
+const MINIMO_PARA_BUSCAR = 8;
+
+/**
+ * El texto de una opción, para poder buscarla.
+ *
+ * El `label` es un `ReactNode` porque algunas opciones llevan formato. Sin
+ * aplanarlo, esas no coincidirían NUNCA y el buscador las escondería: peor que
+ * no tener buscador.
+ */
+function textoDe(node: React.ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(textoDe).join(' ');
+  if (React.isValidElement(node)) return textoDe((node.props as { children?: React.ReactNode }).children);
+  return '';
+}
+
+/** Sin acentos y en minúscula: buscar "diseno" tiene que encontrar "Diseño". */
+const normalizar = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 export const Select = React.forwardRef<
   HTMLButtonElement,
   {
@@ -168,8 +196,20 @@ export const Select = React.forwardRef<
     const toInner = (v: string) => (v === '' ? SELECT_EMPTY : v);
     const fromInner = (v: string) => (v === SELECT_EMPTY ? '' : v);
 
+    // El buscador aparece solo si la lista es larga. Se limpia al cerrar: si
+    // quedara escrito, al reabrir verías media lista sin saber por qué.
+    const [busqueda, setBusqueda] = React.useState('');
+    // Lo elegido, también cuando el componente va sin `value` (no controlado).
+    const [interno, setInterno] = React.useState(defaultValue ?? '');
+    const actual = value ?? interno;
+    const buscable = opts.length >= MINIMO_PARA_BUSCAR;
+    const q = normalizar(busqueda.trim());
+    const visibles =
+      buscable && q ? opts.filter((o) => normalizar(textoDe(o.label)).includes(q)) : opts;
+
     const handle = (inner: string) => {
       const real = fromInner(inner);
+      setInterno(real);
       onValueChange?.(real);
       onChange?.({ target: { value: real, name } });
     };
@@ -180,6 +220,9 @@ export const Select = React.forwardRef<
         defaultValue={defaultValue === undefined ? undefined : toInner(defaultValue)}
         onValueChange={handle}
         disabled={disabled}
+        onOpenChange={(abierto) => {
+          if (!abierto) setBusqueda('');
+        }}
       >
         <SelectPrimitive.Trigger
           ref={ref}
@@ -190,7 +233,14 @@ export const Select = React.forwardRef<
             className,
           )}
         >
-          <SelectPrimitive.Value placeholder={placeholder} />
+          {/*
+            ⚠️ La etiqueta se le pasa a mano. `Select.Value` sin hijos la saca
+            del `Select.Item` MONTADO, y al filtrar la lista el elegido deja de
+            estarlo: el select se quedaba en blanco mientras escribías.
+          */}
+          <SelectPrimitive.Value placeholder={placeholder}>
+            {opts.find((o) => o.value === actual)?.label}
+          </SelectPrimitive.Value>
           <SelectPrimitive.Icon asChild>
             <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
           </SelectPrimitive.Icon>
@@ -199,18 +249,57 @@ export const Select = React.forwardRef<
           <SelectPrimitive.Content
             position="popper"
             sideOffset={6}
-            className="relative z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-card backdrop-blur-xl data-[state=open]:animate-[fade-in-up_0.12s_ease-out]"
+            collisionPadding={12}
+            // ⚠️ `min-w` sin `max-w` deja que la lista crezca con la opción más
+            // larga: con nombres de filamento de 30 caracteres, en un teléfono
+            // de 375 px la lista medía 431 y se salía de la pantalla. El ancho
+            // disponible lo calcula Radix; el `calc` es el respaldo por si la
+            // variable no está.
+            className="relative z-50 max-h-72 w-max min-w-[var(--radix-select-trigger-width)] max-w-[min(var(--radix-select-content-available-width),calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-card backdrop-blur-xl data-[state=open]:animate-[fade-in-up_0.12s_ease-out]"
           >
+            {buscable && (
+              <div
+                className="sticky top-0 z-10 border-b border-border/70 bg-popover/95 p-2 backdrop-blur-xl"
+                // Radix mueve el foco a la opción marcada y además tiene su
+                // propio "escribí para saltar". Sin frenar el evento acá, cada
+                // tecla se la lleva la lista y el campo queda vacío.
+                onKeyDown={(e) => {
+                  if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'].includes(e.key)) {
+                    e.stopPropagation();
+                  }
+                }}
+              >
+                <input
+                  // ⚠️ `autoFocus` NO alcanza: Radix enfoca la opción marcada
+                  // DESPUÉS de montar el contenido y se lo lleva. Hay que
+                  // pedirlo en el siguiente tick, cuando Radix ya terminó.
+                  ref={(el) => {
+                    if (el) setTimeout(() => el.focus(), 0);
+                  }}
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar…"
+                  aria-label="Buscar en la lista"
+                  className="h-8 w-full rounded-md border border-input bg-background/60 px-2 text-sm outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30"
+                />
+              </div>
+            )}
             <SelectPrimitive.ScrollUpButton className="flex h-6 items-center justify-center text-muted-foreground">
               <ChevronUp className="h-4 w-4" />
             </SelectPrimitive.ScrollUpButton>
             <SelectPrimitive.Viewport className="p-1">
-              {opts.map((o) => (
+              {/* Sin esto, filtrar hasta no dejar nada muestra un hueco mudo. */}
+              {visibles.length === 0 && (
+                <p className="px-3 py-4 text-center text-sm text-muted-foreground">
+                  Nada coincide con “{busqueda.trim()}”.
+                </p>
+              )}
+              {visibles.map((o) => (
                 <SelectPrimitive.Item
                   key={o.value || SELECT_EMPTY}
                   value={toInner(o.value)}
                   disabled={o.disabled}
-                  className="relative flex w-full cursor-pointer select-none items-center rounded-md py-1.5 pl-3 pr-8 text-sm outline-none transition-colors data-[highlighted]:bg-brand-blue/40 data-[highlighted]:text-foreground data-[state=checked]:font-semibold data-[state=checked]:text-brand-yellow-ink data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                  className="relative flex w-full cursor-pointer select-none items-center rounded-md py-1.5 pl-3 pr-8 text-sm outline-none transition-colors [&>span]:min-w-0 data-[highlighted]:bg-brand-blue/40 data-[highlighted]:text-foreground data-[state=checked]:font-semibold data-[state=checked]:text-brand-yellow-ink data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
                 >
                   <SelectPrimitive.ItemText>{o.label}</SelectPrimitive.ItemText>
                   <SelectPrimitive.ItemIndicator className="absolute right-2 inline-flex items-center">
