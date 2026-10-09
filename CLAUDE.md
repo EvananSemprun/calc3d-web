@@ -870,6 +870,13 @@ rechaza crear `ENCARGO`). Lo demás:
   - En los catálogos con `costDefinition` (impresoras, insumos) **no hay botón
     "Agregar"**: la ficha nace al registrar la compra. Ese botón es ahora
     "Registrar compra" y abre el mismo modal, en vez de mandarte a Gastos.
+  - **Una compra de filamento se CORRIGE desde su lista** (2026-10-09,
+    `features/filament/EditarCompra.tsx`): el lápiz en la tabla, la tarjeta
+    entera en el teléfono. Se puede cambiar todo, incluso a qué ficha se le
+    cargó, y borrarla. ⚠️ **El precio del rollo lo recalcula el SERVIDOR** a
+    partir de la última compra; la pantalla solo muestra en cuánto queda ESTA.
+    Si lo decidiera el formulario, corregir una compra vieja pisaría el precio
+    con uno viejo.
   - **Proveedores: una sola puerta, la del directorio** (2026-10-09). Había una
     página `/catalogs/providers` con su propia tabla de dos campos, y además el
     tipo "Proveedor" de Contactos, que guarda teléfono, RIF, ciudad y mapa. Se
