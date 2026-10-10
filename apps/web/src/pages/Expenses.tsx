@@ -26,6 +26,7 @@ import {
 } from '@/features/finance/api';
 import { ExpenseModal } from '@/features/finance/ExpenseModal';
 import { useCounterparties } from '@/features/cash/api';
+import { usePersistentState } from '@/lib/usePersistentState';
 
 /** Días que duró una campaña (inclusivo). Null si no hay fecha de fin válida. */
 function durationDays(from: string, to?: string | null) {
@@ -40,7 +41,7 @@ function durationDays(from: string, to?: string | null) {
  * texto escrito dos veces, renombrar una opción deja al aviso diciendo el
  * nombre viejo.
  */
-const TIPOS_DE_GASTO = [
+export const TIPOS_DE_GASTO = [
   { value: 'printer', label: 'Impresoras' },
   { value: 'material', label: 'Filamentos' },
   { value: 'component', label: 'Insumos' },
@@ -51,6 +52,39 @@ const TIPOS_DE_GASTO = [
   { value: 'owner', label: 'Los puso una persona' },
   { value: 'general', label: 'General' },
 ] as const;
+
+/** Lo que se dibuja en una celda de tabla sin dato. Las tarjetas no dibujan la línea. */
+const SIN_DATO = '—';
+
+/**
+ * El centinela de "no filtrar", compartido por los DOS filtros de la pantalla.
+ * No es un tipo ni un proveedor: es la ausencia de filtro.
+ */
+export const TODOS = 'ALL';
+
+/**
+ * El valor del filtro de tipo que SE PUEDE usar.
+ *
+ * ⚠️ **Hace falta porque el filtro se PERSISTE.** Mientras vivía en un
+ * `useState` arrancaba siempre en "todos" y un valor imposible no podía
+ * existir; guardado en `localStorage` sí puede —una opción retirada o
+ * renombrada, un valor de una versión anterior, el almacenamiento editado a
+ * mano— y entonces ningún gasto pasa el filtro: la tabla se abre **vacía, con
+ * el desplegable en blanco y sin nada que explique por qué**. Es la misma
+ * regla que ya seguían el filtro de proveedor de esta pantalla, los de Ventas
+ * (`valorSeguro`) y los de Stock del mes.
+ *
+ * Es pura a propósito: tiene su test en `Expenses.spec.ts`.
+ */
+export function tipoSeguro(guardado: string): string {
+  // ⚠️ Sin caso especial para `TODOS`: no está en la lista, así que
+  // cae por el camino normal y el respaldo ES ese mismo valor. Un
+  // `if (guardado === TODOS) return TODOS` arriba devuelve
+  // exactamente lo mismo, o sea que es código muerto — una guarda que parece
+  // una regla puesta y que ningún test puede tumbar. El test "deja pasar ALL"
+  // sigue fijando el comportamiento, que es lo que importa.
+  return TIPOS_DE_GASTO.some((t) => t.value === guardado) ? guardado : TODOS;
+}
 
 /**
  * Los tres totales de la pantalla, DERIVADOS de las filas que recibe.
@@ -70,17 +104,95 @@ export function totalesGastos(filas: { amount: number; isInvestment: boolean }[]
   return { total, inversion, operativo: total - inversion };
 }
 
+/**
+ * Una fila de Gastos **ya resuelta**: cada texto y cada decisión salen de acá
+ * UNA sola vez.
+ *
+ * ⚠️ Las dos presentaciones (tabla desde `md`, tarjetas en el teléfono) leen
+ * esta lista y su JSX es tonto: ninguna vuelve a llamar a `money()` ni a
+ * decidir si la fila es "de factura". Con dos árboles escritos a mano, el día
+ * que cambie una columna se arregla uno y se olvida el otro — y acá lo que se
+ * olvidaría es justo lo que protege la plata (la fila de factura sin tacho y
+ * con el pagador apagado).
+ */
+export interface FilaGasto {
+  id: string;
+  /** El día guardado, `AAAA-MM-DD`. Estas fechas ya SON el día que el dueño eligió. */
+  dia: string;
+  /** Badge de tipo: el recurso enlazado, o la categoría/inversión. */
+  etiqueta: string;
+  /** Nombre del recurso enlazado; `null` cuando la etiqueta es la categoría. */
+  recurso: string | null;
+  /** `true` cuando la etiqueta merece destaque (recurso enlazado o inversión). */
+  destacada: boolean;
+  descripcion: string;
+  /** "· duró N días" ya armado, o `null`. */
+  duracion: string | null;
+  proveedor: string | null;
+  /**
+   * La cantidad, ya como texto. `null` = el gasto no lleva cantidad.
+   *
+   * ⚠️ `null` y `'0'` son cosas distintas: una compra de 0 rollos es un dato y
+   * tiene que verse. Por eso el guion lo pone cada presentación (la tabla
+   * necesita llenar la celda; la tarjeta simplemente no dibuja la línea) y acá
+   * se guarda la ausencia, no su dibujo.
+   */
+  cantidad: string | null;
+  /** El monto ya formateado. */
+  monto: string;
+  /**
+   * Nació de una factura de Compras: su monto y su cantidad son el espejo de
+   * una línea ya recibida, así que la API rechaza corregirlo o borrarlo desde
+   * acá. **Ni tacho ni selector de pagador**: un control que solo sabe fallar
+   * es peor que no tenerlo.
+   */
+  deFactura: boolean;
+  /** El pagador elegido para el `Select`; `''` = la caja del negocio. */
+  pagadorId: string;
+}
+
+/** Resuelve una fila de la API en lo que las dos presentaciones dibujan. */
+export function filaDeGasto(e: ExpenseRow, money: (n: number) => string): FilaGasto {
+  const link = expenseLink(e);
+  const dias = durationDays(e.date, e.endDate);
+  return {
+    id: e.id,
+    dia: e.date.slice(0, 10),
+    etiqueta: link
+      ? LINK_KIND_LABELS[link.kind]
+      : e.isInvestment
+        ? 'Inversión'
+        : EXPENSE_CATEGORY_LABELS[e.category],
+    recurso: link ? link.name : null,
+    destacada: link != null || e.isInvestment,
+    descripcion: e.description,
+    duracion: dias ? `· duró ${dias} días` : null,
+    proveedor: e.provider?.name ?? null,
+    cantidad: e.quantity != null ? String(e.quantity) : null,
+    monto: money(e.amount),
+    deFactura: e.purchaseInvoiceLineId != null,
+    pagadorId: e.counterparty?.id ?? '',
+  };
+}
+
 export function ExpensesPage() {
   const { data: contrapartes = [] } = useCounterparties();
   const range = useDateRange('MONTH', 'expenses');
   const { money } = useMoney();
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useExpenses(range);
-  const [typeFilter, setTypeFilter] = useState<string>('ALL');
-  const [proveedorFilter, setProveedorFilter] = useState<string>('ALL');
+  // Los dos filtros se RECUERDAN, como el resto del panel (el rango de fechas
+  // de esta misma pantalla ya lo hacía). Cada uno pasa por su valor seguro
+  // antes de usarse: ver `tipoSeguro` y `proveedorSeguro`.
+  const [tipoGuardado, setTypeFilter] = usePersistentState('expenses:tipo', TODOS);
+  const [proveedorFilter, setProveedorFilter] = usePersistentState(
+    'expenses:proveedor',
+    TODOS,
+  );
+  const typeFilter = tipoSeguro(tipoGuardado);
   const matchesType = (e: ExpenseRow) => {
     switch (typeFilter) {
-      case 'ALL': return true;
+      case TODOS: return true;
       case 'printer': return !!e.printer;
       case 'material': return !!e.material;
       case 'component': return !!e.component;
@@ -107,23 +219,25 @@ export function ExpensesPage() {
   }, [rows]);
   // Valor "seguro": un proveedor elegido que ya no está entre las opciones
   // (cambió el rango de fechas) cae a "todos", en vez de dejar la tabla vacía.
-  const proveedorSeguro = proveedores.some((p) => p.id === proveedorFilter) ? proveedorFilter : 'ALL';
+  const proveedorSeguro = proveedores.some((p) => p.id === proveedorFilter)
+    ? proveedorFilter
+    : TODOS;
   const matchesProveedor = (e: ExpenseRow) =>
-    proveedorSeguro === 'ALL' || e.provider?.id === proveedorSeguro;
+    proveedorSeguro === TODOS || e.provider?.id === proveedorSeguro;
   const visibleRows = rows.filter((e) => matchesType(e) && matchesProveedor(e));
 
   // Qué filtros están puestos, con el mismo texto que el desplegable.
   const filtrosPuestos = [
-    typeFilter !== 'ALL' ? TIPOS_DE_GASTO.find((t) => t.value === typeFilter)?.label : null,
-    proveedorSeguro !== 'ALL' ? proveedores.find((p) => p.id === proveedorSeguro)?.name : null,
+    typeFilter !== TODOS ? TIPOS_DE_GASTO.find((t) => t.value === typeFilter)?.label : null,
+    proveedorSeguro !== TODOS ? proveedores.find((p) => p.id === proveedorSeguro)?.name : null,
   ].filter((t): t is string => !!t);
   // ⚠️ "Con filtros" solo cambia los textos cuando hay algo que filtrar: en un
   // periodo sin ningún gasto, "ninguno de los 0 pasa el filtro" es peor que
   // decir derecho que no hay gastos.
   const hayFiltros = filtrosPuestos.length > 0 && rows.length > 0;
   const quitarFiltros = () => {
-    setTypeFilter('ALL');
-    setProveedorFilter('ALL');
+    setTypeFilter(TODOS);
+    setProveedorFilter(TODOS);
   };
   const [open, setOpen] = useState(false);
   const confirm = useConfirm();
@@ -151,6 +265,28 @@ export function ExpensesPage() {
 
   // ⚠️ Sobre `visibleRows`, lo mismo que muestra la tabla.
   const { total, inversion, operativo } = totalesGastos(visibleRows);
+
+  // ⚠️ UN solo array de filas ya resueltas, mapeado por las DOS presentaciones
+  // (tabla desde `md`, tarjetas en el teléfono). El JSX de cada lado es tonto:
+  // no formatea montos ni decide nada. Es la regla que ya sigue Caja.
+  const filas = visibleRows.map((e) => filaDeGasto(e, money));
+
+  // Los dos handlers también viven acá una sola vez: las dos presentaciones les
+  // pasan el id de la fila y nada más.
+  const borrar = async (id: string) => {
+    if (
+      await confirm({
+        title: '¿Eliminar gasto?',
+        description: 'Esta acción no se puede deshacer.',
+        confirmLabel: 'Eliminar',
+        tone: 'destructive',
+      })
+    ) {
+      remove.mutate(id);
+    }
+  };
+  const elegirPagador = (id: string, valor: string) =>
+    cambiarPagador.mutate({ id, counterpartyId: valor || null });
 
   return (
     <div className="space-y-5">
@@ -180,7 +316,7 @@ export function ExpensesPage() {
             aria-label="Filtrar por tipo de gasto"
             onChange={(e) => setTypeFilter(e.target.value)}
           >
-            <option value="ALL">Todos los tipos</option>
+            <option value={TODOS}>Todos los tipos</option>
             {TIPOS_DE_GASTO.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
@@ -197,7 +333,7 @@ export function ExpensesPage() {
               aria-label="Filtrar por proveedor"
               onChange={(e) => setProveedorFilter(e.target.value)}
             >
-              <option value="ALL">Proveedor: todos</option>
+              <option value={TODOS}>Proveedor: todos</option>
               {proveedores.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -282,117 +418,96 @@ export function ExpensesPage() {
               }
             />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-4 py-3 font-semibold">Fecha</th>
-                    <th className="px-4 py-3 font-semibold">Tipo / Recurso</th>
-                    <th className="px-4 py-3 font-semibold">Descripción</th>
-                    <th className="px-4 py-3 font-semibold">Proveedor</th>
-                    <th className="px-4 py-3 text-right font-semibold">Cant.</th>
-                    <th className="px-4 py-3 text-right font-semibold">Monto</th>
-                    <th className="px-4 py-3 font-semibold">Pagó</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleRows.map((e) => {
-                    const link = expenseLink(e);
-                    // Nació de una factura de Compras: su monto y su cantidad
-                    // son el espejo de una línea ya recibida, así que la API
-                    // rechaza corregirlo o borrarlo desde acá. La fila lo dice
-                    // y no ofrece los controles: uno que solo sabe fallar es
-                    // peor que no tenerlo.
-                    const deFactura = e.purchaseInvoiceLineId != null;
-                    return (
-                      <tr key={e.id} className="border-b border-border/70 transition-colors last:border-0 hover:bg-muted/40">
-                        <td className="px-4 py-3 tabular">{e.date.slice(0, 10)}</td>
+            <>
+              {/* Escritorio: la tabla, con las ocho columnas de siempre. */}
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="px-4 py-3 font-semibold">Fecha</th>
+                      <th className="px-4 py-3 font-semibold">Tipo / Recurso</th>
+                      <th className="px-4 py-3 font-semibold">Descripción</th>
+                      <th className="px-4 py-3 font-semibold">Proveedor</th>
+                      <th className="px-4 py-3 text-right font-semibold">Cant.</th>
+                      <th className="px-4 py-3 text-right font-semibold">Monto</th>
+                      <th className="px-4 py-3 font-semibold">Pagó</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filas.map((f) => (
+                      <tr
+                        key={f.id}
+                        className="border-b border-border/70 transition-colors last:border-0 hover:bg-muted/40"
+                      >
+                        <td className="px-4 py-3 tabular">{f.dia}</td>
                         <td className="px-4 py-3">
-                          {link ? (
-                            <span className="flex items-center gap-2">
-                              <Badge variant="brand">{LINK_KIND_LABELS[link.kind]}</Badge>
-                              <span className="text-muted-foreground">{link.name}</span>
-                            </span>
-                          ) : (
-                            <Badge variant={e.isInvestment ? 'brand' : 'outline'}>
-                              {e.isInvestment ? 'Inversión' : EXPENSE_CATEGORY_LABELS[e.category]}
-                            </Badge>
-                          )}
+                          <EtiquetaDeTipo fila={f} />
                         </td>
                         <td className="px-4 py-3">
-                          {e.description}
-                          {durationDays(e.date, e.endDate) && (
-                            <span className="text-muted-foreground">
-                              {' '}
-                              · duró {durationDays(e.date, e.endDate)} días
+                          {f.descripcion}
+                          {f.duracion && <span className="text-muted-foreground"> {f.duracion}</span>}
+                          {f.deFactura && (
+                            <span className="ml-2 align-middle">
+                              <MarcaDeFactura />
                             </span>
                           )}
-                          {deFactura && (
-                            <Tooltip label="Entró por una factura: se corrige en Compras.">
-                              <span className="ml-2 cursor-help align-middle">
-                                <Badge variant="outline">de factura</Badge>
-                              </span>
-                            </Tooltip>
-                          )}
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{e.provider?.name ?? '—'}</td>
-                        <td className="px-4 py-3 text-right tabular">{e.quantity ?? '—'}</td>
-                        <td className="px-4 py-3 text-right tabular font-semibold">{money(e.amount)}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{f.proveedor ?? SIN_DATO}</td>
+                        <td className="px-4 py-3 text-right tabular">{f.cantidad ?? SIN_DATO}</td>
+                        <td className="px-4 py-3 text-right tabular font-semibold">{f.monto}</td>
                         <td className="px-4 py-3">
-                          <Select
-                            className="h-8 w-[9rem] text-xs"
-                            value={e.counterparty?.id ?? ''}
-                            aria-label={`Quién pagó: ${e.description}`}
-                            // ⚠️ Este desplegable manda un PATCH en cada
-                            // cambio: en una fila de factura la API lo rechaza
-                            // con un 400, así que acá va apagado.
-                            disabled={deFactura}
-                            onChange={(ev) =>
-                              cambiarPagador.mutate({
-                                id: e.id,
-                                counterpartyId: ev.target.value || null,
-                              })
-                            }
-                          >
-                            <option value="">Negocio</option>
-                            {contrapartes.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </Select>
+                          <SelectorDePagador
+                            fila={f}
+                            contrapartes={contrapartes}
+                            onElegir={elegirPagador}
+                          />
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {!deFactura && (
-                            <Tooltip label="Eliminar gasto">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={async () => {
-                                  if (
-                                    await confirm({
-                                      title: '¿Eliminar gasto?',
-                                      description: 'Esta acción no se puede deshacer.',
-                                      confirmLabel: 'Eliminar',
-                                      tone: 'destructive',
-                                    })
-                                  ) {
-                                    remove.mutate(e.id);
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </Tooltip>
-                          )}
+                          {!f.deFactura && <BotonBorrar fila={f} onBorrar={borrar} />}
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Teléfono: una tarjeta por gasto. La tabla medía 884 px dentro
+                  de un contenedor de 341 a 375 px de pantalla —se veía el 39 %
+                  de la fila y el resto había que arrastrarlo de costado—, y era
+                  la última lista de finanzas sin tarjetas. */}
+              <ul className="divide-y divide-border/70 md:hidden">
+                {filas.map((f) => (
+                  <li key={f.id} className="space-y-2 p-4">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 font-medium">{f.descripcion}</span>
+                      <span className="shrink-0 font-semibold tabular">{f.monto}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <EtiquetaDeTipo fila={f} />
+                      {f.deFactura && <MarcaDeFactura />}
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                      <span className="tabular">{f.dia}</span>
+                      {f.cantidad && <span>Cant. {f.cantidad}</span>}
+                      {f.proveedor && <span>{f.proveedor}</span>}
+                      {f.duracion && <span>{f.duracion}</span>}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                        Pagó
+                        <SelectorDePagador
+                          fila={f}
+                          contrapartes={contrapartes}
+                          onElegir={elegirPagador}
+                        />
+                      </span>
+                      {!f.deFactura && <BotonBorrar fila={f} onBorrar={borrar} />}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </CardContent>
       </Card>
@@ -407,5 +522,90 @@ export function ExpensesPage() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * El badge de tipo de una fila.
+ *
+ * ⚠️ Los tres controles de abajo (`EtiquetaDeTipo`, `MarcaDeFactura`,
+ * `SelectorDePagador`, `BotonBorrar`) existen **una sola vez** y los usan las
+ * dos presentaciones. Copiarlos en cada árbol es exactamente cómo se arregla
+ * una columna y se olvida la otra — y acá lo que se olvidaría es que la fila de
+ * factura va sin tacho y con el pagador apagado.
+ */
+function EtiquetaDeTipo({ fila }: { fila: FilaGasto }) {
+  return (
+    <span className="flex items-center gap-2">
+      <Badge variant={fila.destacada ? 'brand' : 'outline'}>{fila.etiqueta}</Badge>
+      {fila.recurso && <span className="text-muted-foreground">{fila.recurso}</span>}
+    </span>
+  );
+}
+
+/** "De factura": entró por Compras y desde acá no se corrige. */
+function MarcaDeFactura() {
+  return (
+    <Tooltip label="Entró por una factura: se corrige en Compras.">
+      <span className="cursor-help align-middle">
+        <Badge variant="outline">de factura</Badge>
+      </span>
+    </Tooltip>
+  );
+}
+
+/**
+ * "¿Quién lo pagó?" — se corrige desde la lista porque los gastos viejos
+ * nacieron todos como "Negocio" y la Caja depende de que esto esté bien.
+ *
+ * ⚠️ Manda un PATCH en cada cambio, y en una fila de factura la API lo rechaza
+ * con un 400: ahí va **apagado**.
+ */
+function SelectorDePagador({
+  fila,
+  contrapartes,
+  onElegir,
+}: {
+  fila: FilaGasto;
+  contrapartes: { id: string; name: string }[];
+  onElegir: (id: string, valor: string) => void;
+}) {
+  return (
+    <Select
+      className="h-8 w-[9rem] text-xs"
+      value={fila.pagadorId}
+      aria-label={`Quién pagó: ${fila.descripcion}`}
+      disabled={fila.deFactura}
+      onChange={(ev) => onElegir(fila.id, ev.target.value)}
+    >
+      <option value="">Negocio</option>
+      {contrapartes.map((c) => (
+        <option key={c.id} value={c.id}>
+          {c.name}
+        </option>
+      ))}
+    </Select>
+  );
+}
+
+/** El tacho. Solo se dibuja en las filas que de verdad se pueden borrar. */
+function BotonBorrar({
+  fila,
+  onBorrar,
+}: {
+  fila: FilaGasto;
+  onBorrar: (id: string) => void;
+}) {
+  return (
+    <Tooltip label="Eliminar gasto">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={`Eliminar el gasto: ${fila.descripcion}`}
+        onClick={() => onBorrar(fila.id)}
+      >
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </Tooltip>
   );
 }
