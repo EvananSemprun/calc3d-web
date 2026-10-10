@@ -17,8 +17,8 @@ import {
 import { Link } from 'react-router-dom';
 import { LineChart as LineIcon, AlertTriangle, Megaphone, PackageX } from 'lucide-react';
 import {
-  breakEvenLevels,
   breakEvenProgress,
+  equilibrioYCompromiso,
   cashChain,
   cashChainCuts,
   facturasAtrasadas,
@@ -29,7 +29,7 @@ import {
   type CanalDeIngreso,
   type CashChain,
 } from '@calc3d/shared';
-import { paraEquilibrio, useLoans } from '@/features/loans/api';
+import { paraEquilibrio, useLoans, useLoansOverview } from '@/features/loans/api';
 import { useGoalForMonth } from '@/features/goals/api';
 import { useEquipmentRecovery } from '@/features/equipment/api';
 import { useCash, useCashBalanceAt } from '@/features/cash/api';
@@ -312,12 +312,33 @@ export function DashboardPage() {
   // La cuota se DERIVA de los préstamos abiertos: no se escribe en Configuración,
   // o el mismo número en dos lugares termina diciendo dos cosas.
   const { data: loans = [] } = useLoans();
-  const niveles = breakEvenLevels({
+  /**
+   * LO COMPROMETIDO EN FACTURAS, al lado del equilibrio y NUNCA adentro.
+   *
+   * ⚠️ Una factura se paga UNA vez. Si entrara entre los costos fijos, el
+   * equilibrio saltaría mes a mes —arriba el mes de una compra grande, abajo el
+   * siguiente— y dejaría de servir justo para lo que sirve, que es decidir
+   * precios. Quien sostiene esa regla es `equilibrioYCompromiso`, que calcula
+   * los niveles SIN el compromiso y lo devuelve aparte; acá no se suma nada.
+   *
+   * El monto es `totals.proveedores` del MISMO endpoint que dibuja la pantalla
+   * Deuda: no hay una segunda forma de contar lo que se le debe a los
+   * proveedores. Y lo pagado de más no se resta, igual que allá — pagar de más
+   * en una factura no cancela lo que debés en otra.
+   */
+  const deuda = useLoansOverview();
+  const equilibrio = equilibrioYCompromiso({
     fixedMonthly: fijosMensuales,
     marginPct: settings?.breakEvenMarginPct ?? 0,
     loanPayment: monthlyLoanPayments(paraEquilibrio(loans)),
     equipmentReserve: settings?.equipmentReserve ?? 0,
+    compromiso: deuda.data?.totals.proveedores ?? 0,
+    // Cuántas facturas lo componen. Es un CONTEO, no plata: los grupos que solo
+    // tienen pagado de más traen `facturas: 0`, así que la cuenta sigue siendo
+    // la de las facturas con saldo, las mismas que suman el total.
+    facturas: (deuda.data?.suppliers.groups ?? []).reduce((n, g) => n + g.facturas, 0),
   });
+  const niveles = equilibrio.niveles;
   const breakEven = niveles.survive;
 
   // La meta del mes EN CURSO: el filtro de fechas del Dashboard puede estar en
@@ -531,6 +552,34 @@ export function DashboardPage() {
                       </div>
                     );
                   })}
+                {/* ⚠️ Lo comprometido va APARTE y el texto tiene que decir POR QUÉ.
+                    Si se lee como un costo fijo más, el número de al lado deja de
+                    significar lo que dice, aunque la cuenta esté bien. Mismo
+                    tratamiento que el "pagado de más" de la pantalla Deuda. */}
+                {equilibrio.mostrar && (
+                  <p className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+                    Además debés{' '}
+                    <strong className="tabular-nums text-foreground">
+                      {money(equilibrio.compromiso)}
+                    </strong>{' '}
+                    de facturas de compra
+                    {equilibrio.facturas > 0 && (
+                      <>
+                        {' '}
+                        ({equilibrio.facturas}{' '}
+                        {equilibrio.facturas === 1 ? 'factura' : 'facturas'} con saldo)
+                      </>
+                    )}
+                    . <strong>Es un compromiso puntual, no un costo mensual</strong>: se paga
+                    una vez y <strong>no está sumado arriba</strong>. Si entrara, el equilibrio
+                    saltaría cada vez que llega una compra grande y no serviría para poner
+                    precios.{' '}
+                    <Link to="/loans" className="text-brand-yellow-ink hover:underline">
+                      Ver en Deuda
+                    </Link>
+                    .
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Con {Math.round((settings?.breakEvenMarginPct ?? 0) * 100)} % de margen de
                   contribución. Los tres números son MENSUALES, así que esta tarjeta mira

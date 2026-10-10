@@ -460,6 +460,19 @@ al scrollear. Arreglado el 2026-10-05.
   aplica (sin préstamos no hay nivel 2). Los costos fijos, el margen de
   contribución y la reserva se editan en **Configuración → Costos fijos**; la
   **cuota NO se edita ahí**: sale sola de los préstamos abiertos.
+  - ⚠️ **"Además debés $X de facturas de compra" va AL LADO, no adentro**
+    (2026-10-10, shared 0.40.0). La tarjeta cierra con esa nota cuando hay
+    facturas con saldo, y el texto dice explícitamente que es **un compromiso
+    puntual y no un costo mensual** y que **no está sumado arriba**. No es
+    adorno: una factura se paga una vez, y si entrara entre los costos fijos el
+    equilibrio saltaría cada vez que llega una compra grande, justo el número
+    con el que se ponen precios. El cálculo es `equilibrioYCompromiso` de shared
+    —los niveles salen de ahí ya calculados SIN el compromiso, el JSX no suma
+    nada— y el monto es `totals.proveedores` de `useLoansOverview()`, el **mismo
+    endpoint** que dibuja la pantalla Deuda. Lo pagado de más no se resta.
+    Estilo: la misma nota en caja gris que usa Deuda para "pagado de más", a
+    propósito — es la misma idea ("este número no está en el de arriba").
+    Regresión en shared: `breakeven-compromiso.spec.ts`.
 - **Metas** (`pages/Goals.tsx`, `features/goals/api.ts`, en Finanzas): metas
   mensuales de ventas, encargos y clientes nuevos. **Solo se cargan las metas**;
   el cumplimiento lo deriva el servidor. El Dashboard muestra la del **mes en
