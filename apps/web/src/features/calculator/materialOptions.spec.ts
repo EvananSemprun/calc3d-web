@@ -58,6 +58,75 @@ describe('opcionesDeFilamento', () => {
     expect(porTipo[0].rollGrams).toBe(1000);
   });
 
+  /**
+   * LA ETIQUETA DE UN TIPO CON PRECIO VIEJO NO PUEDE DECIR "PROMEDIO".
+   *
+   * ⚠️ El renglón de abajo ya lo aclaraba ("ABS no se compra desde enero de
+   * 2026…"), pero la ETIQUETA seguía diciendo `ABS — promedio $15.00 · 2
+   * rollos`: afirmaba un promedio de algo que es **una sola compra vieja**, y
+   * lo afirmaba ANTES de elegir — justo cuando el dueño decide. El renglón
+   * llega tarde: corrige una cosa que ya se leyó.
+   *
+   * ⚠️ Y tampoco puede decir los ROLLOS como si respaldaran un promedio: con
+   * `stale`, `preciosPorTipo` se apoya en `ultima()`, o sea en **una** compra.
+   * "2 rollos" al lado de "promedio" sugiere una muestra que no existe.
+   */
+  it('un tipo con precio VIEJO no dice "promedio": dice de qué compra sale', () => {
+    const { porTipo } = opcionesDeFilamento(
+      [tipo({ type: 'ABS', rollPrice: 15, rolls: 2, purchases: 1, stale: true, lastPurchase: '2026-01-15' })],
+      [],
+      money,
+    );
+
+    expect(porTipo[0].label).toBe('ABS — $15.00 de su última compra (enero de 2026)');
+    expect(porTipo[0].label).not.toContain('promedio');
+  });
+
+  it('sin fecha de la última compra no se inventa el mes, pero sigue sin decir "promedio"', () => {
+    const { porTipo } = opcionesDeFilamento(
+      [tipo({ type: 'ASA', rollPrice: 30, rolls: 1, purchases: 1, stale: true, lastPurchase: null })],
+      [],
+      money,
+    );
+
+    expect(porTipo[0].label).toBe('ASA — $30.00 de su última compra');
+    expect(porTipo[0].label).not.toContain('promedio');
+  });
+
+  /**
+   * El hermano alcanzable: el que SÍ tiene compras en la ventana no se toca.
+   * Sin esto, una etiqueta que dijera "última compra" para todos pasaría igual.
+   */
+  it('el hermano alcanzable: dentro de la ventana la etiqueta sigue diciendo promedio y rollos', () => {
+    const { porTipo } = opcionesDeFilamento([tipo({ stale: false })], [], money);
+
+    expect(porTipo[0].label).toBe('PLA — promedio $20.26 · 47 rollos');
+  });
+
+  /**
+   * ⚠️ El NOMBRE del trabajo es otra cosa y no cambia: "(promedio)" ahí
+   * distingue el precio derivado de una ficha concreta, y ese nombre viaja a la
+   * cotización del cliente. Decir "ABS (última compra)" en una cotización no
+   * significa nada para quien la recibe.
+   */
+  it('el nombre del trabajo NO cambia con el precio viejo: sigue siendo "(promedio)"', () => {
+    const { porTipo } = opcionesDeFilamento(
+      [tipo({ type: 'ABS', stale: true, lastPurchase: '2026-01-15' })],
+      [],
+      money,
+    );
+
+    expect(porTipo[0].name).toBe('ABS (promedio)');
+  });
+
+  it('la etiqueta y el renglón de abajo nombran el MISMO mes', () => {
+    const abs = tipo({ type: 'ABS', rollPrice: 15, stale: true, lastPurchase: '2026-01-15' });
+    const { porTipo } = opcionesDeFilamento([abs], [], money);
+
+    expect(porTipo[0].label).toContain('enero de 2026');
+    expect(textoDeOrigen([abs], 'tipo:ABS')).toContain('enero de 2026');
+  });
+
   it('el nombre del trabajo dice que es un promedio: sale en la cotización', () => {
     // Elegir el tipo no es elegir un color. Si el nombre dijera "PLA" a secas,
     // la cotización afirmaría un rollo concreto que nadie eligió.

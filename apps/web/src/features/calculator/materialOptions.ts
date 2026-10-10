@@ -37,6 +37,38 @@ export interface OpcionesDeFilamento {
 export const claveDeTipo = (type: string): string => `tipo:${type}`;
 
 /**
+ * LO QUE SE LEE DE UN TIPO EN EL DESPLEGABLE, y por qué son DOS textos.
+ *
+ * - **Dentro de la ventana**: `PLA — promedio $20.26 · 47 rollos`. Se dice en
+ *   cuántos rollos se apoya porque un promedio de 1 rollo y uno de 47 no
+ *   merecen la misma confianza, y el número lo dice sin explicar nada.
+ * - **Fuera de la ventana** (`stale`): `ABS — $15.00 de su última compra
+ *   (enero de 2026)`.
+ *
+ * ⚠️ **La etiqueta de un `stale` NO puede decir "promedio".** Hasta el
+ * 2026-10-10 decía `ABS — promedio $15.00 · 2 rollos`: afirmaba un promedio de
+ * algo que es **una sola compra vieja**, y lo afirmaba **antes de elegir** —
+ * justo cuando el dueño decide. El renglón de abajo (`textoDeOrigen`) ya lo
+ * aclaraba, pero llega tarde: corrige algo que ya se leyó.
+ *
+ * ⚠️ **Y tampoco los ROLLOS.** Con `stale`, `preciosPorTipo` se apoya en
+ * `ultima()`, o sea en UNA compra; "2 rollos" al lado de "promedio" sugiere una
+ * muestra que no existe. Lo que importa de ese número es **de cuándo es**.
+ *
+ * ⚠️ Sin fecha de la última compra **no se inventa el mes**, igual que en
+ * `textoDeOrigen`: una compra sin fecha cuenta como la más vieja y no puede
+ * afirmar cuándo fue.
+ */
+function etiquetaDeTipo(t: PrecioPorTipo, money: (n: number) => string): string {
+  if (t.stale) {
+    const cuando = t.lastPurchase ? ` (${mesDe(t.lastPurchase)})` : '';
+    return `${t.type} — ${money(t.rollPrice)} de su última compra${cuando}`;
+  }
+  const rollos = `${t.rolls} ${t.rolls === 1 ? 'rollo' : 'rollos'}`;
+  return `${t.type} — promedio ${money(t.rollPrice)} · ${rollos}`;
+}
+
+/**
  * Las dos listas del desplegable.
  *
  * ⚠️ **El orden de los tipos es el que manda el servidor** (de más a menos
@@ -50,9 +82,7 @@ export function opcionesDeFilamento(
 ): OpcionesDeFilamento {
   const porTipo = (tipos ?? []).map((t) => ({
     key: claveDeTipo(t.type),
-    // Se dice en cuántos rollos se apoya: un promedio de 1 rollo y uno de 47 no
-    // merecen la misma confianza, y el número lo dice sin explicar nada.
-    label: `${t.type} — promedio ${money(t.rollPrice)} · ${t.rolls} ${t.rolls === 1 ? 'rollo' : 'rollos'}`,
+    label: etiquetaDeTipo(t, money),
     // "(promedio)" va en el NOMBRE y no solo en la etiqueta: ese nombre viaja al
     // presupuesto y a la cotización del cliente. "PLA" a secas afirmaría un
     // rollo concreto que nadie eligió.

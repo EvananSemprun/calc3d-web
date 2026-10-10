@@ -403,6 +403,31 @@ al scrollear. Arreglado el 2026-10-05.
       última compra, no un promedio de los últimos 6 meses."* (sin fecha de la
       última compra, no se inventa el mes). **No puede decir "promedio"**: un
       tipo que no se compra hace rato no se presenta como precio de hoy.
+  - ⚠️ **Y LA ETIQUETA DEL DESPLEGABLE dice lo mismo** (2026-10-10,
+    `etiquetaDeTipo`). Seguía diciendo `ABS — promedio $15.00 · 2 rollos`:
+    afirmaba un promedio de algo que es **una sola compra vieja**, y lo
+    afirmaba **ANTES de elegir** — justo cuando el dueño decide. El renglón de
+    abajo llega tarde: corrige algo que ya se leyó. Los dos textos:
+    - Dentro: `PLA — promedio $20.26 · 47 rollos`.
+    - Afuera: `ABS — $15.00 de su última compra (enero de 2026)`, y
+      `ASA — $30.00 de su última compra` sin fecha (no se inventa el mes, igual
+      que el renglón).
+    - ⚠️ **Los ROLLOS también salen.** Con `stale`, `preciosPorTipo` se apoya
+      en `ultima()`, o sea en UNA compra: "2 rollos" al lado de "promedio"
+      sugiere una muestra que no existe. De ese número lo que importa es **de
+      cuándo es**.
+    - ⚠️ **El `name` NO cambia: sigue siendo `"ABS (promedio)"`.** Ese nombre
+      viaja al presupuesto y a la cotización del CLIENTE, donde "(promedio)"
+      distingue el precio derivado de una ficha concreta; "ABS (última
+      compra)" no significa nada para quien la recibe.
+    - Tests: 5 en `materialOptions.spec.ts` (con el hermano alcanzable del que
+      sí está dentro de la ventana, y uno que exige que la etiqueta y el
+      renglón nombren el MISMO mes) + 1 en `Filamento.pantalla.spec.tsx`, que
+      lee las **opciones** (`getAllByRole('option')`) y no cualquier texto: el
+      trigger de Radix repite la etiqueta elegida y un `getByText` la contaría
+      dos veces. Medido por mutación: ignorar `stale` tumba 4 y omitir el mes
+      tumba 3; y **dibujar `o.name` en vez de `o.label`** —la mutación de
+      CABLEADO— tumba 2, **las dos de pantalla y ninguna de función pura**.
   - ⚠️ **La ficha SIN PRECIO sigue en la lista, marcada, y al elegirla la
     pantalla AVISA** (2026-10-10). `PLA Creality Azul oscuro` aparece en $0.00
     porque fue un **regalo**: su compra en $0 es verdadera y se queda.

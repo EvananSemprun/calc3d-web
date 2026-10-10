@@ -123,7 +123,7 @@ describe('Filamento: de dónde sale el precio', () => {
     montar();
     await screen.findByText(/Promedio de PLA/);
 
-    elegir('Tipo de filamento', /^ABS — promedio/);
+    elegir('Tipo de filamento', /^ABS — /);
 
     expect(
       screen.getByText(
@@ -132,6 +132,31 @@ describe('Filamento: de dónde sale el precio', () => {
     ).toBeInTheDocument();
     // Y deja de afirmar que es un promedio de la ventana.
     expect(screen.queryByText(/Promedio de ABS/)).not.toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ LA ETIQUETA, EN LA LISTA ABIERTA. El renglón de abajo ya decía que el
+   * ABS es un precio viejo, pero la etiqueta del desplegable seguía diciendo
+   * "promedio" — y la etiqueta se lee ANTES de elegir, que es cuando se decide.
+   * Esto no lo cubre `materialOptions.spec.ts`: ahí se prueba la función, acá
+   * que la pantalla dibuje LO QUE ESA FUNCIÓN DEVUELVE.
+   */
+  it('en la lista abierta, el tipo viejo no se ofrece como "promedio"', async () => {
+    montar();
+    await screen.findByText(/Promedio de PLA/);
+
+    fireEvent.keyDown(screen.getByLabelText('Tipo de filamento'), { key: 'Enter' });
+
+    // Se leen las OPCIONES de la lista, no cualquier texto de la pantalla: el
+    // trigger de Radix repite la etiqueta elegida y un `getByText` la contaría
+    // dos veces.
+    const opciones = screen.getAllByRole('option').map((o) => o.textContent);
+
+    // El que está dentro de la ventana sí dice promedio: son dos textos
+    // distintos a propósito.
+    expect(opciones).toContain('PLA — promedio $20.26 · 47 rollos');
+    expect(opciones).toContain('ABS — $15.00 de su última compra (enero de 2026)');
+    expect(opciones.some((t) => t?.includes('ABS — promedio'))).toBe(false);
   });
 });
 
