@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { HandCoins, Plus, Trash2, Undo2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowUpRight, HandCoins, Plus, Trash2, Undo2 } from 'lucide-react';
 import { monthlyLoanPayments, type PaymentFrequency } from '@calc3d/shared';
 import { Badge, Button, Card, CardContent, EmptyState, Field, FieldGrid, Input, NumberInput, PageSkeleton, ProgressBar, Select, Stat } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
@@ -12,6 +13,7 @@ import { cn } from '@/lib/utils';
 import {
   type Loan,
   type LoanPayment,
+  type LoansOverview,
   type Obligation,
   useAddLoanPayment,
   useCreateLoan,
@@ -22,16 +24,25 @@ import {
 } from '@/features/loans/api';
 
 /**
- * DEUDA — **las dos deudas del negocio**, que son cosas distintas y comparten
- * la palabra "préstamo":
+ * DEUDA — **las tres deudas del negocio**, que son cosas distintas:
  *
- *  - lo que le debés al **prestamista** (capital − pagos vigentes), y
+ *  - lo que le debés al **prestamista** (capital − pagos vigentes),
  *  - lo que el negocio le debe a la **contraparte** por lo que puso (equipos,
- *    diseñador, aportes). Ahí caen los pagos por conciliación.
+ *    diseñador, aportes) — ahí caen los pagos por conciliación —, y
+ *  - lo que le debés a los **proveedores**: las facturas de compra sin pagar.
  *
- * El saldo y las obligaciones **los deriva el servidor**: acá no se recalculan.
- * Las obligaciones salen del MISMO servicio que usa Caja, o las dos pantallas
- * terminarían diciendo cosas distintas sobre la misma deuda.
+ * Todos los saldos **los deriva el servidor**: acá no se recalculan. Las
+ * obligaciones salen del MISMO servicio que usa Caja y las facturas del MISMO
+ * que usa Compras, o las pantallas terminarían diciendo cosas distintas sobre
+ * la misma deuda.
+ *
+ * ⚠️ **El total de arriba es la suma de los tres bloques, y lo suma el
+ * servidor** (`totals`). Acá no se vuelve a sumar: con dos caminos al mismo
+ * número, el día que uno cambie el total deja de cuadrar con lo que tiene
+ * debajo. Y un total que no cuadra con sus partes es peor que no tenerlo.
+ *
+ * La **gestión** de cada factura sigue en Compras: esta pantalla responde
+ * "cuánto" y lleva allá. Abonar, recibir y anular no se duplican acá.
  *
  * Un pago de préstamo NO es un gasto: el equipo ya está en el ledger como
  * inversión, y contar además cada cuota sería contar la misma máquina dos veces.
@@ -57,9 +68,11 @@ export function LoansPage() {
 
   if (isLoading || !data) return <PageSkeleton />;
 
-  const { loans, owner } = data;
+  const { loans, owner, suppliers, totals } = data;
   const capital = loans.reduce((s, l) => s + l.principal, 0);
-  const saldo = loans.reduce((s, l) => s + l.balance, 0);
+  // ⚠️ El saldo del bloque sale de `totals`, el mismo número que el servidor
+  // sumó para el total de arriba. Sumarlo acá sería el segundo camino.
+  const saldo = totals.prestamista;
   const cuota = monthlyLoanPayments(paraEquilibrio(loans));
 
   return (
@@ -78,6 +91,8 @@ export function LoansPage() {
           <Plus className="h-4 w-4" /> Nuevo préstamo
         </Button>
       </div>
+
+      <TotalDeLaPantalla totals={totals} />
 
       <section className="space-y-4">
         <div>
@@ -114,8 +129,173 @@ export function LoansPage() {
 
       <DeudaConLaContraparte owner={owner} />
 
+      <DeudaConProveedores suppliers={suppliers} />
+
       <NewLoanDialog open={nuevo} onClose={() => setNuevo(false)} />
     </div>
+  );
+}
+
+/**
+ * EL TOTAL, con sus tres sumandos a la vista.
+ *
+ * ⚠️ Los cuatro números vienen del servidor y los tres de abajo son los MISMOS
+ * que encabezan cada bloque. Se muestran los sumandos a propósito: un total
+ * suelto no se puede comprobar, y este es el número que decide si el dueño se
+ * cree solvente o no.
+ */
+function TotalDeLaPantalla({ totals }: { totals: LoansOverviewTotals }) {
+  const { money } = useMoney();
+
+  const partes = [
+    { label: 'Al prestamista', value: totals.prestamista },
+    { label: 'Al propietario', value: totals.propietario },
+    { label: 'A proveedores', value: totals.proveedores },
+  ];
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4 sm:p-5">
+        <Stat
+          label="Lo que debe el negocio"
+          value={money(totals.total)}
+          accent="yellow"
+          sub="La suma de los tres bloques de abajo"
+        />
+        <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+          {partes.map((p) => (
+            <div
+              key={p.label}
+              className="flex items-baseline justify-between gap-2 rounded-xl border border-border/70 px-3 py-2"
+            >
+              <dt className="text-muted-foreground">{p.label}</dt>
+              <dd className="font-semibold tabular-nums">{money(p.value)}</dd>
+            </div>
+          ))}
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
+type LoansOverviewTotals = LoansOverview['totals'];
+type LoansOverviewSuppliers = LoansOverview['suppliers'];
+
+/**
+ * El tercer bloque: lo que le debés a cada proveedor, derivado de sus facturas
+ * (total de las líneas − abonos no anulados).
+ *
+ * ⚠️ **Acá no se gestiona nada.** Abonar, recibir y anular viven en Compras, y
+ * duplicarlos sería tener dos puertas para la misma escritura. Esta pantalla
+ * responde "cuánto" y lleva allá.
+ */
+function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers }) {
+  const { money } = useMoney();
+  const { groups, total, aFavor } = suppliers;
+
+  // Una sola fuente de filas: los `money()` y las decisiones se resuelven acá
+  // una vez, y las dos vistas solo dibujan.
+  const filas = groups.map((g) => ({
+    key: g.supplierId ?? 'sin-proveedor',
+    nombre: g.supplierName,
+    sinNombre: g.supplierId == null,
+    debe: money(g.total),
+    cuantas:
+      g.facturas === 0
+        ? 'Sin facturas pendientes'
+        : `${g.facturas} factura${g.facturas === 1 ? '' : 's'} sin pagar`,
+    aFavor: g.aFavor > 0 ? money(g.aFavor) : null,
+  }));
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-bold">Lo que le debés a los proveedores</h2>
+          <p className="text-sm text-muted-foreground">
+            Las facturas de compra que todavía no pagaste. Se abonan, se reciben y se anulan en
+            Compras.
+          </p>
+        </div>
+        {/* Lleva a la pantalla donde SÍ se gestiona: no se repite el abono acá. */}
+        <Link
+          to="/compras"
+          className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-brand-yellow-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Ir a Compras <ArrowUpRight className="h-4 w-4" />
+        </Link>
+      </div>
+
+      <Card>
+        <CardContent className="space-y-4 p-4 sm:p-5">
+          <Stat label="Total por pagar" value={money(total)} accent="yellow" />
+
+          {filas.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No le debés nada a ningún proveedor: todas las facturas están pagadas.
+            </p>
+          ) : (
+            <>
+              <ul className="space-y-2 sm:hidden">
+                {filas.map((f) => (
+                  <li key={f.key} className="rounded-xl border border-border/70 p-3 text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className={cn('font-medium', f.sinNombre && 'text-muted-foreground')}>
+                        {f.nombre}
+                      </span>
+                      <span className="font-semibold tabular-nums">{f.debe}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{f.cuantas}</p>
+                    {f.aFavor && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Además le pagaste {f.aFavor} de más
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <table className="hidden w-full text-sm sm:table">
+                <thead>
+                  <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="py-2 pr-3 font-semibold">Proveedor</th>
+                    <th className="py-2 pr-3 font-semibold">Facturas</th>
+                    <th className="py-2 pr-3 text-right font-semibold">Pagado de más</th>
+                    <th className="py-2 text-right font-semibold">Le debés</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filas.map((f) => (
+                    <tr key={f.key} className="border-b border-border/40 last:border-0">
+                      <td className={cn('py-2 pr-3', f.sinNombre && 'text-muted-foreground')}>
+                        {f.nombre}
+                      </td>
+                      <td className="py-2 pr-3 text-xs text-muted-foreground">{f.cuantas}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
+                        {f.aFavor ?? '—'}
+                      </td>
+                      <td className="py-2 text-right font-semibold tabular-nums">{f.debe}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {/* ⚠️ Lo pagado de más va APARTE y se dice que no se compensa: si se
+              restara del total, el número diría que debés menos de lo que
+              debés, y esa plata no vuelve sola. */}
+          {aFavor > 0 && (
+            <p className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+              Hay <strong className="tabular-nums">{money(aFavor)}</strong> pagados de más en
+              facturas ya cubiertas. <strong>No se descuenta</strong> de lo que debés arriba: pagar
+              de más en una factura no cancela lo que debés en otra. Revisá esas facturas en
+              Compras.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 

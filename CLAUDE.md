@@ -467,11 +467,39 @@ al scrollear. Arreglado el 2026-10-05.
   con sus pagos, saldo y avance **derivados por el servidor**. Un pago de
   préstamo NO es un gasto y por eso esta pantalla vive fuera del ledger: el
   equipo ya está ahí como inversión.
-  - **Muestra LAS DOS DEUDAS** (2026-10-08): lo que le debés al **prestamista** y
-    lo que el negocio le debe a la **contraparte**, obligación por obligación.
-    Caja muestra el resumen por fuente; acá se ve **cuál** gasto concreto sigue
-    sin devolverse. ⚠️ Las dos salen del mismo `CashService`: si esta pantalla
-    recalculara, el día que un filtro cambie dirían cosas distintas.
+  - **Muestra LAS TRES DEUDAS** (la tercera, 2026-10-10): lo que le debés al
+    **prestamista**, lo que el negocio le debe a la **contraparte** (obligación
+    por obligación) y lo que le debés a los **proveedores**. Caja muestra el
+    resumen por fuente; acá se ve **cuál** gasto concreto sigue sin devolverse.
+    ⚠️ Las tres las deriva el servidor y salen de los MISMOS servicios que usan
+    Caja y Compras: si esta pantalla recalculara, el día que un filtro cambie
+    dirían cosas distintas.
+  - ⚠️ **El total de arriba es la suma de los tres bloques y lo suma el
+    SERVIDOR** (`totals` de `GET /loans/overview`). `TotalDeLaPantalla` dibuja
+    el total **con sus tres sumandos a la vista**, y cada bloque muestra el
+    mismo número que el servidor usó para sumar (el del prestamista salía de un
+    `reduce` local y pasó a `totals.prestamista`). **No volver a sumar acá**:
+    con dos caminos al mismo número, un total que no cuadra con lo que tiene
+    debajo se lee como la verdad, porque nadie suma a ojo.
+  - **Proveedores** (`DeudaConProveedores`): una fila por proveedor con lo que
+    le debés y cuántas facturas suyas están sin pagar, con enlace a
+    **`/compras`**. ⚠️ **Acá no se gestiona nada** —abonar, recibir y anular
+    viven en Compras— o habría dos puertas para la misma escritura.
+    - ⚠️ **Lo pagado DE MÁS se muestra APARTE y se dice que no se descuenta.**
+      Restarlo del total diría que debés menos de lo que debés, y esa plata no
+      vuelve sola. Hasta que exista el saldo a favor (Fase 3) es un cartel al
+      pie del bloque, no un número metido en la suma.
+    - Una factura **sin proveedor anotado** aparece igual, como "Sin proveedor
+      anotado" en gris: esconderla por no tener nombre sería perder plata que se
+      debe.
+    - ⚠️ `apps/web` **no tiene runner de tests**: el agrupado, la regla de la
+      factura anulada, la del abono anulado y la de no compensar viven en la API
+      (`deuda-por-proveedor.ts` + `loans.service.spec.ts`, 36 tests entre las
+      dos suites). Acá quedó solo el JSX.
+    - ⚠️ **`useInvoiceMutation`** (`features/purchases/api.ts`) **no invalida
+      `['loans']`**, así que abonar con Deuda abierta en otra pestaña deja el
+      bloque viejo hasta el próximo montaje. Es una línea en esa lista de claves
+      y conviene sumarla.
   - **"Faltan X" son DOS lecturas**, al ritmo objetivo y al real. Una sola miente
     con pagos irregulares, que es el caso real.
   - **Anular reemplaza a borrar**: el pago queda tachado en el historial con su

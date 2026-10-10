@@ -64,9 +64,29 @@ export interface Obligation {
   outstanding: number;
 }
 
+/** Lo que le debés a UN proveedor, derivado de sus facturas por el servidor. */
+export interface DeudaConProveedor {
+  /** `null` = facturas sin proveedor anotado. Se deben igual. */
+  supplierId: string | null;
+  supplierName: string;
+  /** Σ saldos de sus facturas vigentes. */
+  total: number;
+  /** Cuántas de sus facturas tienen saldo. */
+  facturas: number;
+  /**
+   * Lo pagado DE MÁS, aparte.
+   *
+   * ⚠️ **No está restado de `total` y no hay que restarlo acá.** Pagar de más
+   * en una factura no cancela lo que debés en otra: hasta que exista el saldo a
+   * favor, se MUESTRA al lado, nunca compensado.
+   */
+  aFavor: number;
+  facturasAFavor: number;
+}
+
 /**
- * LAS DOS DEUDAS. Lo que le debés al prestamista y lo que el negocio te debe a
- * vos son cosas distintas que comparten la palabra "préstamo".
+ * LAS TRES DEUDAS. Lo que le debés al prestamista, lo que el negocio te debe a
+ * vos y lo que le debés a los proveedores son cosas distintas.
  */
 export interface LoansOverview {
   loans: Loan[];
@@ -75,6 +95,26 @@ export interface LoansOverview {
     obligations: Obligation[];
     total: number;
     applicationOrder: 'OLDEST_FIRST' | 'NEWEST_FIRST';
+  };
+  /** Las facturas de compra sin pagar, agrupadas por proveedor. */
+  suppliers: {
+    groups: DeudaConProveedor[];
+    total: number;
+    aFavor: number;
+  };
+  /**
+   * Los tres bloques y su suma, **derivados por el servidor**.
+   *
+   * ⚠️ **No sumar acá.** El total tiene que ser exactamente la suma de los tres
+   * bloques que la pantalla dibuja; con un segundo camino al mismo número, el
+   * día que uno cambie el total deja de cuadrar con sus partes — y un total que
+   * no cuadra se lee como la verdad, porque nadie va a sumar a ojo.
+   */
+  totals: {
+    prestamista: number;
+    propietario: number;
+    proveedores: number;
+    total: number;
   };
 }
 
