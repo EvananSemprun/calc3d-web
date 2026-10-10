@@ -44,6 +44,7 @@ import {
   type InvoiceLine,
   type PurchaseInvoice,
 } from '@/features/purchases/api';
+import { avisoDePrecio, preciosRealesDeLaLinea } from '@/features/purchases/precio-real';
 
 const hoyIso = () => {
   const d = new Date();
@@ -344,6 +345,19 @@ function FacturaCard({
                     {' '}
                     · {l.quantity} × {money(l.unitPrice)}
                   </span>
+                  {/* ⚠️ EL PRECIO QUE TE COBRARON, cuando no es el que pediste.
+                      Cambia el total de la factura: sin decirlo, el número de
+                      arriba se mueve y nadie sabe por qué. Las entregas que
+                      llegaron a lo pactado no se repiten acá. */}
+                  {preciosRealesDeLaLinea(l).map((r) => (
+                    <span
+                      key={r.unitPrice}
+                      className="ml-1.5 whitespace-nowrap text-xs text-brand-yellow-ink"
+                      title="El proveedor te cobró otro precio al entregar. El total de la factura usa este."
+                    >
+                      · te cobraron {r.quantity} × {money(r.unitPrice)}
+                    </span>
+                  ))}
                 </span>
                 <span className="flex items-center gap-2">
                   <span
@@ -536,6 +550,19 @@ function Recibir({
   const [date, setDate] = useState(hoyIso());
   const [rollGrams, setRollGrams] = useState(1000);
   /**
+   * EL PRECIO QUE TE COBRARON. Arranca en el que pediste, que es el caso normal.
+   *
+   * ⚠️ `number | null` y **sin `NumberInput`**: ese mapea el campo vacío a 0, y
+   * entonces borrar el precio registraría la entrega **como si te la hubieran
+   * regalado** —y 0 es un precio válido de verdad, así que nada lo frenaría—.
+   * Vacío significa "no informo nada": no viaja en el cuerpo y el servidor usa
+   * el de la línea.
+   */
+  const [precio, setPrecio] = useState<number | null>(l.unitPrice);
+  /** Lo que se va a cobrar de verdad: sin precio informado, el pedido. */
+  const precioEfectivo = precio ?? l.unitPrice;
+  const aviso = avisoDePrecio(l.unitPrice, precio, quantity);
+  /**
    * ⚠️ Los gramos son del ROLLO: solo se preguntan si lo que nace es filamento.
    * Una impresora nace con el precio de la compra y nada más; sus horas de vida
    * y su consumo se corrigen desde el catálogo.
@@ -545,7 +572,15 @@ function Recibir({
 
   const guardar = () =>
     recibir.mutate(
-      { id: f.id, lineId: l.id, quantity, date, ...(nacerollo ? { rollGrams } : {}) },
+      {
+        id: f.id,
+        lineId: l.id,
+        quantity,
+        date,
+        // Vacío = no se informa nada y manda el de la línea.
+        ...(precio != null ? { unitPrice: precio } : {}),
+        ...(nacerollo ? { rollGrams } : {}),
+      },
       {
         onSuccess: () => {
           notify.success(quantity === l.porRecibir ? 'Llegó completa' : `Entraron ${quantity}`);
@@ -580,7 +615,42 @@ function Recibir({
           <Field label="Fecha" required>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
+          <Field
+            label="¿A cuánto te lo cobraron? (USD)"
+            hint={`Pediste a ${money(l.unitPrice)} por unidad. Si llegó a ese precio, dejalo así.`}
+          >
+            {/* ⚠️ Acá NO va `NumberInput`: mapea el campo vacío a 0 y la entrega
+                quedaría registrada como regalada. Vacío = no informo nada. */}
+            <Input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              placeholder={String(l.unitPrice)}
+              value={precio ?? ''}
+              onChange={(e) => {
+                const t = e.target.value;
+                if (t.trim() === '') return setPrecio(null);
+                const n = Number(t);
+                if (!Number.isNaN(n)) setPrecio(Math.max(0, n));
+              }}
+            />
+          </Field>
         </FieldGrid>
+        {/* ⚠️ EL AVISO. Un precio distinto cambia el TOTAL de la factura, así que
+            no puede pasar en silencio: el dueño tiene que poder decidir antes de
+            guardar si se equivocó de tecla o si el proveedor le cobró otra cosa. */}
+        {aviso && (
+          <p className="rounded-lg border border-brand-yellow/50 bg-brand-yellow/10 p-2 text-xs">
+            <strong className="text-brand-yellow-ink">
+              Te {aviso.masCaro ? 'cobraron más' : 'cobraron menos'} de lo que pediste:{' '}
+              {money(Math.abs(aviso.porUnidad))} {aviso.masCaro ? 'más' : 'menos'} por unidad.
+            </strong>{' '}
+            Esta entrega {aviso.masCaro ? 'suma' : 'resta'} {money(Math.abs(aviso.enEstaEntrega))} al
+            total de la factura. La línea sigue pidiendo a {money(l.unitPrice)}: lo que falta llegar
+            se cuenta a ese precio.
+          </p>
+        )}
         {nacerollo && (
           <Field
             label="Gramos del rollo"
@@ -597,8 +667,8 @@ function Recibir({
         )}
         <p className="rounded-lg border border-border/70 bg-background/30 p-2 text-xs text-muted-foreground">
           Entra al inventario como una compra de{' '}
-          <strong>{money(quantity * l.unitPrice)}</strong>. La plata ya se contó al abonar: el saldo de
-          la Caja no se mueve.
+          <strong>{money(quantity * precioEfectivo)}</strong>. La plata ya se contó al abonar: el
+          saldo de la Caja no se mueve.
         </p>
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="outline" onClick={onClose}>

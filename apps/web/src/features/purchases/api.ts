@@ -22,9 +22,28 @@ export interface InvoiceLine {
    */
   nuevoTipo: NuevoTipo | null;
   quantity: number;
+  /** Lo que PEDISTE por unidad. No se reescribe nunca: es el pedido. */
   unitPrice: number;
   received: number;
   porRecibir: number;
+  /**
+   * CADA ENTREGA, CON EL PRECIO QUE TE COBRARON.
+   *
+   * ⚠️ Pediste 10 a $7 y te facturaron $7,50: la línea conserva los $7 y cada
+   * recepción guarda lo suyo, así que el total de la factura usa el precio REAL
+   * de lo que llegó y el PEDIDO de lo que falta. Lo deriva el servidor de los
+   * gastos de la línea (una recepción no tiene tabla propia: su registro ES el
+   * gasto que nace al recibir).
+   */
+  recepciones: InvoiceReceipt[];
+}
+
+/** Una entrega ya recibida, con lo que de verdad costó la unidad. */
+export interface InvoiceReceipt {
+  id: string;
+  date: string;
+  quantity: number;
+  unitPrice: number;
 }
 
 export interface InvoicePayment {

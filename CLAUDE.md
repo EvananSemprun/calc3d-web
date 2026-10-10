@@ -1207,6 +1207,35 @@ con 133.22 y le quedaban 102.83.
     elegir es un 400.
   - **Recepción parcial**: pediste 10, llegaron 6, la línea queda esperando 4.
     El campo se recorta solo a lo que falta.
+  - ⚠️ **EL PRECIO QUE TE COBRARON** (2026-10-10, shared 0.44.0). El diálogo de
+    recibir pregunta **"¿a cuánto te lo cobraron?"**, con el precio pedido ya
+    puesto, y **avisa cuando difiere**: *"Te cobraron más de lo que pediste:
+    $0,50 más por unidad. Esta entrega suma $3,00 al total de la factura."* En la
+    lista, la línea muestra *"· te cobraron 6 × $7,50"* al lado de lo pedido.
+    - ⚠️ **No es adorno: cambia el TOTAL de la factura** (de $70 a $73 en el caso
+      del spec). Un número de plata que se mueve sin que la pantalla diga por qué
+      miente de la peor manera, la que nadie nota.
+    - ⚠️ **Ese campo NO usa `NumberInput`**, que mapea el campo vacío a 0: con él,
+      borrar el precio registraría la entrega **como si te la hubieran regalado**
+      —y 0 es un precio válido de verdad, así que nada lo frenaría—. Es
+      `number | null` con `<Input type="number">`, y **vacío significa "no informo
+      nada"**: no viaja en el cuerpo y el servidor usa el de la línea. Misma
+      trampa que en el precio de las líneas propuestas.
+    - **La línea sigue pidiendo a lo pactado** y el diálogo lo dice: lo que falta
+      llegar se cuenta a ese precio. El monto de la compra que se previsualiza usa
+      el precio informado.
+    - ⚠️ **Acá no se calcula el total**: lo deriva el servidor
+      (`invoiceTotals` con las `recepciones` de cada línea). La pantalla solo
+      decide **qué decir**, con dos funciones puras en
+      `features/purchases/precio-real.ts` —`avisoDePrecio` (antes de guardar) y
+      `preciosRealesDeLaLinea` (después)— y sus **14 tests de vitest**.
+      `preciosRealesDeLaLinea` **calla las entregas que llegaron a lo pactado**:
+      repetir el mismo número al lado del pedido es ruido que entrena a no leer.
+    - ⚠️ Las dos comparan **redondeando a 4 decimales**, la precisión del motor:
+      un precio que vuelve de la base como 7,4999999 es el mismo $7,50 y el
+      cartel aparecería siempre.
+    - **No hay clave de caché nueva**: `useReceiveLine` ya pasa por
+      `useInvoiceMutation`.
   - Abonar de más **no se bloquea** —esa plata salió— pero se avisa antes de
     guardar y la factura queda marcada como *Pagada de más*.
   - **Una compra de filamento se CORRIGE desde su lista** (2026-10-09,
@@ -1412,9 +1441,11 @@ reparto por canal, los totales de Gastos).
   (derivaciones, filtros, valores seguros, filas resueltas). Si hace falta
   montar un componente, hay que pedir esas dos dependencias primero.
 - Qué hay hoy: `pages/Expenses.spec.ts` (15 tests) — `totalesGastos`,
-  `tipoSeguro` y `filaDeGasto` — y
+  `tipoSeguro` y `filaDeGasto` —,
   `features/calculator/materialOptions.spec.ts` (21 tests, 2026-10-10) — el
-  selector de filamento por tipo. **Total: 36.**
+  selector de filamento por tipo — y
+  `features/purchases/precio-real.spec.ts` (14 tests, 2026-10-10) — el aviso de
+  que el proveedor te cobró otro precio. **Total: 50.**
 - ⚠️ El spec importa desde `@/pages/Expenses`, o sea que **arrastra el módulo de
   la página entero** (React, React Query, axios, `@calc3d/shared`). Funciona
   porque ninguno de esos imports toca `window` ni `document` en el tope del
