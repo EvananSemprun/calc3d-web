@@ -33,6 +33,25 @@ export function formatStoredDay(iso: string): string {
   return new Date(iso).toLocaleDateString('es-VE', { timeZone: 'UTC' });
 }
 
+/**
+ * Un MES guardado (`'2026-09'`) → `'septiembre de 2026'`.
+ *
+ * Se lee en **UTC** porque un mes se guarda como su primer día a medianoche
+ * UTC: en la zona local caería el 31 del mes anterior y diría el mes
+ * equivocado — el mismo error que ya imprimió el día previo en los documentos.
+ *
+ * ⚠️ Esta misma conversión está escrita a mano en otros cuatro lugares
+ * (`StockTab`, `Goals`, `materialOptions`); lo nuevo usa esta y lo viejo
+ * conviene migrarlo cuando se lo toque.
+ */
+export function labelMes(month: string): string {
+  return new Date(`${month}-01T00:00:00.000Z`).toLocaleDateString('es-VE', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 /** El mes en curso, en la zona del usuario, como `AAAA-MM`. */
 export function currentMonthKey(base = new Date()): string {
   return `${base.getFullYear()}-${dosDigitos(base.getMonth() + 1)}`;

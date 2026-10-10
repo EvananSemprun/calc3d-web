@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ChevronLeft,
@@ -66,6 +66,24 @@ const SIN_FILAS: StockCountRow[] = [];
  */
 export function StockTab() {
   const [month, setMonth] = usePersistentState('filament:stock:month', currentMonthKey());
+
+  /**
+   * `?mes=2026-09` abre ESE mes (lo usa el aviso del Dashboard que recuerda
+   * contar). Sin esto, el aviso de "falta contar septiembre" caía en el mes EN
+   * CURSO —que todavía no se puede cerrar— y había que volver con la flecha:
+   * fricción justo en la acción que el aviso viene a pedir.
+   *
+   * ⚠️ El mes se **valida** antes de usarlo: un `?mes=cualquiera` haría que la
+   * API responda 400 y la pantalla se abriría en un error. Y el efecto depende
+   * SOLO del parámetro, así que después de llegar se puede cambiar de mes a
+   * mano sin que lo pise.
+   */
+  const [searchParams] = useSearchParams();
+  const mesPedido = searchParams.get('mes');
+  useEffect(() => {
+    if (mesPedido && /^\d{4}-(0[1-9]|1[0-2])$/.test(mesPedido)) setMonth(mesPedido);
+  }, [mesPedido]);
+
   // Consulta cruda (no solo `filas`): en TanStack v5 un refetch en segundo
   // plano que falla deja `isError` en true aunque `data` conserve lo último
   // bueno; distinguir "nunca cargó" de "falló refrescando" evita tapar la

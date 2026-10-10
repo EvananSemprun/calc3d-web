@@ -15,9 +15,17 @@ import {
   YAxis,
 } from 'recharts';
 import { Link } from 'react-router-dom';
-import { LineChart as LineIcon, AlertTriangle, Megaphone, PackageX } from 'lucide-react';
+import {
+  LineChart as LineIcon,
+  AlertTriangle,
+  ClipboardList,
+  Megaphone,
+  PackageX,
+  X,
+} from 'lucide-react';
 import {
   breakEvenProgress,
+  conteoDeStockPendiente,
   equilibrioYCompromiso,
   cashChain,
   cashChainCuts,
@@ -33,7 +41,7 @@ import { paraEquilibrio, useLoans, useLoansOverview } from '@/features/loans/api
 import { useGoalForMonth } from '@/features/goals/api';
 import { useEquipmentRecovery } from '@/features/equipment/api';
 import { useCash, useCashBalanceAt } from '@/features/cash/api';
-import { currentMonthKey, formatStoredDay, todayKey } from '@/lib/today';
+import { currentMonthKey, formatStoredDay, labelMes, todayKey } from '@/lib/today';
 import { Card, CardContent, CardHeader, CardTitle, ProgressBar, Select, Stat, TableSkeleton } from '@/components/ui';
 import { usePersistentState } from '@/lib/usePersistentState';
 import { cn } from '@/lib/utils';
@@ -50,6 +58,7 @@ import {
 } from '@/features/finance/DateRange';
 import { storeProductsBelowMargin, useStoreProducts } from '@/features/store/api';
 import { usePurchaseInvoices } from '@/features/purchases/api';
+import { useLastClosedStockMonth } from '@/features/filament/api';
 import {
   LINK_KIND_LABELS,
   expenseLink,
@@ -386,6 +395,7 @@ export function DashboardPage() {
       <ProfitabilityAlert />
       <CampaignAlert />
       <AtrasoDeCompraAlert />
+      <StockCountAlert />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -840,27 +850,138 @@ function CadenaDeCaja({
   );
 }
 
+/**
+ * LA CAJA DE UN AVISO DEL DASHBOARD — una sola para los cuatro.
+ *
+ * ⚠️ **No es prolijidad: es la condición para que un aviso se lea como un
+ * aviso.** Los tres primeros se escribieron por separado repitiendo las mismas
+ * clases, y el cuarto tenía que sumar un botón de descartar: con cuatro cajas
+ * escritas a mano, la que se tocara iba a quedar distinta y en esta pantalla
+ * eso significa que ninguna de las cuatro se distingue del contenido.
+ *
+ * ⚠️ **El botón de descartar va FUERA del `Link`**, como hermano y no como
+ * hijo: anidado, tocarlo navega además de descartar (un `<button>` dentro de
+ * un `<a>` tampoco es HTML válido).
+ */
+function AvisoDelDashboard({
+  icono,
+  to,
+  titulo,
+  detalle,
+  onDescartar,
+  descartarLabel,
+}: {
+  icono: React.ReactNode;
+  to: string;
+  /** La parte en negrita: qué pasa, con su número. */
+  titulo: React.ReactNode;
+  /** El detalle apagado: por qué importa y qué hacer. */
+  detalle: React.ReactNode;
+  /** Sin esto el aviso no se puede callar (los dos de datos viejos sí se pueden). */
+  onDescartar?: () => void;
+  descartarLabel?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 transition-colors hover:bg-amber-500/15">
+      <Link to={to} className="flex min-w-0 flex-1 items-center gap-3">
+        {icono}
+        <div className="min-w-0 flex-1 text-sm">
+          <span className="font-semibold text-amber-600 dark:text-amber-400">{titulo}</span>{' '}
+          <span className="text-muted-foreground">{detalle}</span>
+        </div>
+      </Link>
+      {onDescartar && (
+        <button
+          type="button"
+          onClick={onDescartar}
+          aria-label={descartarLabel}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-amber-600 transition-colors hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-400"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Aviso proactivo: productos cuyo margen cayó por debajo del mínimo (devaluación). */
 function ProfitabilityAlert() {
   const { data: products } = useStoreProducts();
   const alerts = storeProductsBelowMargin(products);
   if (alerts.length === 0) return null;
   return (
-    <Link
+    <AvisoDelDashboard
       to="/store"
-      className="flex items-center gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 transition-colors hover:bg-amber-500/15"
-    >
-      <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-      <div className="flex-1 text-sm">
-        <span className="font-semibold text-amber-600 dark:text-amber-400">
+      icono={<AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />}
+      titulo={
+        <>
           {alerts.length} {alerts.length === 1 ? 'producto ya no da' : 'productos ya no dan'} el margen esperado.
-        </span>{' '}
-        <span className="text-muted-foreground">
+        </>
+      }
+      detalle={
+        <>
           Los costos subieron: {alerts.slice(0, 3).map((p) => p.name).join(', ')}
           {alerts.length > 3 ? '…' : ''}. Revísalos y ajusta precios.
-        </span>
-      </div>
-    </Link>
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * Aviso proactivo: empezó un mes nuevo y el conteo del anterior quedó sin
+ * cerrar (2026-10-10).
+ *
+ * ⚠️ **Vive acá y no en Stock del mes** (decisión del dueño): el mes pasado no
+ * contó porque **no entró** a esa pantalla, así que un aviso que viviera ahí
+ * llega tarde por definición.
+ *
+ * ⚠️ **Acá no se decide nada**: quién avisa es `conteoDeStockPendiente` de
+ * shared, con el "hoy" en día LOCAL (`todayKey()`) como parámetro. Las tres
+ * puertas que apagan el aviso —el mes anterior cerrado, ningún mes cerrado
+ * todavía, el cierre adelantado— están probadas ahí.
+ *
+ * ⚠️ **El descarte se guarda con el MES PENDIENTE**, no con "descartado:
+ * true": así dura hasta que el mes cambie. Si volviera al recargar sería
+ * ruido; si no volviera nunca, sería un aviso perdido.
+ */
+function StockCountAlert() {
+  const { data } = useLastClosedStockMonth();
+  const [descartado, setDescartado] = usePersistentState<string | null>(
+    'dashboard:aviso-conteo',
+    null,
+  );
+  // Mientras la consulta viaja no hay nada que decir: con `undefined` el aviso
+  // no puede aparecer y tampoco se afirma que no haga falta.
+  const pendiente = data ? conteoDeStockPendiente(data.month, todayKey()) : null;
+  if (!pendiente || descartado === pendiente.mes) return null;
+
+  const mes = labelMes(pendiente.mes);
+  return (
+    <AvisoDelDashboard
+      // El mes pendiente viaja en el enlace: sin eso la pantalla abre en el mes
+      // EN CURSO —que todavía no se puede cerrar— y hay que volver con la flecha.
+      to={`/filament/stock?mes=${pendiente.mes}`}
+      icono={<ClipboardList className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />}
+      titulo={
+        pendiente.meses === 1 ? (
+          <>Falta contar el stock de {mes}.</>
+        ) : (
+          <>
+            Faltan {pendiente.meses} conteos de stock: el último cerrado es{' '}
+            {labelMes(pendiente.ultimoCerrado)}.
+          </>
+        )
+      }
+      detalle={
+        <>
+          Ese mes terminó sin el conteo de rollos, así que no se sabe cuánto filamento se consumió
+          ni qué hay que reponer. Contalo mirando el estante.
+        </>
+      }
+      onDescartar={() => setDescartado(pendiente.mes)}
+      descartarLabel={`Descartar el aviso del conteo de ${mes}`}
+    />
   );
 }
 
@@ -881,31 +1002,31 @@ function CampaignAlert() {
   });
   if (alerts.length === 0) return null;
   return (
-    <Link
+    <AvisoDelDashboard
       to="/campaigns"
-      className="flex items-center gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 transition-colors hover:bg-amber-500/15"
-    >
-      <Megaphone className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-      <div className="flex-1 text-sm">
-        <span className="font-semibold text-amber-600 dark:text-amber-400">
+      icono={<Megaphone className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />}
+      titulo={
+        <>
           {alerts.length} {alerts.length === 1 ? 'campaña no está rindiendo' : 'campañas no están rindiendo'}.
-        </span>{' '}
-        <span className="text-muted-foreground">
+        </>
+      }
+      detalle={
+        <>
           Gastas más de lo que dejan: {alerts.slice(0, 3).map((c) => c.name).join(', ')}
           {alerts.length > 3 ? '…' : ''}. Revísalas antes de seguir invirtiendo.
-        </span>
-      </div>
-    </Link>
+        </>
+      }
+    />
   );
 }
 
 /**
  * Aviso proactivo: facturas de compra que no llegaron cuando dijeron.
  *
- * ⚠️ **Sigue el patrón de los dos de arriba** (`ProfitabilityAlert`,
- * `CampaignAlert`): un `Link` con la misma caja ámbar, un ícono, el número en
- * negrita y el detalle apagado al lado. Un tercer estilo de cartel en la misma
- * pantalla hace que ninguno de los tres se lea como un aviso.
+ * ⚠️ **Usa `AvisoDelDashboard`, como los otros tres**: misma caja ámbar, mismo
+ * ícono a la izquierda, el número en negrita y el detalle apagado al lado. Un
+ * estilo de cartel propio en la misma pantalla hace que ninguno de los cuatro
+ * se lea como un aviso.
  *
  * ⚠️ **El cálculo NO vive acá**: es `facturasAtrasadas` de shared, la misma
  * función que destaca las facturas en Compras. Si el Dashboard contara por su
@@ -929,25 +1050,23 @@ function AtrasoDeCompraAlert() {
   const peor = atrasadas[0];
 
   return (
-    <Link
+    <AvisoDelDashboard
       to="/compras"
-      className="flex items-center gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 transition-colors hover:bg-amber-500/15"
-    >
-      <PackageX className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-      <div className="flex-1 text-sm">
-        <span className="font-semibold text-amber-600 dark:text-amber-400">
+      icono={<PackageX className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />}
+      titulo={
+        <>
           {atrasadas.length}{' '}
-          {atrasadas.length === 1 ? 'compra no llegó' : 'compras no llegaron'} cuando
-          dijeron.
-        </span>{' '}
-        <span className="text-muted-foreground">
+          {atrasadas.length === 1 ? 'compra no llegó' : 'compras no llegaron'} cuando dijeron.
+        </>
+      }
+      detalle={
+        <>
           La más vieja la esperabas hace {peor.diasDeAtraso}{' '}
-          {peor.diasDeAtraso === 1 ? 'día' : 'días'}:{' '}
-          {proveedores.slice(0, 3).join(', ')}
+          {peor.diasDeAtraso === 1 ? 'día' : 'días'}: {proveedores.slice(0, 3).join(', ')}
           {proveedores.length > 3 ? '…' : ''}. Revísalas antes de volver a encargar.
-        </span>
-      </div>
-    </Link>
+        </>
+      }
+    />
   );
 }
 

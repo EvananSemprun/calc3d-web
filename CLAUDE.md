@@ -987,15 +987,50 @@ al scrollear. Arreglado el 2026-10-05.
   pantalla.
 - **Alertas proactivas**: `ProfitabilityAlert` (productos por debajo del margen
   mínimo → `/products`), `CampaignAlert` (campañas `LOSS`/`AT_RISK` con inversión
-  > 0 **y VIGENTES** → `/campaigns`; ver abajo) y **`AtrasoDeCompraAlert`**
-  (facturas de compra que no llegaron cuando dijeron → `/compras`, 2026-10-10).
-  ⚠️ **Las tres comparten caja, ícono y forma** (`Link` ámbar, número en
-  negrita, detalle apagado al lado): un cuarto estilo de cartel en la misma
-  pantalla hace que ninguno se lea como un aviso. ⚠️ Y **ninguna calcula**: el
-  atraso lo decide `facturasAtrasadas` de shared, la MISMA función que destaca
-  las facturas en Compras, con `todayKey()` como "hoy". Si el Dashboard contara
-  por su cuenta, el día que la regla cambie el aviso diría "3" y la pantalla a
-  la que lleva mostraría 2.
+  > 0 **y VIGENTES** → `/campaigns`; ver abajo), **`AtrasoDeCompraAlert`**
+  (facturas de compra que no llegaron cuando dijeron → `/compras`, 2026-10-10) y
+  **`StockCountAlert`** (falta contar el stock del mes anterior →
+  `/filament/stock?mes=…`, 2026-10-10).
+  ⚠️ **Las cuatro comparten UNA caja, `AvisoDelDashboard`** (`Link` ámbar,
+  ícono, número en negrita, detalle apagado al lado y un botón de descartar
+  opcional): con cuatro cajas escritas a mano, la que se toque queda distinta y
+  en esta pantalla eso significa que ninguna se distingue del contenido. El
+  botón de descartar va **fuera del `Link`**, como hermano: anidado, tocarlo
+  navegaría además de descartar (y un `<button>` dentro de un `<a>` tampoco es
+  HTML válido). ⚠️ Y **ninguna calcula**: el atraso lo decide
+  `facturasAtrasadas` de shared, la MISMA función que destaca las facturas en
+  Compras, y el conteo pendiente, `conteoDeStockPendiente`, las dos con
+  `todayKey()` como "hoy". Si el Dashboard contara por su cuenta, el día que la
+  regla cambie el aviso diría "3" y la pantalla a la que lleva mostraría 2.
+
+#### Los recordatorios que SE PUEDEN CALLAR (Fase 6, 2026-10-10)
+
+> ⚠️ **El riesgo de esta familia de avisos es el RUIDO.** Uno que aparece
+> siempre deja de verse, y cuando eso pasa también deja de verse el que
+> importaba. Por eso el nuevo **se descarta** y no aparece si no hay nada que
+> hacer.
+
+- **`StockCountAlert`** — *"Falta contar el stock de septiembre de 2026."*
+  Aparece cuando **empezó un mes nuevo y el anterior quedó sin cerrar**, desde
+  el día 1. ⚠️ **Va en el Dashboard y no en Stock del mes** (decisión del
+  dueño): el mes pasado no contó porque **no entró** a esa pantalla, así que un
+  aviso que viviera ahí llega tarde por definición.
+  - Lo decide `conteoDeStockPendiente(ultimoMesCerrado, hoy)` de shared, sobre
+    `GET /filament/stock/last-closed`. Las tres puertas que lo apagan están
+    probadas ahí: el mes anterior ya cerrado, **ningún mes cerrado todavía** (un
+    negocio que arranca no tiene nada que contar) y el cierre adelantado.
+  - ⚠️ **El enlace lleva el mes pendiente** (`?mes=2026-09`, que `StockTab`
+    lee y valida): sin eso abre el mes EN CURSO —que todavía no se puede
+    cerrar— y hay que volver con la flecha, fricción justo en la acción que el
+    aviso viene a pedir.
+- ⚠️ **El descarte se guarda con el MES**, no con `descartado: true`
+  (`dashboard:aviso-conteo`): así dura **hasta que el mes cambie**. Si volviera al recargar sería ruido; si no volviera nunca,
+  sería un aviso perdido. Los dos extremos están testeados.
+- ⚠️ **CUATRO avisos apilados no entran en un teléfono.** Cada uno mide ~68 px
+  y los cuatro juntos empujan los KPIs abajo del pliegue. En la práctica es
+  raro verlos juntos (los dos nuevos se descartan y el del conteo solo aparece
+  arriba del mes), pero si el dueño los ve apilados **la conversación es cuál se
+  va, no achicar la letra**.
 
 #### Ventas → «Ventas de mostrador» (2026-10-02)
 
@@ -1697,19 +1732,38 @@ reparto por canal, los totales de Gastos).
   limpia en el `beforeEach`: sin limpiar, un tipo elegido en un test deja la
   lista vacía en el siguiente y los `queryAllBy…` dan 0 por el motivo
   equivocado.
-- Qué hay hoy (**total: 101**, 7 archivos):
-  `features/finance/expenses-view.spec.ts` (24) — `totalesGastos`, `tipoSeguro`,
-  `filaDeGasto` y `pasaTipo` —, `pages/Expenses.pantalla.spec.tsx` (7, el primer
-  test de componente) — la fila de factura sin tacho y con el pagador apagado, y
-  que los filtros de tipo guardados se apliquen (Filamentos, General,
-  Inversión) —, `features/calculator/materialOptions.spec.ts` (34) — el selector
-  de filamento por tipo, la ventana de 6 meses y la ficha sin precio —,
-  `features/calculator/Filamento.pantalla.spec.tsx` (5, jsdom) — el cableado de
-  ese selector —, `features/purchases/precio-real.spec.ts` (14) — el aviso de
-  que el proveedor te cobró otro precio —,
-  `features/purchases/aviso-de-abono.spec.ts` (11) — qué avisar sobre el monto
-  de un abono, los tres casos — y `pages/Purchases.abonar.spec.tsx` (6, jsdom) —
-  el cableado de ese aviso en el diálogo "Abonar".
+- Qué hay hoy: **128 tests en 11 archivos** (2026-10-10). ⚠️ **El total sale del
+  runner** (`pnpm --filter @calc3d/web test`), y la lista de abajo dice PARA QUÉ
+  es cada archivo sin repetir su conteo: la versión anterior de esta línea
+  afirmaba "101 en 7 archivos" con 123 en 10 y tres archivos sin nombrar — un
+  número escrito a mano envejece sin que nada falle.
+  - `features/finance/expenses-view.spec.ts` — `totalesGastos`, `tipoSeguro`,
+    `filaDeGasto` y `pasaTipo`.
+  - `pages/Expenses.pantalla.spec.tsx` (jsdom, el primer test de componente) —
+    la fila de factura sin tacho y con el pagador apagado, y los filtros de tipo
+    guardados.
+  - `features/calculator/materialOptions.spec.ts` — el selector de filamento por
+    tipo, la ventana de 6 meses y la ficha sin precio, más
+    `features/calculator/Filamento.pantalla.spec.tsx` (jsdom) para su cableado.
+  - `features/purchases/precio-real.spec.ts` — el aviso de que el proveedor te
+    cobró otro precio.
+  - `features/purchases/aviso-de-abono.spec.ts` — qué avisar sobre el monto de
+    un abono, los tres casos, más `pages/Purchases.abonar.spec.tsx` (jsdom) para
+    su cableado en el diálogo "Abonar".
+  - `features/finance/rango-de-mes.spec.ts` — `rangoDeMes` y el barrido de los
+    24 meses.
+  - `features/loans/equilibrio-al-cerrar.spec.ts` + `pages/Loans.cerrar.spec.tsx`
+    (jsdom) — cerrar un préstamo y su efecto en el punto de equilibrio.
+  - `pages/Dashboard.avisos.spec.tsx` (jsdom) — los avisos del Dashboard
+    renderizados: cuándo aparecen, cuándo NO y que el descarte dure hasta que
+    cambie el mes.
+- ⚠️ **Una ausencia medida antes de que lleguen los datos no prueba nada.**
+  `Dashboard.avisos.spec.tsx` monta con una **puerta**: todas las respuestas de
+  `api.get` esperan a que el test la abra, y `cargar()` la abre y espera el
+  cartel "Sin datos en este periodo" (que depende de `/sales` y `/expenses`,
+  las dos últimas en responder). Sin eso, cada test de "no avisa" pasaba porque
+  la consulta todavía viajaba: **lo destapó una mutación** que borraba la guarda
+  de "ningún mes cerrado todavía" y no tumbaba un solo test de pantalla.
 - ⚠️ **Un `Select` de Radix se abre en jsdom con `fireEvent.keyDown(trigger,
   { key: 'Enter' })` y se elige con `fireEvent.click` sobre el texto de la
   opción.** No hace falta `user-event` ni shims de pointer capture; lo que sí

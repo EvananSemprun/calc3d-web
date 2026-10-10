@@ -59,6 +59,25 @@ export function useFilamentStock(month: string) {
   });
 }
 
+/**
+ * El ÚLTIMO mes con el conteo cerrado (`AAAA-MM`), o null si todavía no se
+ * cerró ninguno. Lo pide el aviso del Dashboard que recuerda contar.
+ *
+ * ⚠️ **No se puede reemplazar por `useFilamentMonthStatus(mesAnterior)`**: ese
+ * dice si septiembre está cerrado, pero no distingue "no lo cerró" de "este
+ * negocio todavía no cerró ningún mes" — que es justo el caso en el que el
+ * aviso NO tiene que aparecer (ver `conteoDeStockPendiente` en shared).
+ */
+export function useLastClosedStockMonth() {
+  return useQuery({
+    queryKey: ['filament-last-closed'],
+    queryFn: async () => {
+      const { data } = await api.get<{ month: string | null }>('/filament/stock/last-closed');
+      return data;
+    },
+  });
+}
+
 export function useFilamentSummary(month: string) {
   return useQuery({
     queryKey: ['filament-summary', month],
