@@ -23,18 +23,6 @@ import type { PurchaseInvoice } from '@/features/purchases/api';
  * no se recorre mirando la pantalla por casualidad.
  */
 
-/**
- * Lo que jsdom no trae y Radix usa al abrir un `Select`.
- *
- * Va acá y NO en `src/test/setup-dom.ts` a propósito: ese archivo lo cargan
- * todos los specs de componente y es el único que necesita abrir un
- * desplegable. Un doble global que solo hace falta en un archivo esconde que
- * este test depende de él.
- */
-if (typeof Element.prototype.scrollIntoView !== 'function') {
-  Element.prototype.scrollIntoView = () => {};
-}
-
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() }));
 
 // Se mockea el cliente axios y NADA más: los hooks, los componentes de marca
