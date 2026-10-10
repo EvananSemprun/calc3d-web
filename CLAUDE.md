@@ -637,10 +637,14 @@ al scrollear. Arreglado el 2026-10-05.
       `loans.service.spec.ts`, 36 tests entre las dos suites). Acá quedó solo el
       JSX. (Se escribió cuando `apps/web` todavía no tenía runner; hoy lo tiene,
       pero la lógica sigue bien donde está: es del servidor.)
-    - ⚠️ **`useInvoiceMutation`** (`features/purchases/api.ts`) **no invalida
-      `['loans']`**, así que abonar con Deuda abierta en otra pestaña deja el
-      bloque viejo hasta el próximo montaje. Es una línea en esa lista de claves
-      y conviene sumarla.
+    - **`useInvoiceMutation`** (`features/purchases/api.ts`) **sí invalida
+      `['loans']`** desde el 2026-10-10: abonar una factura refresca este
+      bloque, aunque Deuda esté abierta en otra pestaña.
+      ⚠️ Esta línea estuvo **tres horas diciendo lo contrario** después de que
+      el código se arreglara, y en ese rato **dos agentes la reportaron como
+      pendiente** y casi la "arreglan" de nuevo. Una doc que describe un defecto
+      ya cerrado cuesta más que no tener doc: manda a trabajar sobre algo que no
+      existe. Al cerrar un pendiente anotado acá, **borrarlo en el mismo commit**.
   - **"Faltan X" son DOS lecturas**, al ritmo objetivo y al real. Una sola miente
     con pagos irregulares, que es el caso real.
   - **Anular reemplaza a borrar**: el pago queda tachado en el historial con su
