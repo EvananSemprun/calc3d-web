@@ -181,6 +181,33 @@ export function useCash() {
   });
 }
 
+/** El saldo del negocio al cerrar un día: `{ at, balance }`. */
+export interface CashBalanceAt {
+  at: string;
+  balance: BusinessCash;
+}
+
+/**
+ * EL SALDO HASTA UN DÍA. Es el "venías con $X" de la cadena del Dashboard.
+ *
+ * ⚠️ Lo recorta el SERVIDOR, con el mismo `businessCash(ledger, hasta)` que usa
+ * el esperado de una conciliación. No se deduce de lo que ya está en pantalla:
+ * el saldo de Caja es de toda la historia y las listas del Dashboard traen solo
+ * el rango filtrado, así que acá no hay con qué reconstruirlo. Intentarlo por
+ * otro camino —cobrado menos gastos del periodo— es exactamente el bug del
+ * 2026-10-10 que la cadena vino a cerrar.
+ *
+ * Con `at` en null no pide nada: con el filtro en "Todo" no hay un "antes".
+ */
+export function useCashBalanceAt(at: string | null) {
+  return useQuery({
+    queryKey: ['cash', 'balance', at],
+    queryFn: async () =>
+      (await api.get<CashBalanceAt>('/cash/balance', { params: { at } })).data,
+    enabled: at != null,
+  });
+}
+
 /**
  * El detalle de una categoria, PEREZOSO: con `category` en null no pide nada.
  *
@@ -239,10 +266,11 @@ export function useShortfallPlan(
 /**
  * Cada escritura devuelve el resumen entero: se guarda directo en la caché.
  *
- * ⚠️ Y ADEMÁS se invalidan `['cash', 'breakdown']` y la previsualización del
- * reparto. El resumen se pisa a mano (`setQueryData`), así que nada las
- * refresca por su cuenta: sin estas líneas el desplegable abierto seguiría
- * mostrando los asientos viejos, y corregir un borrador dejaría en pantalla el
+ * ⚠️ Y ADEMÁS se invalidan `['cash', 'breakdown']`, `['cash', 'balance']` (el
+ * saldo a una fecha, que alimenta la cadena del Dashboard) y la
+ * previsualización del reparto. El resumen se pisa a mano (`setQueryData`), así
+ * que nada las refresca por su cuenta: sin estas líneas el desplegable abierto
+ * seguiría mostrando los asientos viejos, y corregir un borrador dejaría en pantalla el
  * reparto del total anterior —con el MISMO id de conciliación, así que ni
  * siquiera cambia la clave— mientras las cuatro líneas de arriba ya muestran
  * el nuevo. La pantalla de dinero contradiciéndose a sí misma, que es justo lo
@@ -255,6 +283,7 @@ function useCashMutation<T>(fn: (v: T) => Promise<{ data: CashSummary }>) {
     onSuccess: ({ data }) => {
       qc.setQueryData(['cash'], data);
       qc.invalidateQueries({ queryKey: ['cash', 'breakdown'] });
+      qc.invalidateQueries({ queryKey: ['cash', 'balance'] });
       qc.invalidateQueries({ queryKey: PLAN_KEY });
     },
   });

@@ -670,7 +670,13 @@ export function Stat({
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
-  accent?: 'plain' | 'yellow' | 'blue' | 'success';
+  /**
+   * ⚠️ `danger` es la ALARMA, y se reserva para lo que de verdad lo es: un
+   * SALDO en rojo. Un resultado mensual negativo con plata en la cuenta no es
+   * una emergencia, y pintarlo igual que un saldo vacío enseña a ignorar el
+   * color (el Dashboard lo hacía hasta el 2026-10-10).
+   */
+  accent?: 'plain' | 'yellow' | 'blue' | 'success' | 'danger';
   className?: string;
 }) {
   const frame = {
@@ -678,12 +684,14 @@ export function Stat({
     yellow: 'border-brand-yellow/40 bg-brand-yellow/[0.07] shadow-glow-sm',
     blue: 'border-brand-blue/45 bg-brand-blue/[0.10]',
     success: 'border-success/40 bg-success/[0.08]',
+    danger: 'border-destructive/45 bg-destructive/[0.08]',
   }[accent];
   const valueColor = {
     plain: '',
     yellow: 'text-brand-yellow-ink',
     blue: 'text-foreground',
     success: 'text-success',
+    danger: 'text-destructive',
   }[accent];
   return (
     <div

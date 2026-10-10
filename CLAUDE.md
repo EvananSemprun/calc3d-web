@@ -422,7 +422,8 @@ al scrollear. Arreglado el 2026-10-05.
   2026"): para un mes en español va `first-letter:uppercase`.
 
 ### Dashboard + finanzas (`pages/Dashboard.tsx`, `Sales.tsx`, `Expenses.tsx`; `features/finance/`)
-- KPIs (ventas, gastos, **utilidad**, ticket), recuperación de inversión y 4
+- KPIs (ventas, gastos, **resultado de la operación**, ticket), la **cadena de
+  caja** ("venías con … te queda …", ver abajo), recuperación de inversión y 4
   gráficos **Recharts** tematizados a la marca. Filtro de fechas reutilizable
   `useDateRange`/`DateRangePicker` con presets (Hoy, Ayer, Semana, Mes, Año, Rango,
   Día, Todo). El Dashboard se **lazy-loadea** en `App.tsx` (Recharts en chunk
@@ -682,9 +683,50 @@ rechaza crear `ENCARGO`). Lo demás:
   `originChannel` ni `campaignId` aunque la API los manda siempre. Está
   extendido en `sales-view.ts` (`SaleRowFull`); conviene moverlo al tipo base.
 
+#### La CADENA de caja (2026-10-10, shared 0.35.0)
+
+Reemplaza las dos tarjetas que se contradecían. Con el filtro en "Este mes" el
+Dashboard mostraba juntas **"Resultado de caja −61.20"** y **"Saldo en caja
+102.83"**; el dueño leyó la primera como un saldo y se creyó en rojo teniendo
+$102.83. Y ese −61.20 **no era plata**: ignoraba los $50 que puso de su
+bolsillo, los $29.19 que se le devolvieron y contaba el Cyan por los $25 que
+cuesta en vez de los $15 que salieron. Octubre, en caja, fue **−30.39**: venía
+con 133.22 y le quedaban 102.83.
+
+- **La cadena** (`CadenaDeCaja`, arriba de las tarjetas de Caja): "venías con $X
+  · este mes $Y · te queda $Z", con **UNA sola definición, la de Caja**.
+  - ⚠️ **Los tres cierran: `Z = X + Y`**, porque el del medio lo **DERIVA**
+    `cashChain(antes, ahora)` de shared (saldo al final − saldo al principio).
+    **No calcularlo por otro camino**: dos caminos distintos es exactamente cómo
+    nació este bug, y no cierran el día que uno cambia.
+  - **X** sale de `useCashBalanceAt(diaAnterior)` → `GET /cash/balance?at=`: el
+    saldo hasta el día **anterior** al inicio del rango, recortado por el
+    SERVIDOR. Acá no hay con qué reconstruirlo (el saldo de Caja es de toda la
+    historia y las listas traen solo el rango).
+  - ⚠️ **El día anterior se calcula con `previousDay` de shared, en UTC.** Con
+    `new Date()` local, al oeste de UTC la cadena se corre un día entero.
+  - ⚠️ **Con el filtro en "Todo" —o un rango sin inicio— la cadena NO se
+    dibuja**: no hay un "antes" y `cashChain(null, …)` devuelve `null`. Se
+    muestra solo el saldo.
+  - ⚠️ **`useCashMutation` invalida también `['cash','balance']`**, por lo mismo
+    que invalida `breakdown`: el resumen se pisa con `setQueryData`, así que
+    nada refresca esa clave sola y la cadena quedaría con el "venías con" viejo.
+- **«Resultado de caja» → «Resultado de la operación»**, y su pie dice qué
+  **NO** incluye (aportes, devoluciones, cuotas del préstamo). La cuenta no
+  cambió: sigue respondiendo "¿el taller se paga solo?". Lo que cambió es que ya
+  no se hace pasar por caja.
+- ⚠️ **El color de ALARMA es del SALDO, no del mes.** `Stat` ganó
+  `accent="danger"` y lo usa el saldo cuando es negativo. Un mes en contra con
+  plata en la cuenta no es una emergencia, y pintarlo igual que un saldo vacío
+  enseña a ignorar el color.
+- ⚠️ `apps/web` **no tiene runner de tests**. Toda la lógica de la cadena vive
+  en funciones puras de shared (`cashChain`, `previousDay`, `isCalendarDay`) y
+  en la API, que sí se testean; acá solo quedó el armado del JSX.
+
 #### Cambios del 2026-10-02 (hay que conocerlos antes de tocar el Dashboard)
 
-- ⚠️ **"Utilidad" se llama ahora «Resultado de caja»** y "Vendiste $X" pasó a
+- ⚠️ **"Utilidad" se llamó «Resultado de caja»** (hoy «Resultado de la
+  operación», ver arriba) y "Vendiste $X" pasó a
   "Ingresos cobrados". **Ningún número cambió**: la cuenta incluye abonos de
   encargos todavía no entregados, cuyo costo se registra después, así que es un
   resultado de CAJA y no una ganancia contable. Se evaluó pasar la app a

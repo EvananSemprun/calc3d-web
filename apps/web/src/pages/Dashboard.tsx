@@ -19,14 +19,18 @@ import { LineChart as LineIcon, AlertTriangle, Megaphone } from 'lucide-react';
 import {
   breakEvenLevels,
   breakEvenProgress,
+  cashChain,
   fixedCostsTotal,
+  isCalendarDay,
   monthlyLoanPayments,
+  previousDay,
   campaignHealth,
+  type CashChain,
 } from '@calc3d/shared';
 import { paraEquilibrio, useLoans } from '@/features/loans/api';
 import { useGoalForMonth } from '@/features/goals/api';
 import { useEquipmentRecovery } from '@/features/equipment/api';
-import { useCash } from '@/features/cash/api';
+import { useCash, useCashBalanceAt } from '@/features/cash/api';
 import { currentMonthKey } from '@/lib/today';
 import { Card, CardContent, CardHeader, CardTitle, ProgressBar, Select, Stat, TableSkeleton } from '@/components/ui';
 import { usePersistentState } from '@/lib/usePersistentState';
@@ -36,7 +40,7 @@ import { useMoney, useSettings } from '@/features/settings/useSettings';
 import { useOrderPayments } from '@/features/orders/api';
 import { useCampaigns, isCampaignVigente } from '@/features/campaigns/api';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
-import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
+import { DateRangePicker, useDateRange, type RangePreset } from '@/features/finance/DateRange';
 import { storeProductsBelowMargin, useStoreProducts } from '@/features/store/api';
 import {
   LINK_KIND_LABELS,
@@ -48,6 +52,26 @@ import {
 
 /** Canal de los gráficos: todo, solo mostrador o solo abonos de encargos. */
 type Canal = 'ALL' | 'COUNTER' | 'ORDERS';
+
+/**
+ * Cómo se nombra el periodo DENTRO de la cadena de caja ("venías con $X ·
+ * **este mes** −$30.39 · te queda $Z"). No se reusan las etiquetas del
+ * `DateRangePicker` ("Este mes", "Rango de fechas"): ahí son el nombre de una
+ * opción de menú y acá tienen que leerse en medio de una frase.
+ *
+ * `ALL` está por completitud del `Record`: con "Todo" no hay un "antes" y la
+ * cadena no se dibuja.
+ */
+const PERIODO_EN_CADENA: Record<RangePreset, string> = {
+  TODAY: 'hoy',
+  YESTERDAY: 'ayer',
+  WEEK: 'esta semana',
+  MONTH: 'este mes',
+  YEAR: 'este año',
+  DAY: 'ese día',
+  RANGE: 'en el rango',
+  ALL: 'en total',
+};
 
 const GOLD = '#FFC300';
 const BLUE = '#3b82c4';
@@ -208,6 +232,36 @@ export function DashboardPage() {
   // Caja y deuda son de TODA la historia: no dependen del filtro de fechas.
   const { data: caja } = useCash();
 
+  /**
+   * LA CADENA DE CAJA: "venías con $X · este mes $Y · te queda $Z".
+   *
+   * ⚠️ Los tres números salen de UNA sola definición, la de Caja — NO de la
+   * suma de gastos del KPI de arriba. Hasta el 2026-10-10 la pantalla mostraba
+   * juntas "Resultado de caja −61.20" y "Saldo en caja 102.83", y el dueño leyó
+   * la primera como un saldo: esa cuenta ignora los aportes de su bolsillo, las
+   * devoluciones y las compras a crédito. Octubre, en caja, fue −30.39.
+   *
+   * ⚠️ El del MEDIO lo DERIVA `cashChain` de los otros dos (saldo al final −
+   * saldo al principio), nunca por otro camino: dos caminos distintos es
+   * exactamente cómo nació este bug.
+   *
+   * ⚠️ X es el saldo hasta el día ANTERIOR al inicio del rango, con
+   * `previousDay` (UTC, de shared): con `new Date()` local, al oeste de UTC la
+   * cadena se corre un día entero. `isCalendarDay` es red de seguridad — un
+   * rango escrito a mano llega de un `<input type="date">`, así que siempre es
+   * un día real, pero `previousDay` lanza y acá eso sería una pantalla en
+   * blanco.
+   *
+   * Con el filtro en "Todo" —o con un rango sin inicio— `range.from` es
+   * undefined: no se pide nada y la cadena no se dibuja (ver `cashChain`).
+   */
+  const inicioDelRango = range.from && isCalendarDay(range.from) ? range.from : null;
+  const diaAnterior = inicioDelRango ? previousDay(inicioDelRango) : null;
+  const saldoAntes = useCashBalanceAt(diaAnterior);
+  const cadena: CashChain | null = caja
+    ? cashChain(saldoAntes.data?.balance.balance ?? null, caja.balance.balance)
+    : null;
+
   // Punto de equilibrio: cuánto hay que vender al mes para cubrir los costos
   // fijos, dado el margen de contribución declarado (Configuración → Costos fijos).
   const fijosMensuales = fixedCostsTotal(settings?.fixedCosts ?? []);
@@ -250,7 +304,7 @@ export function DashboardPage() {
           <span aria-hidden className="h-8 w-1 rounded-full bg-brand-yellow shadow-glow-sm" />
           <div>
             <h1 className="font-display text-2xl font-bold">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">Ventas, gastos y resultado de caja de tu taller.</p>
+            <p className="text-sm text-muted-foreground">Ventas, gastos y caja de tu taller.</p>
           </div>
         </div>
         <DateRangePicker range={range} />
@@ -284,19 +338,30 @@ export function DashboardPage() {
                 : 'filamento + generales'
           }
         />
-        {/* ⚠️ NO es "utilidad" (2026-10-02). Incluye abonos de encargos que
-            todavía no se entregaron, cuyo costo se va a registrar después: es
-            un resultado de CAJA, no una ganancia contable. La cuenta no cambió
-            —es la que sirve para saber si el mes alcanza— pero el nombre sí,
-            porque decía algo que no era. */}
+        {/*
+          ⚠️ NI "utilidad" NI "caja" (2026-10-10). No es utilidad porque incluye
+          abonos de encargos sin entregar, cuyo costo se registra después
+          (2026-10-02). Y NO es caja porque ignora los aportes del dueño, las
+          devoluciones que se le hicieron y las cuotas del préstamo: en octubre
+          daba −61.20 al lado de un "Saldo en caja" de 102.83, y el dueño leyó
+          esta tarjeta como un saldo y se creyó en rojo. La cuenta sigue
+          sirviendo —responde "¿el taller se paga solo?"— pero se llama
+          «Resultado de la operación» y su pie dice qué deja afuera. La caja de
+          verdad es la CADENA de abajo.
+
+          ⚠️ Y el color de ALARMA no vive acá: un mes negativo con plata en la
+          cuenta no es una emergencia. El rojo es del saldo.
+        */}
         <Stat
-          label="Resultado de caja"
+          label="Resultado de la operación"
           value={<NumberTicker value={agg.utilidad} format={money} />}
           accent={agg.utilidad >= 0 ? 'success' : 'plain'}
           sub={
-            moneyAlt
-              ? `≈ ${moneyAlt(agg.utilidad)} · cobrado − gastos operativos`
-              : 'cobrado (ventas + abonos) − gastos operativos'
+            <>
+              cobrado − gastos operativos{moneyAlt ? ` · ≈ ${moneyAlt(agg.utilidad)}` : ''}
+              <br />
+              no incluye aportes, devoluciones ni cuotas del préstamo
+            </>
           }
         />
       </div>
@@ -305,30 +370,36 @@ export function DashboardPage() {
         <Link
           to="/cash"
           aria-label="Ver la caja"
-          className="grid grid-cols-2 gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:grid-cols-4"
+          className="block space-y-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Stat
-            label="Saldo en caja"
-            value={money(caja.balance.balance)}
-            sub={
-              // La lista viene por fecha descendente: la primera confirmada en
-              // contra es la más reciente.
-              caja.reconciliations.find((c) => c.status === 'CONFIRMED' && c.kind === 'SHORT')
-                ? 'la última conciliación dio de MENOS'
-                : 'lo que es del negocio en la cuenta'
-            }
-            accent="blue"
-          />
-          <Stat
-            label={`Le debe a ${caja.counterparty.name}`}
-            value={money(caja.financing.owedToOwner)}
-          />
-          <Stat label="Le debe al prestamista" value={money(caja.financing.owedToLender)} />
-          <Stat
-            label="Total por devolver"
-            value={money(caja.financing.totalOwed)}
-            sub="detalle en Caja"
-          />
+          {cadena && (
+            <CadenaDeCaja cadena={cadena} periodo={PERIODO_EN_CADENA[range.preset]} money={money} />
+          )}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Stat
+              label="Saldo en caja"
+              value={money(caja.balance.balance)}
+              sub={
+                // La lista viene por fecha descendente: la primera confirmada en
+                // contra es la más reciente.
+                caja.reconciliations.find((c) => c.status === 'CONFIRMED' && c.kind === 'SHORT')
+                  ? 'la última conciliación dio de MENOS'
+                  : 'lo que es del negocio en la cuenta'
+              }
+              /* ⚠️ ACÁ vive la alarma: un saldo en rojo es que no hay plata. */
+              accent={caja.balance.balance < 0 ? 'danger' : 'blue'}
+            />
+            <Stat
+              label={`Le debe a ${caja.counterparty.name}`}
+              value={money(caja.financing.owedToOwner)}
+            />
+            <Stat label="Le debe al prestamista" value={money(caja.financing.owedToLender)} />
+            <Stat
+              label="Total por devolver"
+              value={money(caja.financing.totalOwed)}
+              sub="detalle en Caja"
+            />
+          </div>
         </Link>
       )}
 
@@ -571,6 +642,53 @@ export function DashboardPage() {
       {/* Vista ANUAL: tiene su propio selector de año y NO responde al filtro
           de arriba, igual que Metas, el punto de equilibrio y Reposición. */}
       <AnnualIncome />
+    </div>
+  );
+}
+
+/**
+ * LA CADENA DE CAJA: "venías con $X · este mes $Y · te queda $Z".
+ *
+ * Los tres números CIERRAN (`Z = X + Y`) porque el del medio lo deriva
+ * `cashChain` de los otros dos. Es la pieza que faltaba el 2026-10-10: con dos
+ * tarjetas sueltas —un resultado del mes y un saldo histórico— no había forma
+ * de ver que no hablaban de lo mismo.
+ *
+ * ⚠️ El del medio NO se pinta de rojo cuando es negativo: un mes en contra con
+ * plata en la cuenta no es una emergencia. La alarma es del saldo, que es el
+ * único de los tres que lleva color propio (su `Stat` de al lado). Acá el signo
+ * se lee en el signo: "+" cuando sube y el "−" que ya trae el monto.
+ */
+function CadenaDeCaja({
+  cadena,
+  periodo,
+  money,
+}: {
+  cadena: CashChain;
+  periodo: string;
+  money: (n: number) => string;
+}) {
+  const tramos = [
+    { texto: 'venías con', monto: money(cadena.before), fuerte: false },
+    { texto: periodo, monto: `${cadena.delta > 0 ? '+' : ''}${money(cadena.delta)}`, fuerte: false },
+    { texto: 'te queda', monto: money(cadena.after), fuerte: true },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+      {tramos.map((t, i) => (
+        <React.Fragment key={t.texto}>
+          {i > 0 && (
+            <span aria-hidden className="text-muted-foreground/60">
+              ·
+            </span>
+          )}
+          <span className="text-muted-foreground">{t.texto}</span>
+          <span className={cn('tabular font-semibold', t.fuerte && 'font-display text-base')}>
+            {t.monto}
+          </span>
+        </React.Fragment>
+      ))}
     </div>
   );
 }
