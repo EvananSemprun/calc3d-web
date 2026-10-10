@@ -215,6 +215,23 @@ export function StockTab() {
   const mesCorto = `${mesAnterior.slice(0, 3)}.`;
   const conAnterior = filasBase.filter((f) => f.previous);
   const copiarAnterior = (f: StockCountRow) => f.previous && set(f.materialId, { ...f.previous });
+
+  /**
+   * LO QUE ENTRÓ ESTE MES, de referencia para contar (Fase 6, 2026-10-10).
+   *
+   * ⚠️ **SUGIERE, NO ESCRIBE**, igual que lo del mes anterior y por la misma
+   * razón, que es la decisión del dueño: si la app completa el conteo, se
+   * termina **confirmando un número en vez de mirando el estante**, y el conteo
+   * deja de medir nada. Entonces el número se MUESTRA, se dice de dónde sale, y
+   * pasa a la casilla solo si el dueño lo toca.
+   *
+   * ⚠️ **Va a "Sin abrir"**: un rollo que acaba de llegar está sellado. Y
+   * `received` es `null` —no 0— en una ficha sin recepciones, así que acá no
+   * hay nada que ofrecer en vez de un cero que se leería como un conteo.
+   */
+  const mesDelConteo = etiquetaMes(month).replace(/ de \d{4}$/, '');
+  const usarRecibidos = (f: StockCountRow) =>
+    f.received != null && set(f.materialId, { sealed: f.received });
   const copiarTodo = async () => {
     const hayEscrito = conAnterior.some((f) => stockTotal(draft[f.materialId] ?? CERO) > 0);
     if (hayEscrito) {
@@ -625,6 +642,28 @@ export function StockTab() {
                           <p className="mt-2 text-xs text-muted-foreground">
                             {g.clave} entre {marcas}: {rollosDelColor} {rollosDelColor === 1 ? 'rollo' : 'rollos'}
                           </p>
+                        )}
+                        {f.received != null && (
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border/40 pt-2 text-xs text-muted-foreground">
+                            <span>
+                              Entraron {f.received} {f.received === 1 ? 'rollo' : 'rollos'}{' '}
+                              <span className="text-[11px]">
+                                (compras recibidas en {mesDelConteo}) · sugerencia, no conteo
+                              </span>
+                            </span>
+                            {!cerrado && (
+                              <button
+                                type="button"
+                                onClick={() => usarRecibidos(f)}
+                                disabled={!editable}
+                                aria-label={`Usar ${f.received} sin abrir · ${ficha}`}
+                                title={`Sale de las compras recibidas en ${mesDelConteo}. No se escribe solo: el conteo lo hacés mirando el estante.`}
+                                className="rounded font-medium text-foreground underline underline-offset-4 hover:text-brand-yellow-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                              >
+                                Usar {f.received} sin abrir
+                              </button>
+                            )}
+                          </div>
                         )}
                         {f.previous && (
                           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border/40 pt-2 text-xs text-muted-foreground">

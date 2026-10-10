@@ -531,6 +531,22 @@ al scrollear. Arreglado el 2026-10-05.
   se ilumina en oro (`focus-within`). "· cambió" solo aparece con dato (mes
   cerrado o algo cargado): antes de contar, todo vale 0 y sería ruido. Con
   varias marcas del mismo color, cada tarjeta dice el total del color.
+- **Lo que ENTRÓ este mes se OFRECE al contar** (2026-10-10, shared 0.48.0):
+  cada tarjeta con `received` muestra *"Entraron 2 rollos (compras recibidas en
+  octubre) · sugerencia, no conteo"* y un botón **"Usar 2 sin abrir"**.
+  - ⚠️ **SUGIERE, NO ESCRIBE**: la casilla arranca **vacía** y el número pasa
+    solo si el dueño toca el botón. Es la decisión del dueño y la razón está en
+    el código: con el conteo precargado se termina **confirmando un número en
+    vez de mirando el estante**, y el conteo deja de medir nada.
+  - ⚠️ **Va a "Sin abrir"**: un rollo que acaba de llegar está sellado.
+  - ⚠️ Una ficha **sin recepciones no ofrece nada, y no ofrece 0**: `received`
+    viene `null` del servidor justo para eso (0 es un conteo válido).
+  - Con el mes CERRADO el dato se sigue viendo pero el botón no: no hay nada
+    que escribir. Mismo criterio que el "Igual que agosto" de abajo.
+  - Tests: `features/filament/StockTab.sugerencia.spec.tsx` (jsdom, 5). Medido
+    por mutación: que el borrador NAZCA con lo recibido tumba 1 (el de "sugiere,
+    no escribe"), dibujarla sin recepciones tumba 1 y mandarla a "En uso"
+    tumba 1 — **ninguno lo atrapan los tests de función pura**.
 - **Cómo cerró el mes anterior** (2026-10-01, decisión del dueño): `previous`
   en `GET /filament/stock` (null si ese mes no está cerrado). Cada marca muestra
   "Agosto: 1 por acabarse" con un botón **"Igual que agosto"**, y hay un
@@ -1732,7 +1748,7 @@ reparto por canal, los totales de Gastos).
   limpia en el `beforeEach`: sin limpiar, un tipo elegido en un test deja la
   lista vacía en el siguiente y los `queryAllBy…` dan 0 por el motivo
   equivocado.
-- Qué hay hoy: **128 tests en 11 archivos** (2026-10-10). ⚠️ **El total sale del
+- Qué hay hoy: **133 tests en 12 archivos** (2026-10-10). ⚠️ **El total sale del
   runner** (`pnpm --filter @calc3d/web test`), y la lista de abajo dice PARA QUÉ
   es cada archivo sin repetir su conteo: la versión anterior de esta línea
   afirmaba "101 en 7 archivos" con 123 en 10 y tres archivos sin nombrar — un
@@ -1757,6 +1773,8 @@ reparto por canal, los totales de Gastos).
   - `pages/Dashboard.avisos.spec.tsx` (jsdom) — los avisos del Dashboard
     renderizados: cuándo aparecen, cuándo NO y que el descarte dure hasta que
     cambie el mes.
+  - `features/filament/StockTab.sugerencia.spec.tsx` (jsdom) — que lo recibido
+    en el mes se SUGIERA y no se escriba.
 - ⚠️ **Una ausencia medida antes de que lleguen los datos no prueba nada.**
   `Dashboard.avisos.spec.tsx` monta con una **puerta**: todas las respuestas de
   `api.get` esperan a que el test la abra, y `cargar()` la abre y espera el
