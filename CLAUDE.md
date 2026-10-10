@@ -113,6 +113,20 @@ un abono y de un pago de préstamo (quedaban fechados al día siguiente), el mes
 en curso del Dashboard y de Metas (el último día del mes saltaban al siguiente),
 la fecha de una campaña nueva y el nombre del archivo del reporte.
 
+⚠️ **El backend ya NO acepta un día que no existe en NINGÚN campo de fecha**
+(shared 0.41.0 las ocho puertas de dinero, 0.42.0 las tres que faltaban:
+`startDate`/`endDate` de campaña, `startDate`/`nextDueDate`/`closedAt` de
+préstamo y `deliveryDate` de un encargo). `'2026-02-30'` devuelve **400** con
+"Ese día no existe en el calendario" en vez de guardarse corrido al 2 de marzo.
+**El panel no hubo que tocarlo**: ya mandaba `AAAA-MM-DD` o `null` en todos
+(`<Input type="date">`, `todayKey()` o `.slice(0, 10)`). Lo que esto implica
+para una pantalla nueva: un campo de fecha va con `<Input type="date">` y se
+manda `valor || null` si es opcional — **nunca** un `''` ni un ISO con hora,
+porque los dos los rechaza el servidor. `null`/ausente sí, en los opcionales.
+⚠️ Y cuidado con una excepción: `startDate` de campaña y `date` de las puertas
+de dinero son **obligatorios**, así que vaciar ese input manda `''` y la
+petición falla con 400 — el formulario tiene que exigirlo antes de enviar.
+
 ### Regla de overlays (IMPORTANTE)
 - **NO usar `AnimatePresence` para overlays con hijo condicional; renderizar
   condicional directo.** Un hijo directo SIN `key` NO se desmonta al cerrar (el
