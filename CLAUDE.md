@@ -529,10 +529,11 @@ al scrollear. Arreglado el 2026-10-05.
     - Una factura **sin proveedor anotado** aparece igual, como "Sin proveedor
       anotado" en gris: esconderla por no tener nombre sería perder plata que se
       debe.
-    - ⚠️ `apps/web` **no tiene runner de tests**: el agrupado, la regla de la
-      factura anulada, la del abono anulado y la de no compensar viven en la API
-      (`deuda-por-proveedor.ts` + `loans.service.spec.ts`, 36 tests entre las
-      dos suites). Acá quedó solo el JSX.
+    - El agrupado, la regla de la factura anulada, la del abono anulado y la de
+      no compensar viven en la API (`deuda-por-proveedor.ts` +
+      `loans.service.spec.ts`, 36 tests entre las dos suites). Acá quedó solo el
+      JSX. (Se escribió cuando `apps/web` todavía no tenía runner; hoy lo tiene,
+      pero la lógica sigue bien donde está: es del servidor.)
     - ⚠️ **`useInvoiceMutation`** (`features/purchases/api.ts`) **no invalida
       `['loans']`**, así que abonar con Deuda abierta en otra pestaña deja el
       bloque viejo hasta el próximo montaje. Es una línea en esa lista de claves
@@ -719,16 +720,56 @@ al scrollear. Arreglado el 2026-10-05.
   - **Las opciones del filtro de proveedor salen de las FILAS CARGADAS**, no del
     directorio entero (el patrón de `PurchasesTab`), así que no se puede elegir
     un proveedor que deje la tabla vacía; se agrupan por **id** y no por nombre,
-    y el select **no se dibuja** si ninguna fila del rango tiene proveedor. El
-    tipo elegido y el proveedor tienen su **valor seguro**.
+    y el select **no se dibuja** si ninguna fila del rango tiene proveedor.
   - **El vacío distingue los dos casos**: "sin gastos en este periodo" vs
     "ninguno de los M pasa el filtro", y en el segundo el botón es "Quitar
     filtros" y no "Registrar gasto" — mandaría a cargar un gasto que ya existe.
   - ⚠️ Los textos de los tipos viven en `TIPOS_DE_GASTO`, una sola lista que
     alimenta el desplegable **y** el aviso de filtros: con el texto escrito dos
     veces, renombrar una opción deja al aviso diciendo el nombre viejo.
-  - ⚠️ `apps/web` **no tiene runner de tests**, así que esto quedó **sin test**
-    (`totalesGastos` es pura justamente para poder testearla el día que lo haya).
+  - **`totalesGastos` TIENE test** desde el 2026-10-10 (`pages/Expenses.spec.ts`,
+    el primero de `apps/web`). Era pura y exportada esperando el runner.
+  - **LOS DOS FILTROS SE RECUERDAN** (2026-10-10): `usePersistentState` con
+    `expenses:tipo` y `expenses:proveedor`, como el resto del panel (el rango de
+    fechas de esta pantalla ya lo hacía, con `daterange:expenses:*`). Los dos
+    pasan por su **valor seguro** antes de usarse.
+    - ⚠️ **El de tipo no lo tenía, y persistir sin eso es el bug.** En un
+      `useState` arrancaba siempre en "todos" y un valor imposible no podía
+      existir; guardado en localStorage sí puede —una opción retirada o
+      renombrada, un valor de una versión anterior— y entonces ningún gasto pasa
+      el filtro: **la tabla se abre vacía, con el desplegable en blanco y sin
+      nada que explique por qué**. Lo cierra `tipoSeguro` (pura, con test), que
+      cae a "todos" igual que el de proveedor.
+    - El test de `tipoSeguro` **recorre TODA la lista** `TIPOS_DE_GASTO`: una
+      opción nueva que se olvide de la función rompe el test en vez de vaciar la
+      tabla.
+    - ⚠️ `TODOS` (= `'ALL'`) es el centinela de "no filtrar" de **los dos**
+      filtros, en una constante. Es un valor y no la ausencia de uno porque el
+      `Select` de marca prohíbe `value=""`.
+    - ⚠️ No hay caso especial para `TODOS` dentro de `tipoSeguro`: no está en la
+      lista, cae por el camino normal y el respaldo **es ese mismo valor**. Un
+      `if (guardado === TODOS) return TODOS` arriba sería **código muerto** —
+      devuelve lo mismo y ninguna mutación puede tumbarlo—; se escribió y se
+      borró el mismo día.
+  - **TARJETAS EN EL TELÉFONO** (2026-10-10): era la última lista de finanzas sin
+    ellas. Medido ese día: a 375 px la tabla medía **884 px dentro de un
+    contenedor de 341**, o sea el 39 % de la fila a la vista y el resto de
+    costado. Patrón de la casa: `hidden md:block` para la tabla,
+    `md:hidden divide-y` para las tarjetas.
+    - ⚠️ **Lo que no se duplica es la LÓGICA.** Hay **UN** array de filas ya
+      resueltas (`filaDeGasto`, pura y con tests: día recortado, etiqueta,
+      monto ya pasado por `money()`, duración ya armada, `deFactura`,
+      `pagadorId`) que las dos presentaciones mapean con JSX tonto, y los cuatro
+      controles —`EtiquetaDeTipo`, `MarcaDeFactura`, `SelectorDePagador`,
+      `BotonBorrar`— existen **una sola vez**. Con dos árboles escritos a mano,
+      el día que cambie una columna se arregla uno y se olvida el otro; acá lo
+      que se olvidaría es justo lo que cuida la plata: la fila **de factura** va
+      **sin tacho** y con el pagador **`disabled`**, porque la API rechaza las
+      dos cosas con un 400.
+    - ⚠️ En la fila resuelta, **ausencia y cero son cosas distintas**:
+      `cantidad` es `string | null` y el guion lo pone cada presentación (la
+      tabla tiene que llenar la celda; la tarjeta no dibuja la línea). Con
+      `quantity || …` una compra de **0 rollos** dejaría de verse. Tiene test.
 - ⚠️ **El punto de equilibrio se compara contra los INGRESOS** (`agg.ingresos`
   = ventas + abonos de pedidos), no contra `agg.ventas`. Con solo las ventas de
   mostrador, la tarjeta decía "vendiste $5,00 · 3 %" mientras la de Metas, justo
@@ -836,10 +877,11 @@ con 133.22 y le quedaban 102.83.
   `accent="danger"` y lo usa el saldo cuando es negativo. Un mes en contra con
   plata en la cuenta no es una emergencia, y pintarlo igual que un saldo vacío
   enseña a ignorar el color.
-- ⚠️ `apps/web` **no tiene runner de tests**. Toda la lógica de la cadena vive
-  en funciones puras de shared (`cashChain`, `cashChainCuts`, `previousDay`,
-  `isCalendarDay`) y en la API, que sí se testean; acá solo quedó el armado del
-  JSX y la elección de la palabra a partir de `closed`.
+- Toda la lógica de la cadena vive en funciones puras de shared (`cashChain`,
+  `cashChainCuts`, `previousDay`, `isCalendarDay`) y en la API, que sí se
+  testean; acá solo quedó el armado del JSX y la elección de la palabra a partir
+  de `closed`. (Se mudó a shared porque `apps/web` no tenía runner; desde el
+  2026-10-10 lo tiene, pero esas funciones son del motor y se quedan ahí.)
 
 #### Cambios del 2026-10-02 (hay que conocerlos antes de tocar el Dashboard)
 
@@ -900,9 +942,9 @@ con 133.22 y le quedaban 102.83.
   - ⚠️ **Sus dos colores son los MISMOS que los de los otros tres gráficos por
     canal** (mostrador oro / encargos azul). Venían al revés: en la misma
     pantalla el oro significaba mostrador en las barras y encargos en la dona.
-  - ⚠️ `apps/web` **no tiene runner de tests**: el reparto vive en shared
-    (`channels.ts`, 8 tests con números a mano, incluido "un mes solo con
-    abonos no puede dar 100 % mostrador") y acá quedó solo el JSX.
+  - El reparto vive en shared (`channels.ts`, 8 tests con números a mano,
+    incluido "un mes solo con abonos no puede dar 100 % mostrador") y acá quedó
+    solo el JSX.
 - **`AnnualIncome` — "Ingresos por mes"** (la tabla del Excel del dueño): bloque
   al final con **su propio selector de año** (derivado de los datos) y, como
   Metas/equilibrio/Reposición, **no responde al filtro de arriba**. Tabla con los
@@ -1278,7 +1320,41 @@ cliente**, publica la ganancia del negocio.
 - `pnpm test:shared` — tests del motor (tras sincronizar).
 - `pnpm dev` — levanta el panel en **5180** (fijado en `vite.config.ts` con
   `strictPort`). Un solo puerto para la web: el 5173 se retiró el 2026-09-09.
-- `pnpm -r build` / `pnpm -r lint`
+- `pnpm -r build` / `pnpm -r lint` / `pnpm -r test`
+- `pnpm --filter @calc3d/web test` — **los tests de `apps/web`** (vitest).
+
+## Tests de `apps/web` (vitest, desde el 2026-10-10)
+
+Hasta ese día este paquete **no tenía runner**: `vitest` figuraba en
+`devDependencies`, instalado y sin configurar, y por eso toda la lógica que
+hiciera falta probar se mudaba a `packages/shared` aunque no tuviera nada que
+ver con el motor de cálculo. Lo pagamos en cada pantalla (la cadena de caja, el
+reparto por canal, los totales de Gastos).
+
+- Script `test` = `vitest run`; configuración en **`apps/web/vitest.config.ts`**,
+  aparte de `vite.config.ts` a propósito (ese lleva el plugin de React y el proxy
+  del dev server, que no hacen falta para funciones puras). Lo único compartido
+  es el alias `@`: tiene que decir lo mismo en los dos archivos.
+- Los specs van **junto a su fuente**, `src/**/*.spec.ts`, como en shared.
+  `describe`/`it`/`expect` se **importan de `vitest`** (sin globals, así no hay
+  que declarar tipos en `tsconfig.json`). Ojo: `include: ["src"]` del tsconfig
+  significa que `tsc --noEmit` del build **también revisa los specs**.
+- `pnpm -r test` desde la raíz corre los dos paquetes: jest en `packages/shared`
+  y vitest en `apps/web`.
+- ⚠️ **Entorno `node`, no jsdom, y no se agregaron dependencias.** No hay
+  `jsdom` ni `@testing-library/*` instalados, así que **un test de componente
+  todavía no se puede escribir**: lo que se prueba acá son funciones puras
+  (derivaciones, filtros, valores seguros, filas resueltas). Si hace falta
+  montar un componente, hay que pedir esas dos dependencias primero.
+- Qué hay hoy: `pages/Expenses.spec.ts` (15 tests) — `totalesGastos`,
+  `tipoSeguro` y `filaDeGasto`.
+- ⚠️ El spec importa desde `@/pages/Expenses`, o sea que **arrastra el módulo de
+  la página entero** (React, React Query, axios, `@calc3d/shared`). Funciona
+  porque ninguno de esos imports toca `window` ni `document` en el tope del
+  módulo, pero significa que un import roto de la página rompe este test aunque
+  la función probada esté intacta. Si esto molesta, la salida es mudar las
+  funciones puras a un `features/finance/expenses-view.ts`, como ya hizo Ventas
+  con `sales-view.ts`.
 
 ## A qué API le habla el panel
 
