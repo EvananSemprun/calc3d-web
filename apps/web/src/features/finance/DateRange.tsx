@@ -29,6 +29,26 @@ function iso(d: Date): string {
   return new Date(d.getTime() - tz).toISOString().slice(0, 10);
 }
 
+/**
+ * El rango de un mes `AAAA-MM`: su primer y su ÚLTIMO día REALES.
+ *
+ * ⚠️ El Dashboard lo armaba a mano como `${mes}-01` .. `${mes}-31`, y el 31
+ * **no existe en cinco meses del año**. La API hace
+ * `new Date(`${to}T23:59:59.999Z`)`, así que `2026-02-31` se corría al **3 de
+ * marzo**: la tarjeta del punto de equilibrio contaba hasta tres días del mes
+ * siguiente como ingresos "del mes", con un número que seguía siendo
+ * plausible. Y desde que `RangoQuerySchema` valida el calendario, ese `-31` es
+ * directamente un **400**.
+ *
+ * ⚠️ El día 0 del mes siguiente ES el último del mes pedido: es el mismo
+ * truco que ya usaba el preset "Este mes", y por eso ese preset ahora llama
+ * acá. Dos definiciones del rango de un mes terminan diciendo dos cosas.
+ */
+export function rangoDeMes(mes: string): { from: string; to: string } {
+  const [anio, m] = mes.split('-').map(Number);
+  return { from: iso(new Date(anio, m - 1, 1)), to: iso(new Date(anio, m, 0)) };
+}
+
 export interface DateRange {
   preset: RangePreset;
   from?: string;
@@ -66,11 +86,9 @@ export function useDateRange(initial: RangePreset = 'MONTH', persistKey?: string
         sunday.setDate(monday.getDate() + 6);
         return { from: iso(monday), to: iso(sunday) };
       }
-      case 'MONTH': {
-        const first = new Date(now.getFullYear(), now.getMonth(), 1);
-        const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        return { from: iso(first), to: iso(last) };
-      }
+      case 'MONTH':
+        // La MISMA definicion que usa el Dashboard para "el mes en curso".
+        return rangoDeMes(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
       case 'YEAR':
         return { from: iso(new Date(now.getFullYear(), 0, 1)), to: iso(new Date(now.getFullYear(), 11, 31)) };
       case 'DAY':

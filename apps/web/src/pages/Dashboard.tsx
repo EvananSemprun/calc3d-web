@@ -42,7 +42,12 @@ import { useMoney, useSettings } from '@/features/settings/useSettings';
 import { useOrderPayments } from '@/features/orders/api';
 import { useCampaigns, isCampaignVigente } from '@/features/campaigns/api';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
-import { DateRangePicker, useDateRange, type RangePreset } from '@/features/finance/DateRange';
+import {
+  DateRangePicker,
+  rangoDeMes,
+  useDateRange,
+  type RangePreset,
+} from '@/features/finance/DateRange';
 import { storeProductsBelowMargin, useStoreProducts } from '@/features/store/api';
 import { usePurchaseInvoices } from '@/features/purchases/api';
 import {
@@ -355,7 +360,9 @@ export function DashboardPage() {
    * que no significa nada. Es el mismo problema que Metas ya resolvió mirando
    * siempre el mes en curso, así que se resuelve igual.
    */
-  const rangoDelMes = { from: `${mesEnCurso}-01`, to: `${mesEnCurso}-31` };
+  // ⚠️ `${mesEnCurso}-31` NO sirve: en cinco meses del año ese día no existe y
+  // la API lo corría hasta tres días al mes siguiente (hoy lo rechaza con 400).
+  const rangoDelMes = rangoDeMes(mesEnCurso);
   const ventasDelMes = useSales(rangoDelMes);
   const abonosDelMes = useOrderPayments(rangoDelMes);
   const ingresosDelMes =

@@ -127,6 +127,35 @@ porque los dos los rechaza el servidor. `null`/ausente sí, en los opcionales.
 de dinero son **obligatorios**, así que vaciar ese input manda `''` y la
 petición falla con 400 — el formulario tiene que exigirlo antes de enviar.
 
+### El rango de un mes: `rangoDeMes`, y nunca el día 31 a mano
+
+El Dashboard armaba el rango del mes en curso como
+`{ from: `${mes}-01`, to: `${mes}-31` }`. **El 31 no existe en cinco meses del
+año**, y la API hace `new Date(`${to}T23:59:59.999Z`)`: en febrero ese tope se
+corría al **3 de marzo**, así que la tarjeta del punto de equilibrio venía
+contando hasta tres días del mes siguiente como ingresos "del mes" — con un
+número que seguía siendo plausible, que es por lo que nadie lo vio.
+
+- Un rango de mes se arma **siempre** con `rangoDeMes(mes)` de
+  `features/finance/DateRange.tsx` (el día 0 del mes siguiente es el último
+  del mes pedido). **El preset "Este mes" usa esa misma función**: con dos
+  definiciones, el día que una cambie el Dashboard y el filtro dirían cosas
+  distintas sobre "este mes".
+- ⚠️ **Desde shared 0.47.0 esto ya no es solo un número mal contado: es un
+  400.** `RangoQuerySchema` valida el calendario en `?from&to` de `/sales`,
+  `/expenses`, `/orders/payments` y `/filament/purchases`. Un `-31` inventado
+  tumba la tarjeta en vez de pasar inadvertido.
+- Los cuatro constructores de params del panel **filtran por verdad**
+  (`if (range.from) p.from = range.from`), así que con el preset "Todo" el
+  parámetro no viaja: eso es lo que se midió antes de apretar el servidor, y
+  es por lo que el schema acepta "sin rango" pero no un día inventado. Un
+  filtro nuevo manda **`AAAA-MM-DD` o nada** — nunca `''` ni un ISO con hora.
+- Tests: `features/finance/rango-de-mes.spec.ts` (6, con el barrido de los 24
+  meses de un año común y uno bisiesto). Por mutación, devolver el día 1 del
+  mes siguiente tumba 5 de 6 — el que aguanta es justo el del barrido, porque
+  el 1º **sí** existe en el calendario: para eso está el test de "el último
+  día del mes, no el primero del siguiente".
+
 ### Regla de overlays (IMPORTANTE)
 - **NO usar `AnimatePresence` para overlays con hijo condicional; renderizar
   condicional directo.** Un hijo directo SIN `key` NO se desmonta al cerrar (el
