@@ -47,6 +47,7 @@ import {
   type PurchaseInvoice,
 } from '@/features/purchases/api';
 import { avisoDePrecio, preciosRealesDeLaLinea } from '@/features/purchases/precio-real';
+import { avisoDeAbono } from '@/features/purchases/aviso-de-abono';
 
 const hoyIso = () => {
   const d = new Date();
@@ -598,6 +599,22 @@ function Abonar({
     else setAmount(f.saldo);
   };
 
+  /**
+   * QUÉ AVISAR SOBRE EL MONTO — una sola decisión, pura y testeada
+   * (`features/purchases/aviso-de-abono.ts`).
+   *
+   * ⚠️ Eran TRES condiciones independientes escritas en el JSX, y una
+   * combinación no caía en ninguna: tomar del saldo a favor **más de lo que
+   * esta factura debe**. Es legítimo —la plata ni se pierde ni se inventa— pero
+   * el saldo SALTA de una factura a la otra, y eso pasaba en silencio.
+   */
+  const aviso = avisoDeAbono({
+    monto: amount,
+    falta: f.saldo,
+    // `null` = con plata. No es lo mismo que un origen con 0 disponible.
+    disponible: origen ? origen.disponible : null,
+  });
+
   const guardar = () =>
     abonar.mutate(
       {
@@ -636,7 +653,9 @@ function Abonar({
                 : `Falta ${money(f.saldo)}`
             }
           >
-            <NumberInput value={amount} onChange={setAmount} />
+            {/* La etiqueta de `Field` no está asociada al control (no lleva
+                `htmlFor`), así que el nombre accesible va acá. */}
+            <NumberInput value={amount} onChange={setAmount} aria-label="Monto (USD)" />
           </Field>
         </FieldGrid>
         {/* ⚠️ **CON QUÉ SE PAGA**, y son dos cosas distintas: plata que sale
@@ -648,7 +667,11 @@ function Abonar({
             label="¿Con qué lo pagás?"
             hint={`${saldo?.supplierName} te debe ${money(saldo?.disponible ?? 0)}.`}
           >
-            <Select value={tomadoDe} onChange={(e) => elegirOrigen(e.target.value)}>
+            <Select
+              value={tomadoDe}
+              onChange={(e) => elegirOrigen(e.target.value)}
+              aria-label="¿Con qué lo pagás?"
+            >
               <option value="">Con plata</option>
               {origenes.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -688,16 +711,43 @@ function Abonar({
             más. Baja lo que le debés a {saldo?.supplierName} y baja su saldo a favor.
           </p>
         )}
-        {conSaldo && amount > origen.disponible && (
+        {/* Lo único que NO se puede: el servidor lo rechaza igual. Es el aviso
+            que además apaga el botón. */}
+        {aviso?.clase === 'SIN_SALDO' && (
           <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-xs">
-            Esa factura tiene {money(origen.disponible)} de saldo a favor y estás usando{' '}
-            {money(amount)}. Bajá el monto o abonalo con plata.
+            Esa factura tiene {money(aviso.disponible)} de saldo a favor y estás usando{' '}
+            {money(aviso.tomado)}. Bajá el monto o abonalo con plata.
           </p>
         )}
-        {!conSaldo && amount > f.saldo && (
+        {aviso?.clase === 'PAGA_DE_MAS' && (
           <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-xs">
-            Estás abonando {money(amount - f.saldo)} más de lo que falta. Se registra igual —la plata
+            Estás abonando {money(aviso.deMas)} más de lo que falta. Se registra igual —la plata
             salió— y queda marcado como pagado de más.
+          </p>
+        )}
+        {/* ⚠️ **EL SALDO QUE SALTA DE UNA FACTURA A LA OTRA.** Tomás $15 de
+            saldo y los aplicás donde debés $5: paga los $5 y los $10 quedan a
+            favor en ESTA factura. Se puede —la plata ni se pierde ni se
+            inventa— y por eso NO bloquea; lo que no puede pasar es que ocurra
+            sin que el dueño vea cuánto va a quedar a favor en la factura nueva.
+            Mismo estilo que el aviso de "pagado de más" de arriba, que también
+            es legítimo y también deja guardar. */}
+        {aviso?.clase === 'SALDO_QUE_SALTA' && (
+          <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-xs">
+            {aviso.yaEstabaPaga ? (
+              <>
+                Esta factura ya está paga, así que los {money(aviso.quedaAFavor)} que tomes quedan
+                enteros a favor en ELLA.
+              </>
+            ) : (
+              <>
+                Estás tomando {money(aviso.tomado)} y a esta factura le faltan{' '}
+                {money(aviso.falta)}: los {money(aviso.quedaAFavor)} de diferencia quedan a favor en
+                ESTA factura.
+              </>
+            )}{' '}
+            Se registra igual —no se pierde nada, el saldo pasa de una factura a la otra— pero vas a
+            tener que volver a usarlo desde acá. Bajá el monto si no era eso lo que querías.
           </p>
         )}
         <div className="flex justify-end gap-2 pt-1">
@@ -707,9 +757,10 @@ function Abonar({
           <Button
             variant="accent"
             onClick={guardar}
-            disabled={
-              abonar.isPending || amount <= 0 || (conSaldo && amount > origen.disponible)
-            }
+            // ⚠️ El ÚNICO aviso que bloquea es `SIN_SALDO`: los otros dos son
+            // operaciones legítimas y apagar el botón las convertiría en una
+            // guarda que corta.
+            disabled={abonar.isPending || amount <= 0 || aviso?.clase === 'SIN_SALDO'}
           >
             {abonar.isPending ? 'Guardando…' : conSaldo ? 'Usar el saldo' : 'Abonar'}
           </Button>
