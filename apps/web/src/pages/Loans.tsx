@@ -20,6 +20,7 @@ import {
   useDeleteLoan,
   paraEquilibrio,
   useLoansOverview,
+  useUpdateLoan,
   useVoidLoanPayment,
 } from '@/features/loans/api';
 
@@ -424,9 +425,41 @@ function LoanCard({ loan }: { loan: Loan }) {
   const confirm = useConfirm();
   const [pagando, setPagando] = useState(false);
   const borrar = useDeleteLoan();
+  const actualizar = useUpdateLoan();
 
   const pagado = loan.status === 'PAGADO';
+  const cerrado = loan.closedAt != null;
+  /**
+   * ⚠️ Con saldo NO se puede cerrar, y el servidor también lo rechaza (409).
+   * Cerrar un préstamo que se debe le saca la cuota al nivel 2 del equilibrio y
+   * el saldo al `lenderBalance` de Caja: la deuda desaparece de las dos
+   * pantallas de dinero sin que nadie la pague. El camino honesto para el caso
+   * real —se lo perdonaron, se pagó por fuera— es registrar el pago que falta.
+   */
+  const debe = loan.balance > 0;
   const e = loan.estimate;
+
+  /** Cerrar o reabrir. `closedAt` es un día pelado: un ISO con hora lo rechaza el servidor. */
+  const cambiarCierre = async (closedAt: string | null) => {
+    const abrir = closedAt === null;
+    if (
+      !(await confirm({
+        title: abrir ? `¿Reabrir “${loan.name}”?` : `¿Cerrar “${loan.name}”?`,
+        description: abrir
+          ? 'Su cuota vuelve a contar en el punto de equilibrio del Dashboard.'
+          : 'Ya está saldado, así que su cuota deja de contar en el punto de equilibrio. Se puede reabrir.',
+      }))
+    ) {
+      return;
+    }
+    actualizar.mutate(
+      { id: loan.id, closedAt },
+      {
+        onSuccess: () => notify.success(abrir ? 'Préstamo reabierto' : 'Préstamo cerrado'),
+        onError: (err) => notify.error(apiErrorMessage(err)),
+      },
+    );
+  };
 
   return (
     <Card>
@@ -443,13 +476,43 @@ function LoanCard({ loan }: { loan: Loan }) {
             {loan.concept && <p className="text-xs text-muted-foreground">{loan.concept}</p>}
           </div>
           <div className="flex items-center gap-2">
-            {pagado ? (
-              <Badge variant="success">Pagado</Badge>
+            {cerrado ? (
+              <>
+                <Badge variant="success">Cerrado</Badge>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void cambiarCierre(null)}
+                  title="Su cuota vuelve a contar en el punto de equilibrio."
+                >
+                  <Undo2 className="h-4 w-4" /> Reabrir
+                </Button>
+              </>
             ) : (
               <>
-                <Badge variant="outline">Activo</Badge>
-                <Button size="sm" onClick={() => setPagando(true)}>
-                  Registrar pago
+                <Badge variant={pagado ? 'success' : 'outline'}>
+                  {pagado ? 'Pagado' : 'Activo'}
+                </Badge>
+                {!pagado && (
+                  <Button size="sm" onClick={() => setPagando(true)}>
+                    Registrar pago
+                  </Button>
+                )}
+                {/* El botón queda A LA VISTA aunque esté apagado, con el motivo
+                    en el `title`: esconderlo dejaría al dueño adivinando por qué
+                    no puede cerrar un préstamo que ya no piensa pagar. */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={debe}
+                  title={
+                    debe
+                      ? `Todavía debés ${money(loan.balance)}: registrá el pago que falta (o corregí el capital) antes de cerrarlo. Cerrarlo debiendo saca esa deuda del punto de equilibrio y de Caja como si estuviera pagada.`
+                      : 'Saca su cuota del punto de equilibrio. Se puede reabrir.'
+                  }
+                  onClick={() => void cambiarCierre(todayKey())}
+                >
+                  Cerrar
                 </Button>
               </>
             )}

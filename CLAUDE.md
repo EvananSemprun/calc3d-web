@@ -645,6 +645,30 @@ al scrollear. Arreglado el 2026-10-05.
       pendiente** y casi la "arreglan" de nuevo. Una doc que describe un defecto
       ya cerrado cuesta más que no tener doc: manda a trabajar sobre algo que no
       existe. Al cerrar un pendiente anotado acá, **borrarlo en el mismo commit**.
+  - **CERRAR Y REABRIR un préstamo** (2026-10-10) — el botón que le faltaba a
+    la pantalla: `useUpdateLoan` existía **exportado y sin usar**, así que un
+    préstamo saldado no se podía cerrar y **su cuota seguía pesando en el nivel
+    2 del punto de equilibrio para siempre**. Manda `closedAt: todayKey()` al
+    cerrar y `closedAt: null` al reabrir (día pelado: el servidor rechaza un ISO
+    con hora), las dos con confirmación.
+    - ⚠️ **Con saldo pendiente el botón está A LA VISTA pero APAGADO**, con el
+      motivo y el monto en el `title`. Esconderlo dejaría al dueño adivinando
+      por qué no puede cerrar un préstamo que ya no piensa pagar; el servidor
+      además lo rechaza con 409, y un botón que parece disponible y falla al
+      tocarlo enseña a desconfiar de la pantalla.
+    - ⚠️ **Por qué se impide y no se avisa**: cerrar debiendo saca la cuota del
+      nivel 2 (`monthlyLoanPayments` filtra por `!closedAt`) y el saldo del
+      `lenderBalance` de Caja, pero NO lo saca de `totals.prestamista` de esta
+      misma pantalla — Caja diría $0 y Deuda $750 sobre la misma plata. El
+      bloqueo es lo que mantiene las dos de acuerdo.
+    - La insignia distingue **Cerrado** de **Pagado**: el saldo en 0 ya decía
+      "Pagado" y no es lo mismo que haber dejado de contar la cuota.
+    - Tests: `features/loans/equilibrio-al-cerrar.spec.ts` (5, el efecto en el
+      equilibrio por el camino real `paraEquilibrio` → shared) y
+      `pages/Loans.cerrar.spec.tsx` (5, el CABLEADO: que el botón mande el
+      `PATCH` y que el que debe no lo tenga habilitado). Medido por mutación:
+      dejar de pasar `closedAt` en `paraEquilibrio` tumba 3, habilitar el botón
+      siempre tumba 1 y mandar `null` en vez de la fecha tumba 1.
   - **"Faltan X" son DOS lecturas**, al ritmo objetivo y al real. Una sola miente
     con pagos irregulares, que es el caso real.
   - **Anular reemplaza a borrar**: el pago queda tachado en el historial con su
