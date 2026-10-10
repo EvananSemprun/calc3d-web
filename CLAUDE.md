@@ -220,7 +220,8 @@ al scrollear. Arreglado el 2026-10-05.
 - **Filtros = SELECTS, no buscador de texto** (decisión del dueño, 2026-09-14). Las
   listas filtran con `Select` sobre valores cerrados (Pedidos: Estado/Cliente;
   Contactos: Tipo/Ciudad; Catálogo: Nombre; Tienda: Categoría/Estado; Compras de
-  filamento: Filamento/Proveedor; Stock: Color/Marca/Tipo/Estado). Opciones con
+  filamento: Filamento/Proveedor; Gastos: Tipo/Proveedor; Stock:
+  Color/Marca/Tipo/Estado). Opciones con
   `uniqueSorted` (`lib/utils.ts`) y siempre un **valor "seguro"**: si lo guardado ya
   no existe, cae a "todos" (si no, select en blanco y lista vacía). **Única
   excepción: Contactos** lleva `SearchInput` solo por nombre y teléfono (por
@@ -638,9 +639,31 @@ al scrollear. Arreglado el 2026-10-05.
   decía "las impresoras no son gasto: son inversión". El KPI "Gastos" muestra el
   operativo y anuncia la inversión aparte en su renglón de apoyo, para que la
   resta se pueda seguir a ojo. Lo mismo en **Gastos** (`pages/Expenses.tsx`):
-  "Total del periodo" incluye la inversión y la tarjeta "De inversión" es un
+  el total incluye la inversión y la tarjeta "De inversión" es un
   SUBCONJUNTO, no un segundo monto — sin decirlo, se leen como dos cubetas que
   se suman.
+- ⚠️ **En Gastos los tres KPIs se calculan sobre LO QUE SE VE** (2026-10-10),
+  la misma regla que ya seguía Ventas. La tabla mostraba `visibleRows` y los
+  totales sumaban `rows`: con el filtro de proveedor puesto se veían 2 gastos y
+  un "Total del periodo" que seguía siendo el de los 87. Los deriva
+  `totalesGastos(visibleRows)`, pura y exportada (`pages/Expenses.tsx`).
+  - ⚠️ **La ETIQUETA cambia con el número**: con filtros puestos dice "Total de
+    lo que se ve" y su pie, "N de M gastos"; además un renglón nombra los
+    filtros activos y ofrece "Quitar filtros". Dejar el cartel "Total del
+    periodo" sobre un número filtrado es cambiar una mentira por otra.
+  - **Las opciones del filtro de proveedor salen de las FILAS CARGADAS**, no del
+    directorio entero (el patrón de `PurchasesTab`), así que no se puede elegir
+    un proveedor que deje la tabla vacía; se agrupan por **id** y no por nombre,
+    y el select **no se dibuja** si ninguna fila del rango tiene proveedor. El
+    tipo elegido y el proveedor tienen su **valor seguro**.
+  - **El vacío distingue los dos casos**: "sin gastos en este periodo" vs
+    "ninguno de los M pasa el filtro", y en el segundo el botón es "Quitar
+    filtros" y no "Registrar gasto" — mandaría a cargar un gasto que ya existe.
+  - ⚠️ Los textos de los tipos viven en `TIPOS_DE_GASTO`, una sola lista que
+    alimenta el desplegable **y** el aviso de filtros: con el texto escrito dos
+    veces, renombrar una opción deja al aviso diciendo el nombre viejo.
+  - ⚠️ `apps/web` **no tiene runner de tests**, así que esto quedó **sin test**
+    (`totalesGastos` es pura justamente para poder testearla el día que lo haya).
 - ⚠️ **El punto de equilibrio se compara contra los INGRESOS** (`agg.ingresos`
   = ventas + abonos de pedidos), no contra `agg.ventas`. Con solo las ventas de
   mostrador, la tarjeta decía "vendiste $5,00 · 3 %" mientras la de Metas, justo

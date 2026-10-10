@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Receipt, Trash2 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   CardContent,
+  EmptyState,
   FilterBar,
   Select,
   Stat,
@@ -25,7 +26,6 @@ import {
 } from '@/features/finance/api';
 import { ExpenseModal } from '@/features/finance/ExpenseModal';
 import { useCounterparties } from '@/features/cash/api';
-import { useContacts } from '@/features/contacts/api';
 
 /** Días que duró una campaña (inclusivo). Null si no hay fecha de fin válida. */
 function durationDays(from: string, to?: string | null) {
@@ -33,15 +33,45 @@ function durationDays(from: string, to?: string | null) {
   const d = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
   return d > 0 ? d : null;
 }
+
+/**
+ * Los tipos del filtro, con su etiqueta, en UN solo lugar: el desplegable y el
+ * aviso de "qué filtros están puestos" tienen que nombrar el tipo igual. Con el
+ * texto escrito dos veces, renombrar una opción deja al aviso diciendo el
+ * nombre viejo.
+ */
+const TIPOS_DE_GASTO = [
+  { value: 'printer', label: 'Impresoras' },
+  { value: 'material', label: 'Filamentos' },
+  { value: 'component', label: 'Insumos' },
+  { value: 'maintenance', label: 'Mantenimiento' },
+  { value: 'advertising', label: 'Publicidad' },
+  { value: 'design', label: 'Diseño' },
+  { value: 'investment', label: 'Inversión' },
+  { value: 'owner', label: 'Los puso una persona' },
+  { value: 'general', label: 'General' },
+] as const;
+
+/**
+ * Los tres totales de la pantalla, DERIVADOS de las filas que recibe.
+ *
+ * ⚠️ Recibe **lo que se ve**, no la respuesta entera: con un filtro puesto, la
+ * tabla mostraba 2 gastos y el total seguía diciendo el de los 87 del periodo
+ * (la misma regla que ya seguía Ventas: los KPIs se calculan sobre LO QUE SE
+ * VE). Es pura a propósito, para poder testearla el día que `apps/web` tenga
+ * runner de tests.
+ */
+export function totalesGastos(filas: { amount: number; isInvestment: boolean }[]) {
+  const total = filas.reduce((s, r) => s + r.amount, 0);
+  const inversion = filas.filter((r) => r.isInvestment).reduce((s, r) => s + r.amount, 0);
+  // La inversión está DENTRO del total, no al lado: los equipos también son
+  // dinero que salió. Lo que resta ganancia es el resto (ver el `sub` de cada
+  // tarjeta) — la máquina se recupera en Producción → Reposición de equipos.
+  return { total, inversion, operativo: total - inversion };
+}
+
 export function ExpensesPage() {
   const { data: contrapartes = [] } = useCounterparties();
-  // Las opciones del filtro de proveedor son las MISMAS que ofrece el
-  // formulario de gasto: los contactos con tipo Proveedor. Desde 8 opciones el
-  // `Select` saca su buscador solo, así que no hay nada que agregar.
-  const { data: contactos = [] } = useContacts();
-  const proveedores = contactos
-    .filter((c) => c.type === 'SUPPLIER')
-    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const range = useDateRange('MONTH', 'expenses');
   const { money } = useMoney();
   const qc = useQueryClient();
@@ -63,11 +93,38 @@ export function ExpensesPage() {
       default: return true;
     }
   };
-  // Se compara por ID y no por nombre: dos proveedores que se llamen parecido
-  // son contactos distintos, y el nombre de uno no puede arrastrar al otro.
+  // Las opciones del filtro salen de LAS FILAS CARGADAS, no del directorio
+  // entero (el patrón de `PurchasesTab` con `uniqueSorted`): así no se puede
+  // elegir un proveedor que deje la tabla vacía. Se agrupa por ID y no por
+  // nombre porque dos proveedores que se llamen parecido son contactos
+  // distintos, y el nombre de uno no puede arrastrar al otro.
+  const proveedores = useMemo(() => {
+    const porId = new Map<string, string>();
+    for (const e of rows) if (e.provider) porId.set(e.provider.id, e.provider.name);
+    return [...porId]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }, [rows]);
+  // Valor "seguro": un proveedor elegido que ya no está entre las opciones
+  // (cambió el rango de fechas) cae a "todos", en vez de dejar la tabla vacía.
+  const proveedorSeguro = proveedores.some((p) => p.id === proveedorFilter) ? proveedorFilter : 'ALL';
   const matchesProveedor = (e: ExpenseRow) =>
-    proveedorFilter === 'ALL' || e.provider?.id === proveedorFilter;
+    proveedorSeguro === 'ALL' || e.provider?.id === proveedorSeguro;
   const visibleRows = rows.filter((e) => matchesType(e) && matchesProveedor(e));
+
+  // Qué filtros están puestos, con el mismo texto que el desplegable.
+  const filtrosPuestos = [
+    typeFilter !== 'ALL' ? TIPOS_DE_GASTO.find((t) => t.value === typeFilter)?.label : null,
+    proveedorSeguro !== 'ALL' ? proveedores.find((p) => p.id === proveedorSeguro)?.name : null,
+  ].filter((t): t is string => !!t);
+  // ⚠️ "Con filtros" solo cambia los textos cuando hay algo que filtrar: en un
+  // periodo sin ningún gasto, "ninguno de los 0 pasa el filtro" es peor que
+  // decir derecho que no hay gastos.
+  const hayFiltros = filtrosPuestos.length > 0 && rows.length > 0;
+  const quitarFiltros = () => {
+    setTypeFilter('ALL');
+    setProveedorFilter('ALL');
+  };
   const [open, setOpen] = useState(false);
   const confirm = useConfirm();
 
@@ -92,12 +149,8 @@ export function ExpensesPage() {
     onError: (error) => notify.error(apiErrorMessage(error)),
   });
 
-  const total = rows.reduce((s, r) => s + r.amount, 0);
-  const inversion = rows.filter((r) => r.isInvestment).reduce((s, r) => s + r.amount, 0);
-  // La inversión está DENTRO del total, no al lado: los equipos también son
-  // dinero que salió. Lo que resta ganancia es el resto (ver el `sub` de cada
-  // tarjeta) — la máquina se recupera en Producción → Reposición de equipos.
-  const operativo = total - inversion;
+  // ⚠️ Sobre `visibleRows`, lo mismo que muestra la tabla.
+  const { total, inversion, operativo } = totalesGastos(visibleRows);
 
   return (
     <div className="space-y-5">
@@ -128,43 +181,48 @@ export function ExpensesPage() {
             onChange={(e) => setTypeFilter(e.target.value)}
           >
             <option value="ALL">Todos los tipos</option>
-            <option value="printer">Impresoras</option>
-            <option value="material">Filamentos</option>
-            <option value="component">Insumos</option>
-            <option value="maintenance">Mantenimiento</option>
-            <option value="advertising">Publicidad</option>
-            <option value="design">Diseño</option>
-            <option value="investment">Inversión</option>
-            <option value="owner">Los puso una persona</option>
-            <option value="general">General</option>
-          </Select>
-          <Select
-            className="w-full sm:w-48"
-            value={proveedorFilter}
-            aria-label="Filtrar por proveedor"
-            onChange={(e) => setProveedorFilter(e.target.value)}
-          >
-            <option value="ALL">Proveedor: todos</option>
-            {proveedores.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
+            {TIPOS_DE_GASTO.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
               </option>
             ))}
           </Select>
+          {/* Solo se dibuja si hay proveedor que elegir: con los 87 gastos sin
+              proveedor cargado, un select de una sola opción es ruido que ocupa
+              media fila de teléfono. */}
+          {proveedores.length > 0 && (
+            <Select
+              className="w-full sm:w-48"
+              value={proveedorSeguro}
+              aria-label="Filtrar por proveedor"
+              onChange={(e) => setProveedorFilter(e.target.value)}
+            >
+              <option value="ALL">Proveedor: todos</option>
+              {proveedores.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          )}
         </FilterBar>
         {/* En el teléfono los totales se reparten el ancho en vez de desbordar. */}
         <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto">
+          {/* ⚠️ Los tres suman LO QUE SE VE, así que con un filtro puesto ya no
+              son "del periodo": la etiqueta lo dice y el aviso de abajo nombra
+              los filtros. Cambiar el número y dejar el cartel viejo sería
+              cambiar una mentira por otra. */}
           <Stat
-            label="Total del periodo"
+            label={hayFiltros ? 'Total de lo que se ve' : 'Total del periodo'}
             value={money(total)}
-            sub="todo lo que salió"
+            sub={hayFiltros ? `${visibleRows.length} de ${rows.length} gastos` : 'todo lo que salió'}
             accent="yellow"
             className="min-w-[150px]"
           />
           <Stat
             label="Operativo"
             value={money(operativo)}
-            sub="lo que resta ganancia"
+            sub={hayFiltros ? 'lo que resta ganancia, de lo filtrado' : 'lo que resta ganancia'}
             className="min-w-[150px]"
           />
           <Stat
@@ -177,20 +235,52 @@ export function ExpensesPage() {
         </div>
       </div>
 
+      {/* Qué se está mirando, dicho con los nombres de los filtros, y cómo
+          volver a ver todo. Sin esto, los totales de "lo que se ve" obligan a
+          revisar dos desplegables para saber qué quedó afuera. */}
+      {hayFiltros && !isLoading && visibleRows.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Se ven {visibleRows.length} de {rows.length} gasto(s) del periodo · filtros:{' '}
+          {filtrosPuestos.join(' · ')}.{' '}
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-foreground"
+            onClick={quitarFiltros}
+          >
+            Quitar filtros
+          </button>
+        </p>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
             <TableSkeleton cols={7} />
           ) : visibleRows.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 p-12 text-center">
-              <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-blue/15 text-brand-blue-bright ring-1 ring-inset ring-brand-blue/30">
-                <Receipt className="h-6 w-6" />
-              </span>
-              <p className="text-sm text-muted-foreground">Sin gastos en este periodo.</p>
-              <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-                <Plus className="h-4 w-4" /> Registrar gasto
-              </Button>
-            </div>
+            /* Con un filtro puesto, "sin gastos en este periodo" es falso: los
+               gastos están, el filtro los deja afuera. Y ofrecer "Registrar
+               gasto" ahí manda a cargar uno que ya existe. */
+            <EmptyState
+              icon={Receipt}
+              description={
+                hayFiltros
+                  ? `Ninguno de los ${rows.length} gasto(s) del periodo pasa el filtro (${filtrosPuestos.join(
+                      ' · ',
+                    )}).`
+                  : 'Sin gastos en este periodo.'
+              }
+              action={
+                hayFiltros ? (
+                  <Button variant="outline" size="sm" onClick={quitarFiltros}>
+                    Quitar filtros
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+                    <Plus className="h-4 w-4" /> Registrar gasto
+                  </Button>
+                )
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
