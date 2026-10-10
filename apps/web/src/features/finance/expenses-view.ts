@@ -87,6 +87,17 @@ export function tipoSeguro(guardado: string): string {
  * El respaldo (`default`) es **mostrar**, no ocultar. Por la pantalla no se
  * llega ahí, porque el valor pasa antes por `tipoSeguro`; es la red por si
  * alguien llama a esta función con otra cosa.
+ *
+ * ⚠️ **"General" es el RESTO y es disjunto de todo** (2026-10-10): de los tres
+ * recursos, de las tres categorías y de la inversión. Lo que queda superpuesto
+ * —y queda a propósito, pendiente de decisión del dueño— son otros dos pares,
+ * los dos porque el desplegable mezcla EJES distintos en una sola lista:
+ * - **"Los puso una persona"** cruza con todos: es *quién pagó*, no *qué se
+ *   compró*. Una impresora que puso el propietario sale en "Impresoras" y acá.
+ * - **"Inversión"** cruza con "Impresoras" / "Filamentos" / "Insumos" cuando el
+ *   gasto está enlazado a una ficha: es *cómo se cuenta* (lo que el negocio
+ *   devuelve), no el recurso.
+ * Separarlos de verdad pide dos filtros, no nueve opciones en uno.
  */
 export function pasaTipo(filtro: string, e: ExpenseRow): boolean {
   switch (filtro) {
@@ -99,7 +110,13 @@ export function pasaTipo(filtro: string, e: ExpenseRow): boolean {
     case 'design': return e.category === 'DESIGN';
     case 'owner': return e.counterparty != null;
     case 'investment': return e.isInvestment;
-    case 'general': return !e.material && !e.printer && !e.component && e.category !== 'MAINTENANCE' && e.category !== 'ADVERTISING' && e.category !== 'DESIGN';
+    // ⚠️ "General" es EL RESTO, y para eso tiene que excluir también la
+    // inversión (2026-10-10, decisión del dueño): una impresora marcada como
+    // inversión y sin ficha enlazada salía en "General" **y** en "Inversión" a
+    // la vez. Dos filtros mostrando el mismo gasto hacen que las partes sumen
+    // más que el total, y entonces ninguna de las dos etiquetas significa lo
+    // que dice.
+    case 'general': return !e.material && !e.printer && !e.component && !e.isInvestment && e.category !== 'MAINTENANCE' && e.category !== 'ADVERTISING' && e.category !== 'DESIGN';
     default: return true;
   }
 }

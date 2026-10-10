@@ -70,13 +70,27 @@ const DE_FACTURA: ExpenseRow = {
   material: { id: 'm1', name: 'PLA Negro' },
 };
 
+/**
+ * UNA INVERSIÓN SIN FICHA ENLAZADA: el caso exacto del gasto que aparecía en
+ * DOS filtros a la vez ("General" e "Inversión") hasta el 2026-10-10.
+ */
+const INVERSION: ExpenseRow = {
+  id: 'g3',
+  date: '2026-10-09T00:00:00.000Z',
+  category: 'EQUIPMENT',
+  counterparty: null,
+  description: 'Impresora A1 mini',
+  amount: 240,
+  isInvestment: true,
+};
+
 const CONTRAPARTES = [
   { id: 'c1', name: 'Propietario', kind: 'OWNER', isDefault: true, active: true, notes: null },
 ];
 
 function montar() {
   mocks.get.mockImplementation((url: string) => {
-    if (url === '/expenses') return Promise.resolve({ data: [A_MANO, DE_FACTURA] });
+    if (url === '/expenses') return Promise.resolve({ data: [A_MANO, DE_FACTURA, INVERSION] });
     if (url === '/counterparties') return Promise.resolve({ data: CONTRAPARTES });
     // El resto de lo que consulta la pantalla (ajustes, tasas) no cambia nada
     // de lo que se mide acá: sin ajustes, `useMoney` cae a USD/en-US. Va `null`
@@ -179,6 +193,36 @@ describe('Gastos: el filtro de tipo', () => {
 
     expect(screen.queryAllByText('Cinta de embalaje')).toHaveLength(0);
     // Y se dice qué quedó afuera: los totales de arriba suman LO QUE SE VE.
-    expect(screen.getByText(/Se ven 1 de 2 gasto\(s\) del periodo/)).toBeInTheDocument();
+    expect(screen.getByText(/Se ven 1 de 3 gasto\(s\) del periodo/)).toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ **"General" ya no incluye la inversión** (2026-10-10, decisión del
+   * dueño): es *lo que no es filamento, ni impresora, ni inversión*.
+   *
+   * Va acá y no solo en el spec de `pasaTipo` por la misma razón que el test de
+   * arriba: nueve ramas testeadas no prueban que la pantalla las llame bien. Y
+   * lo que el dueño va a mirar no es una función, es que la impresora deje de
+   * salir en dos filtros — con el total de "lo que se ve" acompañando.
+   */
+  it('con "General" guardado esconde la inversión y deja el gasto suelto', async () => {
+    localStorage.setItem('expenses:tipo', JSON.stringify('general'));
+
+    montar();
+    await screen.findAllByText('Cinta de embalaje');
+
+    expect(screen.queryAllByText('Impresora A1 mini')).toHaveLength(0);
+    expect(screen.queryAllByText('PLA Negro de la factura 0012')).toHaveLength(0);
+    expect(screen.getByText(/Se ven 1 de 3 gasto\(s\) del periodo/)).toBeInTheDocument();
+  });
+
+  it('con "Inversión" guardado deja SOLO la inversión: el gasto suelto no se cuela', async () => {
+    localStorage.setItem('expenses:tipo', JSON.stringify('investment'));
+
+    montar();
+    await screen.findAllByText('Impresora A1 mini');
+
+    expect(screen.queryAllByText('Cinta de embalaje')).toHaveLength(0);
+    expect(screen.getByText(/Se ven 1 de 3 gasto\(s\) del periodo/)).toBeInTheDocument();
   });
 });

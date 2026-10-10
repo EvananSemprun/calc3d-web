@@ -282,12 +282,25 @@ describe('pasaTipo', () => {
     expect(pasaTipo('general', { ...base, category: 'DESIGN' })).toBe(false);
   });
 
-  it('⚠️ "general" NO excluye inversión, y eso es a propósito', () => {
-    // Un equipo marcado como inversión y sin impresora enlazada sale también en
-    // "General". Se deja tal cual porque es el comportamiento que hay hoy: la
-    // mudanza no cambia lo que la pantalla hace. Queda escrito acá para que, si
-    // algún día se decide que no, se vea que se está cambiando una regla.
-    expect(pasaTipo('general', { ...base, category: 'EQUIPMENT', isInvestment: true })).toBe(true);
+  it('⚠️ "general" EXCLUYE la inversión: cada gasto cae en UN solo filtro', () => {
+    // ⚠️ **Este test decía lo contrario, y a propósito** (hasta el 2026-10-10):
+    // la mudanza de `matchesType` a este archivo no cambiaba lo que la pantalla
+    // hacía, así que fijaba el comportamiento de entonces —una inversión salía
+    // también en "General"— para que el día que se decidiera cambiarlo se viera
+    // que se estaba cambiando una regla. Ese día es hoy.
+    //
+    // **Regla nueva, decidida por el dueño:** "General" significa *lo que no es
+    // filamento, ni impresora, ni inversión*. Una impresora marcada como
+    // inversión y sin ficha enlazada aparecía en "General" **y** en "Inversión"
+    // a la vez: dos filtros mostrando el mismo gasto, las partes sumando más
+    // que el total y ningún filtro siendo "el resto".
+    expect(pasaTipo('general', { ...base, category: 'EQUIPMENT', isInvestment: true })).toBe(false);
+    // Lo que manda es la marca `isInvestment`, no la categoría — igual que en
+    // el filtro "Inversión" y que en los totales de arriba.
+    expect(pasaTipo('general', { ...base, isInvestment: true })).toBe(false);
+    // Y la contracara, para que la exclusión no se coma lo que sí es general:
+    // un gasto suelto que NO es inversión sigue pasando.
+    expect(pasaTipo('general', { ...base, isInvestment: false })).toBe(true);
   });
 
   it('un tipo que no existe deja pasar todo, nunca esconde la lista', () => {
