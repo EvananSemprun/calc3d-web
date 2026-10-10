@@ -840,6 +840,23 @@ al scrollear. Arreglado el 2026-10-05.
     el test de una función intacta y el fallo señalaba al lugar equivocado.
     `matchesType` era un closure de 9 ramas **sin un solo test**: salió tal cual
     como `pasaTipo(filtro, gasto)` y hoy tiene las nueve cubiertas.
+  - ⚠️ **"General" NO incluye las inversiones** (2026-10-10, decisión del
+    dueño): significa *lo que no es filamento, ni impresora, ni inversión*.
+    Hasta ese día la rama `general` de `pasaTipo` no miraba `isInvestment`, así
+    que una impresora marcada como inversión y **sin ficha enlazada** aparecía
+    en "General" **y** en "Inversión" a la vez: las partes sumaban más que el
+    total y ninguna de las dos etiquetas significaba lo que decía.
+    - El test que fijaba el comportamiento anterior estaba puesto **a
+      propósito** (la mudanza a `expenses-view.ts` no cambiaba nada de lo que la
+      pantalla hacía) justo para que este cambio no pasara en silencio. Hizo su
+      trabajo: se cambió con su comentario, que ahora dice la regla nueva.
+    - ⚠️ **Quedan DOS superposiciones más, sin tocar porque son decisión de
+      producto**, y las dos por el mismo motivo: el desplegable mezcla EJES
+      distintos en una sola lista. **"Los puso una persona"** cruza con todos
+      (es *quién pagó*, no *qué se compró*) e **"Inversión"** cruza con
+      Impresoras / Filamentos / Insumos cuando el gasto está enlazado a una
+      ficha (es *cómo se cuenta*). Separarlas de verdad pide dos filtros, no
+      nueve opciones en uno. Anotadas en el comentario de `pasaTipo`.
   - **LOS DOS FILTROS SE RECUERDAN** (2026-10-10): `usePersistentState` con
     `expenses:tipo` y `expenses:proveedor`, como el resto del panel (el rango de
     fechas de esta pantalla ya lo hacía, con `daterange:expenses:*`). Los dos
@@ -1310,6 +1327,44 @@ con 133.22 y le quedaban 102.83.
     - **La factura que se está abonando no aparece como origen**: una factura no
       se paga con su propio saldo a favor. El servidor lo rechaza igual;
       sacarla de la lista evita ofrecer un error.
+    - ⚠️ **EL SALDO QUE SALTA DE UNA FACTURA A LA OTRA** (2026-10-10, decisión
+      del dueño). Tomás $15 de saldo y los aplicás a una factura donde debés $5:
+      paga los $5 y **los otros $10 quedan a favor en la factura nueva**. Se
+      puede —la plata ni se pierde ni se inventa— **pero no sin decirlo**: antes
+      de confirmar, el diálogo dice cuánto va a quedar a favor en esta factura.
+      - ⚠️ **NO es una guarda que corte**: el botón sigue habilitado y el aviso
+        usa el mismo estilo que el de "pagado de más", que también es legítimo y
+        también deja guardar. El único que apaga el botón sigue siendo el de
+        tomar más de lo DISPONIBLE, que el servidor rechaza igual — y **gana**
+        sobre este, porque hablar de lo que va a quedar a favor cuando el monto
+        no existe es hablar de una plata que no hay.
+      - Texto: *"Estás tomando $15,00 y a esta factura le faltan $5,00: los
+        $10,00 de diferencia quedan a favor en ESTA factura. Se registra igual
+        —no se pierde nada, el saldo pasa de una factura a la otra— pero vas a
+        tener que volver a usarlo desde acá. Bajá el monto si no era eso lo que
+        querías."*
+      - ⚠️ **Una factura YA PAGA tiene su propia frase** (*"Esta factura ya está
+        paga, así que los $15,00 que tomes quedan enteros a favor en ELLA"*).
+        Es el único camino donde el aviso sale **sin que nadie suba el monto**:
+        no hay "lo que falta" para proponer, así que el formulario propone lo
+        disponible y el saldo salta entero. Con la frase general diría "le
+        faltan $0,00", que se lee como un error de la pantalla.
+      - ⚠️ **Por qué pasaba en silencio**: los tres avisos del monto eran tres
+        condiciones INDEPENDIENTES en el JSX y esta combinación no caía en
+        ninguna. Ahora la decisión es **UNA función pura**,
+        `avisoDeAbono` (`features/purchases/aviso-de-abono.ts`, **11 tests**), y
+        el JSX solo dibuja lo que devuelve. Compara **al centavo**, la precisión
+        del motor: sin eso, un residuo de coma flotante (2,9 − 2,7 =
+        0,2000000000000002) mostraba el cartel en un abono exacto.
+      - ⚠️ Y va con su **test de pantalla** (`pages/Purchases.abonar.spec.tsx`,
+        6 tests): una función pura sin test de cableado prueba la mitad —ya pasó
+        con `pasaTipo` en Gastos—. Prueban que el diálogo la llame con los tres
+        números correctos, que el default sea silencioso y que el botón **no**
+        se apague.
+      - Los dos controles del diálogo llevan `aria-label`: la etiqueta de
+        `Field` no está asociada al control (no tiene `htmlFor`), así que sin eso
+        no tienen nombre accesible — ni para un lector de pantalla ni para un
+        test.
     - En la lista de abonos, el que salió del saldo lleva la insignia **"Del
       saldo a favor"** en vez de "La caja": decir "la caja" ahí contaría la
       misma plata dos veces en el renglón que se lee para saber de dónde salió.
@@ -1560,16 +1615,19 @@ reparto por canal, los totales de Gastos).
   limpia en el `beforeEach`: sin limpiar, un tipo elegido en un test deja la
   lista vacía en el siguiente y los `queryAllBy…` dan 0 por el motivo
   equivocado.
-- Qué hay hoy (**total: 84**, 5 archivos):
+- Qué hay hoy (**total: 101**, 7 archivos):
   `features/finance/expenses-view.spec.ts` (24) — `totalesGastos`, `tipoSeguro`,
-  `filaDeGasto` y `pasaTipo` —, `pages/Expenses.pantalla.spec.tsx` (el primer
+  `filaDeGasto` y `pasaTipo` —, `pages/Expenses.pantalla.spec.tsx` (7, el primer
   test de componente) — la fila de factura sin tacho y con el pagador apagado, y
-  que el filtro de tipo guardado se aplique —,
-  `features/calculator/materialOptions.spec.ts` (34) — el selector de filamento
-  por tipo, la ventana de 6 meses y la ficha sin precio —,
+  que los filtros de tipo guardados se apliquen (Filamentos, General,
+  Inversión) —, `features/calculator/materialOptions.spec.ts` (34) — el selector
+  de filamento por tipo, la ventana de 6 meses y la ficha sin precio —,
   `features/calculator/Filamento.pantalla.spec.tsx` (5, jsdom) — el cableado de
-  ese selector — y `features/purchases/precio-real.spec.ts` (14) — el aviso de
-  que el proveedor te cobró otro precio.
+  ese selector —, `features/purchases/precio-real.spec.ts` (14) — el aviso de
+  que el proveedor te cobró otro precio —,
+  `features/purchases/aviso-de-abono.spec.ts` (11) — qué avisar sobre el monto
+  de un abono, los tres casos — y `pages/Purchases.abonar.spec.tsx` (6, jsdom) —
+  el cableado de ese aviso en el diálogo "Abonar".
 - ⚠️ **Un `Select` de Radix se abre en jsdom con `fireEvent.keyDown(trigger,
   { key: 'Enter' })` y se elige con `fireEvent.click` sobre el texto de la
   opción.** No hace falta `user-event` ni shims de pointer capture; lo que sí
