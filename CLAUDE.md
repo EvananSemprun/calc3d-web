@@ -587,10 +587,16 @@ al scrollear. Arreglado el 2026-10-05.
     le debés y cuántas facturas suyas están sin pagar, con enlace a
     **`/compras`**. ⚠️ **Acá no se gestiona nada** —abonar, recibir y anular
     viven en Compras— o habría dos puertas para la misma escritura.
-    - ⚠️ **Lo pagado DE MÁS se muestra APARTE y se dice que no se descuenta.**
-      Restarlo del total diría que debés menos de lo que debés, y esa plata no
-      vuelve sola. Hasta que exista el saldo a favor (Fase 3) es un cartel al
-      pie del bloque, no un número metido en la suma.
+    - ⚠️ **El SALDO A FAVOR se muestra APARTE y se dice que no se descuenta
+      solo.** Restarlo del total diría que debés menos de lo que debés mientras
+      esa plata sigue en poder del proveedor. Es un cartel al pie del bloque, no
+      un número metido en la suma.
+      - ⚠️ Desde el saldo a favor (2026-10-10, shared 0.45.0) la columna se
+        llama **"Tiene a favor"** y es lo **DISPONIBLE**, no lo que se pagó de
+        más alguna vez: el servidor ya le resta lo aplicado. Y el cartel dice
+        **qué hacer** —usarlo abonando una factura de ese mismo proveedor y
+        eligiendo *tomarlo del saldo a favor*, en Compras—: antes informaba una
+        plata atrapada sin salida.
     - Una factura **sin proveedor anotado** aparece igual, como "Sin proveedor
       anotado" en gris: esconderla por no tener nombre sería perder plata que se
       debe.
@@ -1246,6 +1252,41 @@ con 133.22 y le quedaban 102.83.
       `useInvoiceMutation`.
   - Abonar de más **no se bloquea** —esa plata salió— pero se avisa antes de
     guardar y la factura queda marcada como *Pagada de más*.
+  - ⚠️ **USAR EL SALDO A FAVOR DEL PROVEEDOR** (2026-10-10, shared 0.45.0).
+    Pagaste $100 de una factura de $85: esos $15 son plata tuya que el proveedor
+    te debe. Hasta acá la pantalla los **mostraba y no se podían usar**.
+    - **Dónde se ve cuánto hay:** en la tarjeta de cada factura de ese
+      proveedor, en caja gris — *"StratoFill te debe $15,00 de facturas que
+      pagaste de más"* — con la instrucción de qué hacer, distinta según si esa
+      factura tiene saldo pendiente o no. Y en la línea de totales, cuando ya se
+      usó parte: *"Pagaste $15,00 de más · quedan $9,00 sin usar"*.
+    - **Cómo se usa:** en **Abonar**, el campo *"¿Con qué lo pagás?"* ofrece
+      *"Con plata"* o *"Del saldo a favor de la factura del 05/10 ($15,00)"*.
+      Solo aparece si el proveedor tiene saldo: un desplegable con una sola
+      opción es ruido.
+    - ⚠️ **Lo que el modal tiene que decir no es "se usa el saldo": es que la
+      CAJA NO SE MUEVE.** Un abono que baja la deuda sin bajar el saldo se lee
+      como un error si nadie explica por qué.
+    - ⚠️ Con el saldo elegido, el campo **"¿Quién lo pagó?" desaparece**: nadie
+      puso plata. Mostrarlo invitaría a mandar un dato que el servidor rechaza
+      —y con razón: la Caja le quedaría debiendo a quien no puso nada—.
+    - Al elegir el origen, el **monto se recorta** a lo que de verdad hay
+      (`min(lo que falta, lo disponible)`): el default es lo que falta de esa
+      factura, que puede ser más, y dejarlo en rojo esperando que el dueño lo
+      corrija es ofrecerle un error. Igual se avisa y el botón se apaga si lo
+      sube a mano.
+    - **La factura que se está abonando no aparece como origen**: una factura no
+      se paga con su propio saldo a favor. El servidor lo rechaza igual;
+      sacarla de la lista evita ofrecer un error.
+    - En la lista de abonos, el que salió del saldo lleva la insignia **"Del
+      saldo a favor"** en vez de "La caja": decir "la caja" ahí contaría la
+      misma plata dos veces en el renglón que se lee para saber de dónde salió.
+    - ⚠️ **No hay endpoint nuevo ni clave de caché nueva.** Cada factura ya
+      viaja con su `aFavorDisponible`, y el rollup por proveedor lo hace la
+      MISMA función pura que usa el servidor (`saldoAFavorPorProveedor`), en un
+      `useMemo` sobre las facturas ya cargadas. Una consulta aparte sería una
+      segunda cuenta para el mismo número, y el día que una cambie la tarjeta y
+      el modal dirían distinto.
   - **Una compra de filamento se CORRIGE desde su lista** (2026-10-09,
     `features/filament/EditarCompra.tsx`): el lápiz en la tabla, la tarjeta
     entera en el teléfono. Se puede cambiar todo, incluso a qué ficha se le

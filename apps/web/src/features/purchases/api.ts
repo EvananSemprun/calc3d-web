@@ -54,6 +54,14 @@ export interface InvoicePayment {
   counterparty: { id: string; name: string } | null;
   accountId: string | null;
   note: string | null;
+  /**
+   * TOMADO DEL SALDO A FAVOR: de qué factura del mismo proveedor salió.
+   *
+   * ⚠️ `null` = plata de verdad. Un abono con esto **no movió la caja**: esa
+   * plata ya salió cuando se pagó de más, y la pantalla tiene que decirlo o el
+   * historial de abonos se lee como si hubieran salido dos veces.
+   */
+  tomadoDeFacturaId: string | null;
   /** ⚠️ Un abono anulado NO cuenta, pero sigue en la lista. */
   voidedAt: string | null;
   voidReason: string | null;
@@ -77,6 +85,14 @@ export interface PurchaseInvoice {
   saldo: number;
   /** Lo pagado DE MÁS, si lo hay. No se esconde restándolo del saldo. */
   aFavor: number;
+  /**
+   * El saldo a favor de esta factura que **todavía se puede usar**:
+   * `aFavor − lo ya aplicado` a otras facturas del mismo proveedor.
+   *
+   * ⚠️ `aFavor` es el HECHO (pagaste $15 de más y eso no se borra) y esto es lo
+   * que queda. Mostrar solo el primero ofrecería plata que ya se usó.
+   */
+  aFavorDisponible: number;
   pedido: number;
   recibido: number;
   porRecibir: number;

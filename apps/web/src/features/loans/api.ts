@@ -74,11 +74,15 @@ export interface DeudaConProveedor {
   /** Cuántas de sus facturas tienen saldo. */
   facturas: number;
   /**
-   * Lo pagado DE MÁS, aparte.
+   * EL SALDO A FAVOR que todavía se puede usar con ese proveedor, aparte.
    *
    * ⚠️ **No está restado de `total` y no hay que restarlo acá.** Pagar de más
-   * en una factura no cancela lo que debés en otra: hasta que exista el saldo a
-   * favor, se MUESTRA al lado, nunca compensado.
+   * en una factura no cancela por sí solo lo que debés en otra: para usarlo hay
+   * que **abonarlo** tomándolo del saldo, desde Compras, y entonces los dos
+   * números bajan juntos.
+   *
+   * ⚠️ Es lo DISPONIBLE, no lo que se pagó de más alguna vez: el servidor ya le
+   * resta lo aplicado (`aFavorDisponible` de cada factura).
    */
   aFavor: number;
   facturasAFavor: number;

@@ -3,8 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   facturasAtrasadas,
+  saldoAFavorPorProveedor,
   type FacturaAtrasada,
   type NuevoTipo,
+  type SaldoAFavorDeProveedor,
   type SuggestedPurchaseLine,
 } from '@calc3d/shared';
 import { AlertTriangle, FileText, PackageCheck, Plus, Trash2, Undo2 } from 'lucide-react';
@@ -108,6 +110,34 @@ export function PurchasesPage() {
     [facturas],
   );
 
+  /**
+   * EL SALDO A FAVOR DE CADA PROVEEDOR, derivado de **estas mismas facturas**.
+   *
+   * ⚠️ No hay endpoint nuevo y no tiene que haberlo: cada factura ya viene con
+   * su `aFavorDisponible`, y el rollup lo hace la MISMA función pura que usa el
+   * servidor. Una consulta aparte sería una segunda cuenta para el mismo
+   * número, y el día que una cambie la tarjeta y el modal dirían distinto.
+   */
+  const saldos = useMemo(() => {
+    const porProveedor = new Map<string, SaldoAFavorDeProveedor>();
+    for (const g of saldoAFavorPorProveedor(
+      facturas.map((f) => ({
+        id: f.id,
+        supplierId: f.supplier?.id ?? null,
+        supplierName: f.supplier?.name ?? null,
+        voidedAt: f.voidedAt,
+        aFavor: f.aFavor,
+        aFavorDisponible: f.aFavorDisponible,
+      })),
+    )) {
+      porProveedor.set(g.supplierId, g);
+    }
+    return porProveedor;
+  }, [facturas]);
+
+  /** Las facturas por id, para poder nombrar la que presta el saldo. */
+  const porId = useMemo(() => new Map(facturas.map((f) => [f.id, f])), [facturas]);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -172,7 +202,13 @@ export function PurchasesPage() {
       ) : (
         <ul className="space-y-3">
           {facturas.map((f) => (
-            <FacturaCard key={f.id} factura={f} atraso={atrasadas.get(f.id) ?? null} />
+            <FacturaCard
+              key={f.id}
+              factura={f}
+              atraso={atrasadas.get(f.id) ?? null}
+              saldo={f.supplier ? (saldos.get(f.supplier.id) ?? null) : null}
+              facturaPorId={porId}
+            />
           ))}
         </ul>
       )}
@@ -187,10 +223,20 @@ export function PurchasesPage() {
 function FacturaCard({
   factura: f,
   atraso,
+  saldo,
+  facturaPorId,
 }: {
   factura: PurchaseInvoice;
   /** `null` si ya llegó, si no se prometió fecha, o si el día no pasó todavía. */
   atraso: FacturaAtrasada | null;
+  /**
+   * Lo que este proveedor te debe y de qué facturas sale. `null` si la factura
+   * no tiene proveedor anotado: sin nombre no hay cómo saber que es la misma
+   * persona, así que ese saldo no se puede usar.
+   */
+  saldo: SaldoAFavorDeProveedor | null;
+  /** Para nombrar por su fecha la factura que presta el saldo. */
+  facturaPorId: Map<string, PurchaseInvoice>;
 }) {
   const { money } = useMoney();
   const confirm = useConfirm();
@@ -325,9 +371,30 @@ function FacturaCard({
             {f.aFavor > 0 && (
               <span className="text-destructive">
                 Pagaste {money(f.aFavor)} de más
+                {/* ⚠️ Lo pagado de más es un HECHO y no se mueve; lo que importa
+                    para actuar es cuánto QUEDA. Decir solo el primero ofrece
+                    plata que tal vez ya se usó. */}
+                {f.aFavorDisponible !== f.aFavor &&
+                  ` · quedan ${money(f.aFavorDisponible)} sin usar`}
               </span>
             )}
           </div>
+
+          {/* ⚠️ **CUÁNTO TE DEBE ESTE PROVEEDOR**, de todas sus facturas, y la
+              puerta para usarlo. Sin esto el saldo a favor existe en la base y
+              no hay desde dónde gastarlo: el dueño tendría que acordarse de que
+              una factura vieja quedó pagada de más. */}
+          {!anulada && saldo && saldo.disponible > 0 && (
+            <p className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-sm">
+              <strong>{saldo.supplierName} te debe {money(saldo.disponible)}</strong> de facturas
+              que pagaste de más.{' '}
+              <span className="text-muted-foreground">
+                {f.saldo > 0
+                  ? 'Podés usarlo al abonar esta factura: en “Abonar”, elegí tomarlo del saldo a favor.'
+                  : 'Usalo al abonar otra factura de este proveedor: la plata ya salió, así que no vuelve a mover la caja.'}
+              </span>
+            </p>
+          )}
 
           <ul className="space-y-1 rounded-xl border border-border/70 p-2 text-sm">
             {f.lines.map((l) => (
@@ -414,7 +481,14 @@ function FacturaCard({
         </CardContent>
       </Card>
 
-      {abonando && <Abonar factura={f} onClose={() => setAbonando(false)} />}
+      {abonando && (
+        <Abonar
+          factura={f}
+          saldo={saldo}
+          facturaPorId={facturaPorId}
+          onClose={() => setAbonando(false)}
+        />
+      )}
       {recibiendo && (
         <Recibir factura={f} linea={recibiendo} onClose={() => setRecibiendo(null)} />
       )}
@@ -450,7 +524,12 @@ function Abonos({ factura: f }: { factura: PurchaseInvoice }) {
             {money(p.amount)}
           </span>
           <span className="text-muted-foreground">{fecha(p.date)}</span>
-          <Badge variant="outline">{p.counterparty?.name ?? 'La caja'}</Badge>
+          {/* ⚠️ Un abono tomado del saldo NO salió de ninguna cuenta. Decir "la
+              caja" ahí sería contar la misma plata dos veces en el renglón que
+              se lee para saber de dónde salió. */}
+          <Badge variant="outline">
+            {p.tomadoDeFacturaId ? 'Del saldo a favor' : (p.counterparty?.name ?? 'La caja')}
+          </Badge>
           {p.voidedAt ? (
             <Badge variant="outline">Anulado</Badge>
           ) : (
@@ -468,7 +547,17 @@ function Abonos({ factura: f }: { factura: PurchaseInvoice }) {
   );
 }
 
-function Abonar({ factura: f, onClose }: { factura: PurchaseInvoice; onClose: () => void }) {
+function Abonar({
+  factura: f,
+  saldo,
+  facturaPorId,
+  onClose,
+}: {
+  factura: PurchaseInvoice;
+  saldo: SaldoAFavorDeProveedor | null;
+  facturaPorId: Map<string, PurchaseInvoice>;
+  onClose: () => void;
+}) {
   const { money } = useMoney();
   const { data: contrapartes = [] } = useCounterparties();
   const abonar = useAddInvoicePayment();
@@ -476,13 +565,55 @@ function Abonar({ factura: f, onClose }: { factura: PurchaseInvoice; onClose: ()
   const [amount, setAmount] = useState(f.saldo);
   const [counterpartyId, setCounterpartyId] = useState('');
   const [note, setNote] = useState('');
+  /** `''` = con plata. Si no, la factura de la que sale el saldo a favor. */
+  const [tomadoDe, setTomadoDe] = useState('');
+
+  /**
+   * ⚠️ **Una factura no se paga con su propio saldo a favor**: subiría lo
+   * pagado sin que entrara plata, financiado por su propio sobrepago. El
+   * servidor lo rechaza igual; sacarlo de la lista evita ofrecer un error.
+   */
+  const origenes = (saldo?.facturas ?? [])
+    .filter((o) => o.id !== f.id)
+    .map((o) => ({
+      ...o,
+      // La factura siempre está en el mapa (el saldo salió de esa misma lista),
+      // pero sin fecha el renglón diría "Invalid Date" en vez de fallar fuerte.
+      etiqueta: facturaPorId.has(o.id)
+        ? `la factura del ${fecha(facturaPorId.get(o.id)!.date)}`
+        : 'otra factura',
+    }));
+  const origen = origenes.find((o) => o.id === tomadoDe) ?? null;
+  const conSaldo = origen != null;
+
+  /**
+   * Al elegir el saldo, el monto se recorta a lo que de verdad hay: el default
+   * es lo que falta de ESTA factura, que puede ser más. Dejarlo en rojo
+   * esperando que el dueño lo corrija a mano es ofrecerle un error.
+   */
+  const elegirOrigen = (id: string) => {
+    setTomadoDe(id);
+    const elegido = origenes.find((o) => o.id === id);
+    if (elegido) setAmount(Math.min(f.saldo > 0 ? f.saldo : elegido.disponible, elegido.disponible));
+    else setAmount(f.saldo);
+  };
 
   const guardar = () =>
     abonar.mutate(
-      { id: f.id, date, amount, counterpartyId: counterpartyId || null, note: note.trim() || null },
+      {
+        id: f.id,
+        date,
+        amount,
+        // ⚠️ Un abono tomado del saldo no lo paga nadie: mandar contraparte
+        // junto con el origen es 400 (el schema lo rechaza), y con razón —la
+        // Caja le quedaría debiendo plata que no puso.
+        counterpartyId: conSaldo ? null : counterpartyId || null,
+        note: note.trim() || null,
+        tomadoDeFacturaId: tomadoDe || null,
+      },
       {
         onSuccess: () => {
-          notify.success('Abono registrado');
+          notify.success(conSaldo ? 'Abonado con el saldo a favor' : 'Abono registrado');
           onClose();
         },
         onError: (e) => notify.error(apiErrorMessage(e)),
@@ -496,27 +627,74 @@ function Abonar({ factura: f, onClose }: { factura: PurchaseInvoice; onClose: ()
           <Field label="Fecha" required>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
-          <Field label="Monto (USD)" required hint={`Falta ${money(f.saldo)}`}>
+          <Field
+            label="Monto (USD)"
+            required
+            hint={
+              conSaldo
+                ? `Falta ${money(f.saldo)} · hay ${money(origen.disponible)} a favor`
+                : `Falta ${money(f.saldo)}`
+            }
+          >
             <NumberInput value={amount} onChange={setAmount} />
           </Field>
         </FieldGrid>
-        <Field
-          label="¿Quién lo pagó?"
-          hint="Si lo puso una persona, la Caja lo cuenta como aporte que el negocio le debe."
-        >
-          <Select value={counterpartyId} onChange={(e) => setCounterpartyId(e.target.value)}>
-            <option value="">La caja del negocio</option>
-            {contrapartes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.kind === 'EXTERNAL_LENDER' ? c.name : `${c.name}, de su bolsillo`}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {/* ⚠️ **CON QUÉ SE PAGA**, y son dos cosas distintas: plata que sale
+            ahora, o el saldo a favor —plata que YA salió cuando se pagó de más—.
+            Solo aparece si el proveedor tiene saldo: un desplegable con una sola
+            opción es ruido. */}
+        {origenes.length > 0 && (
+          <Field
+            label="¿Con qué lo pagás?"
+            hint={`${saldo?.supplierName} te debe ${money(saldo?.disponible ?? 0)}.`}
+          >
+            <Select value={tomadoDe} onChange={(e) => elegirOrigen(e.target.value)}>
+              <option value="">Con plata</option>
+              {origenes.map((o) => (
+                <option key={o.id} value={o.id}>
+                  Del saldo a favor de {o.etiqueta} ({money(o.disponible)})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        {/* Con el saldo a favor no hay a quién preguntarle: nadie puso plata.
+            Mostrar el campo invitaría a mandar un dato que el servidor rechaza
+            —y con razón: la Caja le quedaría debiendo a quien no puso nada. */}
+        {!conSaldo && (
+          <Field
+            label="¿Quién lo pagó?"
+            hint="Si lo puso una persona, la Caja lo cuenta como aporte que el negocio le debe."
+          >
+            <Select value={counterpartyId} onChange={(e) => setCounterpartyId(e.target.value)}>
+              <option value="">La caja del negocio</option>
+              {contrapartes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.kind === 'EXTERNAL_LENDER' ? c.name : `${c.name}, de su bolsillo`}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
         <Field label="Nota (opcional)">
           <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opcional" />
         </Field>
-        {amount > f.saldo && (
+        {/* ⚠️ Lo que hay que decir no es "se usa el saldo": es que **la caja no
+            se mueve**. Un abono que baja la deuda sin bajar el saldo se lee como
+            un error si nadie explica por qué. */}
+        {conSaldo && (
+          <p className="rounded-lg border border-border/70 bg-muted/30 p-2 text-xs">
+            Esto <strong>no mueve la caja</strong>: esa plata ya salió cuando pagaste esa factura de
+            más. Baja lo que le debés a {saldo?.supplierName} y baja su saldo a favor.
+          </p>
+        )}
+        {conSaldo && amount > origen.disponible && (
+          <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-xs">
+            Esa factura tiene {money(origen.disponible)} de saldo a favor y estás usando{' '}
+            {money(amount)}. Bajá el monto o abonalo con plata.
+          </p>
+        )}
+        {!conSaldo && amount > f.saldo && (
           <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-xs">
             Estás abonando {money(amount - f.saldo)} más de lo que falta. Se registra igual —la plata
             salió— y queda marcado como pagado de más.
@@ -526,8 +704,14 @@ function Abonar({ factura: f, onClose }: { factura: PurchaseInvoice; onClose: ()
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button variant="accent" onClick={guardar} disabled={abonar.isPending || amount <= 0}>
-            {abonar.isPending ? 'Guardando…' : 'Abonar'}
+          <Button
+            variant="accent"
+            onClick={guardar}
+            disabled={
+              abonar.isPending || amount <= 0 || (conSaldo && amount > origen.disponible)
+            }
+          >
+            {abonar.isPending ? 'Guardando…' : conSaldo ? 'Usar el saldo' : 'Abonar'}
           </Button>
         </div>
       </div>

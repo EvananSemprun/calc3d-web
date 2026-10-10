@@ -248,7 +248,7 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
                     <p className="mt-1 text-xs text-muted-foreground">{f.cuantas}</p>
                     {f.aFavor && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Además le pagaste {f.aFavor} de más
+                        Y te debe {f.aFavor}: se usa en el próximo pedido
                       </p>
                     )}
                   </li>
@@ -260,7 +260,7 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
                   <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="py-2 pr-3 font-semibold">Proveedor</th>
                     <th className="py-2 pr-3 font-semibold">Facturas</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Pagado de más</th>
+                    <th className="py-2 pr-3 text-right font-semibold">Tiene a favor</th>
                     <th className="py-2 text-right font-semibold">Le debés</th>
                   </tr>
                 </thead>
@@ -282,15 +282,17 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
             </>
           )}
 
-          {/* ⚠️ Lo pagado de más va APARTE y se dice que no se compensa: si se
-              restara del total, el número diría que debés menos de lo que
-              debés, y esa plata no vuelve sola. */}
+          {/* ⚠️ El saldo a favor va APARTE y se dice que no se compensa SOLO: si
+              se restara del total, el número diría que debés menos de lo que
+              debés mientras esa plata sigue en poder del proveedor. Lo que
+              cambió con el saldo a favor es que ahora hay QUÉ HACER con ella, y
+              el cartel lleva a la puerta donde se hace. */}
           {aFavor > 0 && (
             <p className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
-              Hay <strong className="tabular-nums">{money(aFavor)}</strong> pagados de más en
-              facturas ya cubiertas. <strong>No se descuenta</strong> de lo que debés arriba: pagar
-              de más en una factura no cancela lo que debés en otra. Revisá esas facturas en
-              Compras.
+              Tus proveedores te deben <strong className="tabular-nums">{money(aFavor)}</strong> de
+              facturas que pagaste de más. <strong>No se descuenta solo</strong> de lo que debés
+              arriba: usalo abonando una factura de ese mismo proveedor y eligiendo{' '}
+              <em>tomarlo del saldo a favor</em>, en Compras.
             </p>
           )}
         </CardContent>
