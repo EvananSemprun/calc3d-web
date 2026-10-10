@@ -895,6 +895,15 @@ rechaza crear `ENCARGO`). Lo demás:
     partir de la última compra; la pantalla solo muestra en cuánto queda ESTA.
     Si lo decidiera el formulario, corregir una compra vieja pisaría el precio
     con uno viejo.
+    - ⚠️ **La que nació de una FACTURA no se corrige ni se borra**
+      (2026-10-10, shared 0.33.0): la API la rechaza con un 400 porque su monto
+      es el espejo de la línea recibida. La fila lo dice (`fromInvoice` → marca
+      "de factura" con tooltip "se corrige en Compras"), la tabla no muestra el
+      lápiz y la tarjeta del teléfono va `disabled`. Lo mismo en **Gastos**
+      (`pages/Expenses.tsx`, por `purchaseInvoiceLineId` de `ExpenseRow`): sin
+      tacho y con el `Select` de "quién pagó" apagado — **ese select manda un
+      PATCH en cada cambio**, así que vivo solo sabría tirar 400. `EditarCompra`
+      conserva una red: si igual se lo abre, explica y no deja guardar.
   - **Proveedores: una sola puerta, la del directorio** (2026-10-09). Había una
     página `/catalogs/providers` con su propia tabla de dos campos, y además el
     tipo "Proveedor" de Contactos, que guarda teléfono, RIF, ciudad y mapa. Se

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pencil, Plus, ShoppingCart } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Card, CardContent, EmptyState, FilterBar, Select, Stat, TableSkeleton } from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, FilterBar, Select, Stat, TableSkeleton } from '@/components/ui';
 import { ExpenseModal } from '@/features/finance/ExpenseModal';
 import { EditarCompra } from '@/features/filament/EditarCompra';
 import { Tooltip } from '@/components/overlays';
@@ -135,16 +135,28 @@ export function PurchasesTab() {
                       </td>
                       <td className="p-3 text-muted-foreground">{c.providerName ?? '—'}</td>
                       <td className="p-3 text-right">
-                        <Tooltip label="Corregir esta compra">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Corregir la compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}`}
-                            onClick={() => setCorrigiendo(c)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </Tooltip>
+                        {/* Nació de una factura: su monto es el espejo de la
+                            línea recibida y la API rechaza corregirla. Se dice
+                            por qué, en vez de ofrecer un lápiz que solo sabe
+                            fallar. */}
+                        {c.fromInvoice ? (
+                          <Tooltip label="Entró por una factura: se corrige en Compras.">
+                            <span className="cursor-help">
+                              <Badge variant="outline">de factura</Badge>
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip label="Corregir esta compra">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Corregir la compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}`}
+                              onClick={() => setCorrigiendo(c)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </Tooltip>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -159,8 +171,13 @@ export function PurchasesTab() {
                   key={c.id}
                   type="button"
                   onClick={() => setCorrigiendo(c)}
-                  className="w-full space-y-1 p-4 text-left transition-colors hover:bg-brand-blue/10"
-                  aria-label={`Corregir la compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}`}
+                  disabled={c.fromInvoice}
+                  className="w-full space-y-1 p-4 text-left transition-colors enabled:hover:bg-brand-blue/10"
+                  aria-label={
+                    c.fromInvoice
+                      ? `Compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}: entró por una factura y se corrige en Compras`
+                      : `Corregir la compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}`
+                  }
                 >
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-medium">{c.materialName ?? '—'}</span>
@@ -175,9 +192,15 @@ export function PurchasesTab() {
                   {c.providerName && (
                     <div className="text-xs text-muted-foreground">{c.providerName}</div>
                   )}
-                  <span className="flex items-center gap-1 text-xs text-brand-blue-bright">
-                    <Pencil className="h-3 w-3" /> Tocá para corregir
-                  </span>
+                  {c.fromInvoice ? (
+                    <span className="text-xs text-muted-foreground">
+                      De factura · se corrige en Compras
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-xs text-brand-blue-bright">
+                      <Pencil className="h-3 w-3" /> Tocá para corregir
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

@@ -38,6 +38,15 @@ export interface ExpenseRow {
   printer?: ExpenseLink | null;
   component?: ExpenseLink | null;
   provider?: ExpenseLink | null;
+  /**
+   * De qué línea de factura nació esta compra. `null` = se cargó a mano.
+   *
+   * ⚠️ Con esto puesto el gasto **no se toca desde Gastos**: su monto y su
+   * cantidad son el espejo de una línea de factura ya recibida, así que
+   * corregirlo acá dejaría a la factura mintiendo. La API lo rechaza con un
+   * 400; la pantalla no tiene que ofrecer lo que sabe que va a fallar.
+   */
+  purchaseInvoiceLineId?: string | null;
 }
 
 /** Tipo de recurso al que se enlaza un gasto (o ninguno). */

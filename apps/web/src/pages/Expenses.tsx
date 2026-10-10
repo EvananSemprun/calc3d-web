@@ -181,6 +181,12 @@ export function ExpensesPage() {
                 <tbody>
                   {visibleRows.map((e) => {
                     const link = expenseLink(e);
+                    // Nació de una factura de Compras: su monto y su cantidad
+                    // son el espejo de una línea ya recibida, así que la API
+                    // rechaza corregirlo o borrarlo desde acá. La fila lo dice
+                    // y no ofrece los controles: uno que solo sabe fallar es
+                    // peor que no tenerlo.
+                    const deFactura = e.purchaseInvoiceLineId != null;
                     return (
                       <tr key={e.id} className="border-b border-border/70 transition-colors last:border-0 hover:bg-muted/40">
                         <td className="px-4 py-3 tabular">{e.date.slice(0, 10)}</td>
@@ -207,6 +213,13 @@ export function ExpensesPage() {
                           {e.provider && (
                             <span className="text-muted-foreground"> · {e.provider.name}</span>
                           )}
+                          {deFactura && (
+                            <Tooltip label="Entró por una factura: se corrige en Compras.">
+                              <span className="ml-2 cursor-help align-middle">
+                                <Badge variant="outline">de factura</Badge>
+                              </span>
+                            </Tooltip>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right tabular">{e.quantity ?? '—'}</td>
                         <td className="px-4 py-3 text-right tabular font-semibold">{money(e.amount)}</td>
@@ -215,6 +228,10 @@ export function ExpensesPage() {
                             className="h-8 w-[9rem] text-xs"
                             value={e.counterparty?.id ?? ''}
                             aria-label={`Quién pagó: ${e.description}`}
+                            // ⚠️ Este desplegable manda un PATCH en cada
+                            // cambio: en una fila de factura la API lo rechaza
+                            // con un 400, así que acá va apagado.
+                            disabled={deFactura}
                             onChange={(ev) =>
                               cambiarPagador.mutate({
                                 id: e.id,
@@ -231,26 +248,28 @@ export function ExpensesPage() {
                           </Select>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Tooltip label="Eliminar gasto">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={async () => {
-                                if (
-                                  await confirm({
-                                    title: '¿Eliminar gasto?',
-                                    description: 'Esta acción no se puede deshacer.',
-                                    confirmLabel: 'Eliminar',
-                                    tone: 'destructive',
-                                  })
-                                ) {
-                                  remove.mutate(e.id);
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </Tooltip>
+                          {!deFactura && (
+                            <Tooltip label="Eliminar gasto">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={async () => {
+                                  if (
+                                    await confirm({
+                                      title: '¿Eliminar gasto?',
+                                      description: 'Esta acción no se puede deshacer.',
+                                      confirmLabel: 'Eliminar',
+                                      tone: 'destructive',
+                                    })
+                                  ) {
+                                    remove.mutate(e.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </Tooltip>
+                          )}
                         </td>
                       </tr>
                     );

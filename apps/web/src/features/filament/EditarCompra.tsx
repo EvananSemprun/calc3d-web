@@ -100,6 +100,41 @@ export function EditarCompra({
   const ocupado = guardar.isPending || borrar.isPending;
   const sePuede = !!materialId && amount > 0 && quantity > 0 && !!date;
 
+  /**
+   * ⚠️ **Una compra nacida de una factura no se edita acá.**
+   *
+   * Su monto y sus rollos son el espejo de una línea de factura ya recibida:
+   * la API rechaza el `PATCH` y el `DELETE` con un 400, así que el formulario
+   * solo sabría fallar. Las listas ya no ofrecen abrirlo en esas filas; esto
+   * es la red: una entrada nueva que se olvide de mirarlo no va a poder
+   * romper la factura de todos modos.
+   */
+  if (compra.fromInvoice) {
+    return (
+      <Dialog
+        open
+        onOpenChange={(abierto) => {
+          if (!abierto) onClose();
+        }}
+        title="Esta compra entró por una factura"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            La cargaste como línea de una factura de compra y ya la recibiste, así que
+            sus rollos y su monto son los de esa factura. Si hay algo que corregir, se
+            corrige en <strong>Compras</strong>: cambiarlo acá dejaría la factura
+            diciendo una cosa y el gasto otra.
+          </p>
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={onClose}>
+              Entendido
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog
       open
