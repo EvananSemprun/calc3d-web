@@ -333,6 +333,57 @@ al scrollear. Arreglado el 2026-10-05.
   etiquetas. Por eso el formulario usa `FieldGrid` y `ResultPanel` reparte sus
   tarjetas con `repeat(auto-fit, minmax(…))` (28rem: la tabla de bolívares
   necesita 440 px), las dos cosas atadas al ancho disponible.
+- **EL FILAMENTO SE COTIZA POR TIPO, NO POR COLOR** (2026-10-10, decisión del
+  dueño, shared 0.43.0). Al abrir la calculadora el precio del rollo **ya está
+  puesto**: es el promedio del tipo que más se compra (el PLA), y el campo lleva
+  debajo el renglón que dice qué significa ese número.
+  - **Por qué**: medido en producción, el PLA tiene 47 fichas y casi todas valen
+    20 — el color no compraba precisión. Entre tipos sí (PLA PURE 13 contra PLA
+    SILK 22,84).
+  - **Son DOS desplegables sobre UN solo estado** (`c.filamentSource`, en el
+    provider): "Elegir un tipo…" y "…o un color exacto". ⚠️ Elegir en uno
+    **vacía el otro por construcción** (cada select muestra `filamentSource`
+    solo si la clave es de su grupo), así que no hay dos controles que puedan
+    contradecirse. El `Select` de la casa **ignora `<optgroup>`** —solo mira los
+    `option` directos—, que es por lo que no es un único control agrupado.
+  - **Escribir el precio o los gramos a mano suelta la opción** (`pickFilament('')`):
+    si no, el renglón seguiría diciendo "promedio del PLA" sobre un número que
+    no lo es.
+  - ⚠️ **`filamentSource` vive FUERA de `filament`**: ese objeto se manda tal
+    cual como `input.filament` en cada `POST /calc` y se guarda en el
+    presupuesto, así que un campo de más viajaría en todas las peticiones.
+  - ⚠️ **La siembra inicial corre UNA sola vez** (ref `sembrado`) y solo si el
+    dueño no tocó nada: sin ese candado, recargar los catálogos le pisaría el
+    precio que acabó de escribir.
+  - El nombre que queda es **`"PLA (promedio)"`**, no `"PLA"`: ese nombre viaja
+    al presupuesto y a la cotización del cliente, y "PLA" a secas afirmaría un
+    rollo concreto que nadie eligió.
+  - ⚠️ **Acá no se calcula ningún promedio**: lo deriva el servidor
+    (`GET /filament/type-prices` → `useCatalogData().filamentTypes`). La
+    pantalla solo arma opciones y elige. El renglón menciona **el rollo
+    regalado** a propósito: su exclusión es invisible, y sin decirla el promedio
+    se lee como un error de cuentas.
+  - Tests: `features/calculator/materialOptions.spec.ts` (21, vitest) —
+    `opcionesDeFilamento`, `buscarOpcion`, `textoDeOrigen` y las reglas viejas
+    de `quotableMaterials`/`materialLabel`, que **no se perdieron**: las
+    descontinuadas siguen sin ofrecerse y las que cerraron en 0 van al final.
+  - ⚠️ **La clave de caché del promedio cuelga del prefijo `filament-purchases`**
+    (`['filament-purchases','type-prices']`, no `['filament/type-prices']`). El
+    promedio SALE de las compras, así que todo lo que las cambia tiene que
+    invalidarlo: registrar una compra en Gastos (`ExpenseModal`), corregirla o
+    borrarla (`EditarCompra`), recibir una línea de factura
+    (`useInvoiceMutation`) y corregir el tipo de una ficha
+    (`useInvalidarFichas`). Esos cuatro lugares **ya** invalidan
+    `['filament-purchases']` y React Query invalida **por prefijo**, así que
+    queda cubierto sin sumar una clave más a cuatro listas — que es
+    exactamente como se quedan viejos los números en este panel. Con una clave
+    propia, registrar una compra dejaba la calculadora cotizando con el
+    promedio anterior hasta volver a montar la pantalla.
+  - ⚠️ **Dos `if` de guarda se escribieron y se borraron el mismo día** porque
+    ninguna mutación los tumbaba (código muerto, como el `if (guardado ===
+    TODOS)` de `tipoSeguro`): `if (!key) return undefined` en `buscarOpcion` y
+    `if (!key) return A_MANO` en `textoDeOrigen`. Los dos caen por el camino
+    normal al mismo valor. Los tests se quedaron.
 - El formulario se alimenta de los catálogos guardados vía
   `features/calculator/useCatalogData.ts`. Al elegir un insumo del catálogo, el
   costo unitario es `packagePrice / unitsPerPackage` (el catálogo guarda el
@@ -1361,7 +1412,9 @@ reparto por canal, los totales de Gastos).
   (derivaciones, filtros, valores seguros, filas resueltas). Si hace falta
   montar un componente, hay que pedir esas dos dependencias primero.
 - Qué hay hoy: `pages/Expenses.spec.ts` (15 tests) — `totalesGastos`,
-  `tipoSeguro` y `filaDeGasto`.
+  `tipoSeguro` y `filaDeGasto` — y
+  `features/calculator/materialOptions.spec.ts` (21 tests, 2026-10-10) — el
+  selector de filamento por tipo. **Total: 36.**
 - ⚠️ El spec importa desde `@/pages/Expenses`, o sea que **arrastra el módulo de
   la página entero** (React, React Query, axios, `@calc3d/shared`). Funciona
   porque ninguno de esos imports toca `window` ni `document` en el tope del

@@ -4,7 +4,11 @@ import { Field, FieldGrid, Input, NumberInput, REQUIRED_INPUT, Select, Switch } 
 import { useMoney } from '@/features/settings/useSettings';
 import { useCalculator, removeAt, updateAt } from '@/features/calculator/CalculatorProvider';
 import { CatalogSelect, LineGroup, MiniField } from '@/features/calculator/parts';
-import { materialLabel, quotableMaterials } from '@/features/calculator/materialOptions';
+import {
+  buscarOpcion,
+  opcionesDeFilamento,
+  textoDeOrigen,
+} from '@/features/calculator/materialOptions';
 
 /**
  * Las secciones de entrada, en el MISMO orden que la hoja "Costeo" del Excel.
@@ -107,10 +111,29 @@ export function SectionPieza() {
   );
 }
 
-/** 2. FILAMENTO — el rollo, los gramos de la tanda y la merma. */
+/**
+ * 2. FILAMENTO — el rollo, los gramos de la tanda y la merma.
+ *
+ * ⚠️ **Se cotiza por TIPO, no por color** (2026-10-10, decisión del dueño).
+ * Arranca en el promedio del tipo que más se compra y la ficha puntual sigue
+ * disponible al lado. Son DOS desplegables sobre UN solo estado
+ * (`c.filamentSource`): elegir en uno vacía el otro por construcción, así que
+ * no hay dos controles que puedan contradecirse. Escribir el precio a mano
+ * vacía los dos, y el renglón de abajo dice siempre qué significa el número.
+ */
 export function SectionFilamento() {
   const c = useCalculator();
+  const { money } = useMoney();
   const r = c.result;
+  const tipos = c.catalogs.filamentTypes.data;
+  const ops = React.useMemo(
+    () => opcionesDeFilamento(tipos, c.catalogs.materials.data, money),
+    [tipos, c.catalogs.materials.data, money],
+  );
+  const elegir = (key: string) => c.pickFilament(key, buscarOpcion(ops, key));
+  const esTipo = c.filamentSource.startsWith('tipo:');
+  const esFicha = c.filamentSource.startsWith('ficha:');
+
   return (
     <CostSection
       n={2}
@@ -119,37 +142,61 @@ export function SectionFilamento() {
       hint="Lo que pesa la tanda según el laminador."
       amount={r ? r.breakdown.material + r.breakdown.wasteAmount : undefined}
       action={
-        <div className="w-full sm:w-44">
-          <CatalogSelect
+        <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-2">
+          <Select
+            className="h-9 sm:w-48"
+            aria-label="Tipo de filamento"
+            placeholder="Elegir un tipo…"
+            value={esTipo ? c.filamentSource : ''}
+            onChange={(e) => elegir(e.target.value)}
+          >
+            <option value="">Elegir un tipo…</option>
+            {ops.porTipo.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+          <Select
             // Sin descontinuadas; las que cerraron el último mes en 0 (y no se
             // volvieron a comprar) van al final, avisadas. Lo ya cotizado no
             // cambia: elegir una ficha COPIA precio y gramos al trabajo.
-            items={quotableMaterials(c.catalogs.materials.data)}
-            labelOf={materialLabel}
-            onPick={(m) =>
-              c.setFilament((f) => ({
-                ...f,
-                name: m.name,
-                rollPrice: Number(m.rollPrice),
-                rollGrams: m.rollGrams,
-              }))
-            }
-          />
+            className="h-9 sm:w-48"
+            aria-label="Color exacto (ficha)"
+            placeholder="…o un color exacto"
+            value={esFicha ? c.filamentSource : ''}
+            onChange={(e) => elegir(e.target.value)}
+          >
+            <option value="">…o un color exacto</option>
+            {ops.porFicha.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
         </div>
       }
     >
       <FieldGrid>
-        <Field label="Precio del rollo" required>
+        <Field label="Precio del rollo" required hint={textoDeOrigen(tipos, c.filamentSource)}>
           <NumberInput
             className={REQUIRED_INPUT}
             value={c.filament.rollPrice}
-            onChange={(n) => c.setFilament((f) => ({ ...f, rollPrice: n }))}
+            // Escribirlo a mano suelta la opción elegida: el renglón de arriba
+            // seguiría diciendo "promedio del PLA" sobre un número que no lo es.
+            onChange={(n) => {
+              c.pickFilament('');
+              c.setFilament((f) => ({ ...f, rollPrice: n }));
+            }}
           />
         </Field>
         <Field label="Peso del rollo (g)">
           <NumberInput
             value={c.filament.rollGrams}
-            onChange={(n) => c.setFilament((f) => ({ ...f, rollGrams: n || 1000 }))}
+            onChange={(n) => {
+              c.pickFilament('');
+              c.setFilament((f) => ({ ...f, rollGrams: n || 1000 }));
+            }}
           />
         </Field>
         <Field

@@ -60,6 +60,15 @@ interface CalculatorCtx {
   // 2. Filamento
   filament: Filament;
   setFilament: React.Dispatch<React.SetStateAction<Filament>>;
+  /**
+   * Con qué se está cotizando el filamento: `'tipo:PLA'`, `'ficha:<id>'` o `''`
+   * (precio escrito a mano). ⚠️ Vive FUERA de `filament` a propósito: ese
+   * objeto se manda tal cual como `input.filament` al motor y se guarda en el
+   * presupuesto, así que un campo de más viajaría en cada `POST /calc`.
+   */
+  filamentSource: string;
+  /** Aplica una opción del selector (o `''` para volver a "a mano"). */
+  pickFilament: (key: string, op?: { name: string; rollPrice: number; rollGrams: number }) => void;
   waste: number;
   setWaste: (n: number) => void;
 
@@ -126,6 +135,7 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
     rollGrams: 1000,
     grams: 0,
   });
+  const [filamentSource, setFilamentSource] = React.useState('');
   const [waste, setWaste] = React.useState(0.08);
   const [supplies, setSupplies] = React.useState<SupplyLine[]>([]);
   const [printer, setPrinter] = React.useState<Printer>({
@@ -146,6 +156,43 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
   const [roundingIncrement, setRoundingIncrement] = React.useState(1);
   const [manualPrice, setManualPrice] = React.useState<number | null>(null);
   const [tiers, setTiers] = React.useState<Tier[]>([]);
+
+  /**
+   * Elegir en el selector, o volver a "a mano" con `key: ''`.
+   *
+   * Es UNA función y no dos setters porque el origen y los números tienen que
+   * moverse juntos: dejar el origen en "PLA (promedio)" con un precio escrito a
+   * mano sería un cartel que miente.
+   */
+  const pickFilament = React.useCallback(
+    (key: string, op?: { name: string; rollPrice: number; rollGrams: number }) => {
+      setFilamentSource(key);
+      if (op) setFilament((f) => ({ ...f, ...op }));
+    },
+    [],
+  );
+
+  /**
+   * ARRANCAR EN EL PROMEDIO DEL TIPO (2026-10-10, decisión del dueño).
+   *
+   * El primero de la lista es el tipo que más se compra: el servidor los ordena
+   * por rollos. ⚠️ Siembra **una sola vez** (`sembrado`) y solo si el dueño no
+   * tocó nada: sin ese candado, volver a cargar los catálogos le pisaría el
+   * precio que acabó de escribir.
+   */
+  const sembrado = React.useRef(false);
+  const tipos = catalogs.filamentTypes.data;
+  React.useEffect(() => {
+    if (sembrado.current || !tipos?.length) return;
+    if (filamentSource || filament.rollPrice > 0 || filament.name) return;
+    sembrado.current = true;
+    const t = tipos[0];
+    pickFilament(`tipo:${t.type}`, {
+      name: `${t.type} (promedio)`,
+      rollPrice: t.rollPrice,
+      rollGrams: t.rollGrams,
+    });
+  }, [tipos, filamentSource, filament.rollPrice, filament.name, pickFilament]);
 
   // Sembrar defaults desde la configuración del negocio.
   React.useEffect(() => {
@@ -236,6 +283,8 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
     setClientId,
     filament,
     setFilament,
+    filamentSource,
+    pickFilament,
     waste,
     setWaste,
     supplies,
