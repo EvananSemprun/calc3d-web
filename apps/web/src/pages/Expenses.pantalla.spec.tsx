@@ -65,6 +65,9 @@ const DE_FACTURA: ExpenseRow = {
   isInvestment: false,
   quantity: 3,
   purchaseInvoiceLineId: 'l1',
+  // Enlazada a su ficha de filamento, como nace una línea de factura real. Sirve
+  // además para distinguirla del otro gasto al probar el filtro de tipo.
+  material: { id: 'm1', name: 'PLA Negro' },
 };
 
 const CONTRAPARTES = [
@@ -147,5 +150,35 @@ describe('Gastos: la fila de factura', () => {
 
     expect(screen.getAllByText('$12.50')).toHaveLength(2);
     expect(screen.getAllByText('$60.00')).toHaveLength(2);
+  });
+});
+
+/**
+ * EL FILTRO DE TIPO GUARDADO SE APLICA.
+ *
+ * ⚠️ Este test existe porque una mutación lo pidió: con `pasaTipo` ya testeada
+ * rama por rama, cambiar la llamada de la pantalla a `pasaTipo(TODOS, e)` —o
+ * sea, dejar de filtrar— **no tumbaba ni un test**. Las nueve ramas probadas no
+ * dicen nada si nadie las llama con el valor correcto, y un filtro que no
+ * filtra se nota mirando la pantalla, que es justo lo que se quería dejar de
+ * hacer.
+ */
+describe('Gastos: el filtro de tipo', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.get.mockReset();
+  });
+
+  it('con "Filamentos" guardado deja solo el gasto del filamento', async () => {
+    // El filtro se PERSISTE, así que al montar la pantalla ya viene puesto: es
+    // el caso real de volver a Gastos con un filtro de la visita anterior.
+    localStorage.setItem('expenses:tipo', JSON.stringify('material'));
+
+    montar();
+    await screen.findAllByText('PLA Negro de la factura 0012');
+
+    expect(screen.queryAllByText('Cinta de embalaje')).toHaveLength(0);
+    // Y se dice qué quedó afuera: los totales de arriba suman LO QUE SE VE.
+    expect(screen.getByText(/Se ven 1 de 2 gasto\(s\) del periodo/)).toBeInTheDocument();
   });
 });

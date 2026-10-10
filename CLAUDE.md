@@ -792,8 +792,16 @@ al scrollear. Arreglado el 2026-10-05.
   - ⚠️ Los textos de los tipos viven en `TIPOS_DE_GASTO`, una sola lista que
     alimenta el desplegable **y** el aviso de filtros: con el texto escrito dos
     veces, renombrar una opción deja al aviso diciendo el nombre viejo.
-  - **`totalesGastos` TIENE test** desde el 2026-10-10 (`pages/Expenses.spec.ts`,
-    el primero de `apps/web`). Era pura y exportada esperando el runner.
+  - **LO QUE DERIVA ESTA PANTALLA VIVE EN `features/finance/expenses-view.ts`**
+    (2026-10-10), como Ventas con `sales-view.ts`: `TIPOS_DE_GASTO`, `TODOS`,
+    `tipoSeguro`, `pasaTipo`, `totalesGastos`, `filaDeGasto` y el tipo
+    `FilaGasto`. La pantalla se queda con el JSX, los hooks y las mutaciones.
+    ⚠️ No es prolijidad: mientras vivían dentro de `pages/Expenses.tsx`, su spec
+    las importaba DESDE la pantalla y arrastraba React, React Query y axios para
+    probar una suma — un import roto en cualquier rincón de la pantalla tumbaba
+    el test de una función intacta y el fallo señalaba al lugar equivocado.
+    `matchesType` era un closure de 9 ramas **sin un solo test**: salió tal cual
+    como `pasaTipo(filtro, gasto)` y hoy tiene las nueve cubiertas.
   - **LOS DOS FILTROS SE RECUERDAN** (2026-10-10): `usePersistentState` con
     `expenses:tipo` y `expenses:proveedor`, como el resto del panel (el rango de
     fechas de esta pantalla ya lo hacía, con `daterange:expenses:*`). Los dos
@@ -1426,33 +1434,72 @@ ver con el motor de cálculo. Lo pagamos en cada pantalla (la cadena de caja, el
 reparto por canal, los totales de Gastos).
 
 - Script `test` = `vitest run`; configuración en **`apps/web/vitest.config.ts`**,
-  aparte de `vite.config.ts` a propósito (ese lleva el plugin de React y el proxy
-  del dev server, que no hacen falta para funciones puras). Lo único compartido
-  es el alias `@`: tiene que decir lo mismo en los dos archivos.
-- Los specs van **junto a su fuente**, `src/**/*.spec.ts`, como en shared.
+  aparte de `vite.config.ts` a propósito (ese lleva el proxy del dev server, que
+  no hace falta para los tests). Lo único compartido es el alias `@`: tiene que
+  decir lo mismo en los dos archivos. El plugin de React tampoco se usa:
+  `tsconfig.json` declara `jsx: "react-jsx"` y el esbuild de Vite ya transforma
+  el JSX con eso.
+- Los specs van **junto a su fuente**, como en shared.
   `describe`/`it`/`expect` se **importan de `vitest`** (sin globals, así no hay
   que declarar tipos en `tsconfig.json`). Ojo: `include: ["src"]` del tsconfig
   significa que `tsc --noEmit` del build **también revisa los specs**.
 - `pnpm -r test` desde la raíz corre los dos paquetes: jest en `packages/shared`
   y vitest en `apps/web`.
-- ⚠️ **Entorno `node`, no jsdom, y no se agregaron dependencias.** No hay
-  `jsdom` ni `@testing-library/*` instalados, así que **un test de componente
-  todavía no se puede escribir**: lo que se prueba acá son funciones puras
-  (derivaciones, filtros, valores seguros, filas resueltas). Si hace falta
-  montar un componente, hay que pedir esas dos dependencias primero.
-- Qué hay hoy: `pages/Expenses.spec.ts` (15 tests) — `totalesGastos`,
-  `tipoSeguro` y `filaDeGasto` —,
-  `features/calculator/materialOptions.spec.ts` (21 tests, 2026-10-10) — el
-  selector de filamento por tipo — y
-  `features/purchases/precio-real.spec.ts` (14 tests, 2026-10-10) — el aviso de
-  que el proveedor te cobró otro precio. **Total: 50.**
-- ⚠️ El spec importa desde `@/pages/Expenses`, o sea que **arrastra el módulo de
-  la página entero** (React, React Query, axios, `@calc3d/shared`). Funciona
-  porque ninguno de esos imports toca `window` ni `document` en el tope del
-  módulo, pero significa que un import roto de la página rompe este test aunque
-  la función probada esté intacta. Si esto molesta, la salida es mudar las
-  funciones puras a un `features/finance/expenses-view.ts`, como ya hizo Ventas
-  con `sales-view.ts`.
+- **DOS entornos, elegidos por la EXTENSIÓN del archivo** (`test.projects`,
+  desde el 2026-10-10):
+
+  | Archivo | Proyecto | Entorno | Para qué |
+  |---|---|---|---|
+  | `*.spec.ts` | `node` | `node` | funciones puras (derivaciones, filtros, totales) |
+  | `*.spec.tsx` | `dom` | `jsdom` | componentes renderizados (testing-library) |
+
+  Correr uno solo: `pnpm --filter @calc3d/web test -- --project dom`. El patrón
+  es la extensión y **no una lista de rutas** porque una lista hay que acordarse
+  de actualizarla: un spec de componente nuevo que no estuviera en ella correría
+  en `node`, fallaría con "document is not defined", y la tentación sería mandar
+  TODO a jsdom. Al revés también importa: un spec puro en jsdom levanta un DOM
+  entero por archivo para no usarlo, y los puros son los que conviene que sigan
+  siendo instantáneos.
+- **Dependencias de los tests de componente** (aprobadas por el dueño el
+  2026-10-10): `jsdom`, `@testing-library/react` y `@testing-library/jest-dom`,
+  devDependencies de `apps/web`. El setup (`src/test/setup-dom.ts`, solo lo
+  carga el proyecto `dom`) monta los matchers de jest-dom, un `cleanup`
+  explícito —con `globals` apagado el auto-cleanup de testing-library **no se
+  registra**, y sin él cada `render` deja su árbol en el mismo `document` y un
+  `getAllBy…` cuenta también las filas del test anterior— y dobles de
+  `matchMedia` (lo consulta la capa de motion) y `ResizeObserver`, que jsdom no
+  trae.
+- ⚠️ **En jsdom NO hay CSS: las dos presentaciones se dibujan a la vez.** El
+  patrón tabla↔tarjetas de este panel (`hidden md:block` + `md:hidden`) no
+  esconde nada en un test, así que **cada control aparece DOS veces**. Lejos de
+  ser un estorbo es la mitad del valor: el riesgo real de ese patrón es arreglar
+  una presentación y olvidarse de la otra, así que los conteos van **exactos**
+  (`toHaveLength(2)`), nunca `toBeTruthy()`.
+- **Qué mockear en un test de pantalla: `@/lib/api` y nada más.** Con los hooks
+  mockeados el test pasa aunque la derivación de cada fila mienta; mockeando el
+  cliente axios, los hooks de React Query, los componentes y las derivaciones
+  son los de verdad. La pantalla se envuelve en `QueryClientProvider` (con
+  `retry: false`) y en `TooltipProvider`, igual que `AppLayout`. Dos trampas:
+  `vi.mock` se evalúa **antes** del cuerpo del archivo (los dobles van en
+  `vi.hoisted`), y React Query **rechaza `undefined`** como dato de una
+  consulta, así que el doble devuelve `null` para lo que no interesa.
+- ⚠️ **Un filtro persistido se siembra en `localStorage` antes de montar**, y se
+  limpia en el `beforeEach`: sin limpiar, un tipo elegido en un test deja la
+  lista vacía en el siguiente y los `queryAllBy…` dan 0 por el motivo
+  equivocado.
+- Qué hay hoy (**total: 64**, 4 archivos):
+  `features/finance/expenses-view.spec.ts` (24) — `totalesGastos`, `tipoSeguro`,
+  `filaDeGasto` y `pasaTipo` —, `pages/Expenses.pantalla.spec.tsx` (5, el primer
+  test de componente) — la fila de factura sin tacho y con el pagador apagado, y
+  que el filtro de tipo guardado se aplique —,
+  `features/calculator/materialOptions.spec.ts` (21) — el selector de filamento
+  por tipo — y `features/purchases/precio-real.spec.ts` (14) — el aviso de que
+  el proveedor te cobró otro precio.
+- ⚠️ **Nueve ramas testeadas no prueban que alguien las llame bien.** El test
+  del filtro de tipo en la pantalla existe porque una mutación lo pidió: con
+  `pasaTipo` probada rama por rama, cambiar la llamada de la pantalla a
+  `pasaTipo(TODOS, e)` —o sea, dejar de filtrar— **no tumbaba ni un test**. Al
+  extraer un closure a función pura, el cableado necesita su propio test.
 
 ## A qué API le habla el panel
 
