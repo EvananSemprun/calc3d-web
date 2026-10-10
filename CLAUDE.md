@@ -722,15 +722,36 @@ con 133.22 y le quedaban 102.83.
     `cashChain(antes, ahora)` de shared (saldo al final − saldo al principio).
     **No calcularlo por otro camino**: dos caminos distintos es exactamente cómo
     nació este bug, y no cierran el día que uno cambia.
-  - **X** sale de `useCashBalanceAt(diaAnterior)` → `GET /cash/balance?at=`: el
-    saldo hasta el día **anterior** al inicio del rango, recortado por el
-    SERVIDOR. Acá no hay con qué reconstruirlo (el saldo de Caja es de toda la
-    historia y las listas traen solo el rango).
-  - ⚠️ **El día anterior se calcula con `previousDay` de shared, en UTC.** Con
-    `new Date()` local, al oeste de UTC la cadena se corre un día entero.
+  - ⚠️ **QUÉ DOS SALDOS PEDIR lo decide `cashChainCuts(from, to, todayKey())`**
+    de shared (0.37.0, 2026-10-10), no el JSX. Los dos extremos son el MISMO
+    `businessCash` con otra fecha de corte, así que se piden los dos con
+    `useCashBalanceAt(...)` → `GET /cash/balance?at=`. Acá no hay con qué
+    reconstruirlos (el saldo de Caja es de toda la historia y las listas traen
+    solo el rango).
+  - ⚠️ **Z era el saldo de HOY, siempre, y con un rango pasado la cadena
+    mentía** (arreglado el 2026-10-10): elegías septiembre y el tramo del medio
+    **se comía octubre entero**. La razón que se había dado para no arreglarlo
+    —"Z tiene que dar el mismo número que la tarjeta Saldo en caja"— no se
+    sostenía: pedir el saldo al final del rango no es otra definición de saldo.
+    - Rango **ABIERTO** (termina hoy o después): `end: null` → el saldo de hoy,
+      **no el de su `to`** (el 31 de octubre todavía no llegó). La pantalla
+      normal no cambia de aspecto, no paga una consulta de más y su extremo
+      derecho es al centavo el de la tarjeta de al lado.
+    - Rango **CERRADO** (`to < hoy`): corta en su `to` y `closed: true`.
+      ⚠️ **La palabra acompaña al número**: dice **"cerró con"**, agrega el día
+      (`al 30/9/2026`) y **"hoy en caja $X"**. "Te queda" sobre el saldo del 30
+      de septiembre afirma que esa plata está ahora en la cuenta.
+    - La tarjeta **"Saldo en caja" no se toca**: sigue siendo el saldo de hoy.
+      Son dos números distintos a propósito y cada uno dice cuál es.
+    - ⚠️ **Mientras el saldo al cierre viaja, la cadena NO se dibuja** con el de
+      hoy de relleno: ese relleno ES la mentira que se cerró, y además
+      parpadearía de un número al otro.
+  - ⚠️ Las fechas de corte van en **UTC** (`previousDay`, dentro de
+    `cashChainCuts`) y el "hoy" en **LOCAL** (`todayKey()`): son las dos clases
+    de fecha del proyecto, y cambiar una por la otra corre la cadena un día.
   - ⚠️ **Con el filtro en "Todo" —o un rango sin inicio— la cadena NO se
-    dibuja**: no hay un "antes" y `cashChain(null, …)` devuelve `null`. Se
-    muestra solo el saldo.
+    dibuja**: no hay un "antes", los cortes vienen en null y
+    `cashChain(null, …)` devuelve `null`. Se muestra solo el saldo.
   - ⚠️ **`useCashMutation` invalida también `['cash','balance']`**, por lo mismo
     que invalida `breakdown`: el resumen se pisa con `setQueryData`, así que
     nada refresca esa clave sola y la cadena quedaría con el "venías con" viejo.
@@ -743,8 +764,9 @@ con 133.22 y le quedaban 102.83.
   plata en la cuenta no es una emergencia, y pintarlo igual que un saldo vacío
   enseña a ignorar el color.
 - ⚠️ `apps/web` **no tiene runner de tests**. Toda la lógica de la cadena vive
-  en funciones puras de shared (`cashChain`, `previousDay`, `isCalendarDay`) y
-  en la API, que sí se testean; acá solo quedó el armado del JSX.
+  en funciones puras de shared (`cashChain`, `cashChainCuts`, `previousDay`,
+  `isCalendarDay`) y en la API, que sí se testean; acá solo quedó el armado del
+  JSX y la elección de la palabra a partir de `closed`.
 
 #### Cambios del 2026-10-02 (hay que conocerlos antes de tocar el Dashboard)
 

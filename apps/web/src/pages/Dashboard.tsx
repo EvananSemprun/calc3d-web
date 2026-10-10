@@ -20,10 +20,9 @@ import {
   breakEvenLevels,
   breakEvenProgress,
   cashChain,
+  cashChainCuts,
   fixedCostsTotal,
-  isCalendarDay,
   monthlyLoanPayments,
-  previousDay,
   campaignHealth,
   repartoPorCanal,
   type CanalDeIngreso,
@@ -33,7 +32,7 @@ import { paraEquilibrio, useLoans } from '@/features/loans/api';
 import { useGoalForMonth } from '@/features/goals/api';
 import { useEquipmentRecovery } from '@/features/equipment/api';
 import { useCash, useCashBalanceAt } from '@/features/cash/api';
-import { currentMonthKey } from '@/lib/today';
+import { currentMonthKey, formatStoredDay, todayKey } from '@/lib/today';
 import { Card, CardContent, CardHeader, CardTitle, ProgressBar, Select, Stat, TableSkeleton } from '@/components/ui';
 import { usePersistentState } from '@/lib/usePersistentState';
 import { cn } from '@/lib/utils';
@@ -272,22 +271,38 @@ export function DashboardPage() {
    * saldo al principio), nunca por otro camino: dos caminos distintos es
    * exactamente cómo nació este bug.
    *
-   * ⚠️ X es el saldo hasta el día ANTERIOR al inicio del rango, con
-   * `previousDay` (UTC, de shared): con `new Date()` local, al oeste de UTC la
-   * cadena se corre un día entero. `isCalendarDay` es red de seguridad — un
-   * rango escrito a mano llega de un `<input type="date">`, así que siempre es
-   * un día real, pero `previousDay` lanza y acá eso sería una pantalla en
-   * blanco.
+   * ⚠️ **LOS DOS EXTREMOS SON EL MISMO `businessCash` CON OTRA FECHA DE CORTE**
+   * (arreglado el 2026-10-10, shared 0.37.0). Hasta ese día el de la derecha
+   * era el saldo de HOY, siempre, y con un rango pasado la cadena mentía:
+   * elegías septiembre y el tramo del medio se comía octubre entero. La razón
+   * que se había dado —"Z tiene que dar el mismo número que la tarjeta Saldo en
+   * caja"— no se sostenía: pedir el saldo al final del rango no es otra
+   * definición de saldo. Qué dos cortes pedir lo decide `cashChainCuts`, que es
+   * pura y está testeada; acá no se vuelve a decidir nada.
    *
-   * Con el filtro en "Todo" —o con un rango sin inicio— `range.from` es
-   * undefined: no se pide nada y la cadena no se dibuja (ver `cashChain`).
+   * ⚠️ Un rango ABIERTO (el que termina hoy o después) corta en `null`, o sea
+   * en el saldo de hoy: su `to` todavía no llegó. Así la pantalla normal no
+   * cambia de aspecto ni paga una consulta de más, y el extremo derecho sigue
+   * siendo, al centavo, el de la tarjeta de al lado.
+   *
+   * ⚠️ Las fechas van en UTC (`previousDay`, dentro de `cashChainCuts`) y el
+   * "hoy" en LOCAL (`todayKey`): son las dos clases de fecha del proyecto, y
+   * cambiar una por la otra corre la cadena un día.
+   *
+   * Con el filtro en "Todo" —o con un rango sin inicio— no hay un "antes": los
+   * cortes vienen en null, no se pide nada y la cadena no se dibuja.
    */
-  const inicioDelRango = range.from && isCalendarDay(range.from) ? range.from : null;
-  const diaAnterior = inicioDelRango ? previousDay(inicioDelRango) : null;
-  const saldoAntes = useCashBalanceAt(diaAnterior);
-  const cadena: CashChain | null = caja
-    ? cashChain(saldoAntes.data?.balance.balance ?? null, caja.balance.balance)
-    : null;
+  const cortes = cashChainCuts(range.from, range.to, todayKey());
+  const saldoAntes = useCashBalanceAt(cortes.before);
+  const saldoAlCierre = useCashBalanceAt(cortes.end);
+  /**
+   * ⚠️ Mientras el saldo al cierre viaja, la cadena NO se dibuja con el de hoy
+   * de relleno: ese relleno "mientras carga" ES la mentira que se vino a
+   * cerrar, y además parpadearía de un número al otro.
+   */
+  const saldoFinal = cortes.end ? saldoAlCierre.data?.balance.balance : caja?.balance.balance;
+  const cadena: CashChain | null =
+    saldoFinal == null ? null : cashChain(saldoAntes.data?.balance.balance ?? null, saldoFinal);
 
   // Punto de equilibrio: cuánto hay que vender al mes para cubrir los costos
   // fijos, dado el margen de contribución declarado (Configuración → Costos fijos).
@@ -400,7 +415,15 @@ export function DashboardPage() {
           className="block space-y-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {cadena && (
-            <CadenaDeCaja cadena={cadena} periodo={PERIODO_EN_CADENA[range.preset]} money={money} />
+            <CadenaDeCaja
+              cadena={cadena}
+              periodo={PERIODO_EN_CADENA[range.preset]}
+              /* Con un periodo ya cerrado, "te queda" es falso: hay que decir
+                 con qué día cerró y qué hay HOY en la cuenta. */
+              cierre={cortes.closed ? cortes.end : null}
+              saldoHoy={caja.balance.balance}
+              money={money}
+            />
           )}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat
@@ -705,20 +728,32 @@ export function DashboardPage() {
  * plata en la cuenta no es una emergencia. La alarma es del saldo, que es el
  * único de los tres que lleva color propio (su `Stat` de al lado). Acá el signo
  * se lee en el signo: "+" cuando sube y el "−" que ya trae el monto.
+ *
+ * ⚠️ **LA PALABRA ACOMPAÑA AL NÚMERO** (2026-10-10). Con un periodo ya CERRADO
+ * el extremo derecho es el cierre de ese periodo, no lo que hay hoy: decir "te
+ * queda" sobre el saldo del 30 de septiembre es afirmar que esa plata está
+ * ahora en la cuenta. Dice "cerró con", con el día, y agrega qué hay hoy — que
+ * es el número de la tarjeta de al lado. Son dos números distintos a propósito
+ * y cada uno tiene que decir cuál es.
  */
 function CadenaDeCaja({
   cadena,
   periodo,
+  cierre,
+  saldoHoy,
   money,
 }: {
   cadena: CashChain;
   periodo: string;
+  /** Día en que cerró el periodo, o `null` si sigue abierto (= hasta hoy). */
+  cierre: string | null;
+  saldoHoy: number;
   money: (n: number) => string;
 }) {
   const tramos = [
     { texto: 'venías con', monto: money(cadena.before), fuerte: false },
     { texto: periodo, monto: `${cadena.delta > 0 ? '+' : ''}${money(cadena.delta)}`, fuerte: false },
-    { texto: 'te queda', monto: money(cadena.after), fuerte: true },
+    { texto: cierre ? 'cerró con' : 'te queda', monto: money(cadena.after), fuerte: true },
   ];
 
   return (
@@ -736,6 +771,12 @@ function CadenaDeCaja({
           </span>
         </React.Fragment>
       ))}
+      {cierre && (
+        <span className="text-muted-foreground">
+          al {formatStoredDay(cierre)} · hoy en caja{' '}
+          <span className="tabular font-semibold text-foreground">{money(saldoHoy)}</span>
+        </span>
+      )}
     </div>
   );
 }
