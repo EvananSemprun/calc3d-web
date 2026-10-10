@@ -912,6 +912,26 @@ rechaza crear `ENCARGO`). Lo demás:
       tacho y con el `Select` de "quién pagó" apagado — **ese select manda un
       PATCH en cada cambio**, así que vivo solo sabría tirar 400. `EditarCompra`
       conserva una red: si igual se lo abre, explica y no deja guardar.
+      ⚠️ **Y la salida está en Compras**: ese tooltip no manda a una puerta
+      cerrada desde que existe "Deshacer recepción" (ver abajo).
+  - ⚠️ **"Deshacer recepción"** (2026-10-10, por línea con algo recibido): la
+    salida del callejón que dejó la guarda de arriba. Hasta acá una línea
+    recibida por error no se podía corregir por **ninguna** puerta y los
+    mensajes se mandaban unos a otros en círculo.
+    - La confirmación dice **qué pasa y qué NO**: lo último que entró sale del
+      inventario y su compra se borra, pero la **plata no se mueve** (lo que
+      salió fueron los abonos) y la **ficha del catálogo se queda**, porque
+      puede estar usada en una cotización o un encargo. Las dos cosas que no
+      pasan son justo las que uno teme al apretar, y un "¿estás seguro?" pelado
+      no deja decidir.
+    - ⚠️ **`useUnreceiveLine` comparte `useInvoiceMutation` con
+      `useReceiveLine`**: invalida las MISMAS claves (caja, gastos, materiales,
+      stock, compras de filamento, facturas). Si limpiara menos, la pantalla
+      quedaría mostrando el rollo en el inventario y el gasto en la lista
+      después de borrarlos.
+    - Va **sin cuerpo**: no hay nada que elegir, se revierte exactamente la
+      recepción que se hizo. Un `quantity` del cliente podría no coincidir con
+      ninguna recepción real.
   - **Proveedores: una sola puerta, la del directorio** (2026-10-09). Había una
     página `/catalogs/providers` con su propia tabla de dos campos, y además el
     tipo "Proveedor" de Contactos, que guarda teléfono, RIF, ciudad y mapa. Se

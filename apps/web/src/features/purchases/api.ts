@@ -134,6 +134,21 @@ export const useReceiveLine = () =>
     api.post(`/purchase-invoices/${id}/lines/${lineId}/receive`, dto),
   );
 
+/**
+ * DESHACER la última recepción: el inverso de `useReceiveLine`.
+ *
+ * ⚠️ Invalida **lo mismo** que recibir, y por eso comparte `useInvoiceMutation`:
+ * si esta mutación limpiara menos claves, la pantalla quedaría mostrando el
+ * rollo en el inventario y el gasto en la lista después de borrarlos.
+ *
+ * ⚠️ **Sin cuerpo**: no hay nada que elegir, se revierte exactamente la
+ * recepción que se hizo (su compra y su cantidad).
+ */
+export const useUnreceiveLine = () =>
+  useInvoiceMutation(({ id, lineId }: { id: string; lineId: string }) =>
+    api.post(`/purchase-invoices/${id}/lines/${lineId}/unreceive`),
+  );
+
 export const ETIQUETA_PAGO = {
   SIN_PAGAR: 'Sin pagar',
   PARCIAL: 'Abonada',

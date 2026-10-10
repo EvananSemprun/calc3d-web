@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { NuevoTipo } from '@calc3d/shared';
-import { FileText, PackageCheck, Plus, Trash2 } from 'lucide-react';
+import { FileText, PackageCheck, Plus, Trash2, Undo2 } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -30,6 +30,7 @@ import {
   useDeleteInvoice,
   usePurchaseInvoices,
   useReceiveLine,
+  useUnreceiveLine,
   useVoidInvoice,
   useVoidInvoicePayment,
   type InvoiceLine,
@@ -125,6 +126,7 @@ function FacturaCard({ factura: f }: { factura: PurchaseInvoice }) {
   const confirm = useConfirm();
   const anular = useVoidInvoice();
   const borrar = useDeleteInvoice();
+  const deshacer = useUnreceiveLine();
   const [abonando, setAbonando] = useState(false);
   const [recibiendo, setRecibiendo] = useState<InvoiceLine | null>(null);
 
@@ -142,6 +144,33 @@ function FacturaCard({ factura: f }: { factura: PurchaseInvoice }) {
     anular.mutate(
       { id: f.id, reason: 'Anulada desde la pantalla' },
       { onSuccess: () => notify.success('Factura anulada'), onError: (e) => notify.error(apiErrorMessage(e)) },
+    );
+  };
+
+  /**
+   * ⚠️ La confirmación dice QUÉ va a pasar, en palabras del dueño: un "¿estás
+   * seguro?" pelado no deja decidir. Y aclara las dos cosas que NO pasan —la
+   * plata no se mueve y la ficha se queda—, porque las dos son lo que uno
+   * teme al apretar.
+   */
+  const pedirDeshacer = async (l: InvoiceLine) => {
+    const queEs = l.materialName ?? l.printerName ?? l.nombreNuevo ?? 'esta línea';
+    const ok = await confirm({
+      title: `¿Deshacer la recepción de ${queEs}?`,
+      description:
+        'Lo último que entró de esta línea vuelve atrás: sale del inventario y su compra se borra de Gastos. ' +
+        'La plata NO se mueve (lo que salió fueron los abonos de la factura) y la ficha del catálogo se queda, ' +
+        'porque puede estar usada en una cotización o un encargo.',
+      confirmLabel: 'Deshacer recepción',
+      tone: 'destructive',
+    });
+    if (!ok) return;
+    deshacer.mutate(
+      { id: f.id, lineId: l.id },
+      {
+        onSuccess: () => notify.success('Recepción deshecha'),
+        onError: (e) => notify.error(apiErrorMessage(e)),
+      },
     );
   };
 
@@ -231,6 +260,19 @@ function FacturaCard({ factura: f }: { factura: PurchaseInvoice }) {
                   {!anulada && l.porRecibir > 0 && (
                     <Button variant="outline" size="sm" onClick={() => setRecibiendo(l)}>
                       <PackageCheck className="h-4 w-4" /> Recibir
+                    </Button>
+                  )}
+                  {/* ⚠️ LA SALIDA. Sin esto, una línea recibida por error no se
+                      podía corregir por ninguna puerta: el gasto no se toca
+                      desde Gastos y la factura no se puede editar ni anular. */}
+                  {!anulada && l.received > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={deshacer.isPending}
+                      onClick={() => pedirDeshacer(l)}
+                    >
+                      <Undo2 className="h-4 w-4" /> Deshacer recepción
                     </Button>
                   )}
                 </span>
