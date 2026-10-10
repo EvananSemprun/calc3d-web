@@ -15,12 +15,13 @@ import {
   YAxis,
 } from 'recharts';
 import { Link } from 'react-router-dom';
-import { LineChart as LineIcon, AlertTriangle, Megaphone } from 'lucide-react';
+import { LineChart as LineIcon, AlertTriangle, Megaphone, PackageX } from 'lucide-react';
 import {
   breakEvenLevels,
   breakEvenProgress,
   cashChain,
   cashChainCuts,
+  facturasAtrasadas,
   fixedCostsTotal,
   monthlyLoanPayments,
   campaignHealth,
@@ -43,6 +44,7 @@ import { useCampaigns, isCampaignVigente } from '@/features/campaigns/api';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { DateRangePicker, useDateRange, type RangePreset } from '@/features/finance/DateRange';
 import { storeProductsBelowMargin, useStoreProducts } from '@/features/store/api';
+import { usePurchaseInvoices } from '@/features/purchases/api';
 import {
   LINK_KIND_LABELS,
   expenseLink,
@@ -355,6 +357,7 @@ export function DashboardPage() {
       <OnboardingChecklist />
       <ProfitabilityAlert />
       <CampaignAlert />
+      <AtrasoDeCompraAlert />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -834,6 +837,58 @@ function CampaignAlert() {
         <span className="text-muted-foreground">
           Gastas más de lo que dejan: {alerts.slice(0, 3).map((c) => c.name).join(', ')}
           {alerts.length > 3 ? '…' : ''}. Revísalas antes de seguir invirtiendo.
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+/**
+ * Aviso proactivo: facturas de compra que no llegaron cuando dijeron.
+ *
+ * ⚠️ **Sigue el patrón de los dos de arriba** (`ProfitabilityAlert`,
+ * `CampaignAlert`): un `Link` con la misma caja ámbar, un ícono, el número en
+ * negrita y el detalle apagado al lado. Un tercer estilo de cartel en la misma
+ * pantalla hace que ninguno de los tres se lea como un aviso.
+ *
+ * ⚠️ **El cálculo NO vive acá**: es `facturasAtrasadas` de shared, la misma
+ * función que destaca las facturas en Compras. Si el Dashboard contara por su
+ * cuenta, el día que una de las dos reglas cambie el aviso diría "3" y la
+ * pantalla a la que lleva mostraría 2.
+ *
+ * ⚠️ El "hoy" se calcula acá, en día LOCAL (`todayKey`), y entra como
+ * parámetro.
+ */
+function AtrasoDeCompraAlert() {
+  const { data: facturas } = usePurchaseInvoices();
+  const atrasadas = facturasAtrasadas(facturas ?? [], todayKey());
+  if (atrasadas.length === 0) return null;
+
+  // Los nombres se repiten si dos facturas son del mismo proveedor: se dice
+  // una vez. "Filaven, Filaven" se lee como un error de la app.
+  const porId = new Map((facturas ?? []).map((f) => [f.id, f]));
+  const proveedores = [
+    ...new Set(atrasadas.map((a) => porId.get(a.id)?.supplier?.name ?? 'Sin proveedor')),
+  ];
+  const peor = atrasadas[0];
+
+  return (
+    <Link
+      to="/compras"
+      className="flex items-center gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 transition-colors hover:bg-amber-500/15"
+    >
+      <PackageX className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+      <div className="flex-1 text-sm">
+        <span className="font-semibold text-amber-600 dark:text-amber-400">
+          {atrasadas.length}{' '}
+          {atrasadas.length === 1 ? 'compra no llegó' : 'compras no llegaron'} cuando
+          dijeron.
+        </span>{' '}
+        <span className="text-muted-foreground">
+          La más vieja la esperabas hace {peor.diasDeAtraso}{' '}
+          {peor.diasDeAtraso === 1 ? 'día' : 'días'}:{' '}
+          {proveedores.slice(0, 3).join(', ')}
+          {proveedores.length > 3 ? '…' : ''}. Revísalas antes de volver a encargar.
         </span>
       </div>
     </Link>

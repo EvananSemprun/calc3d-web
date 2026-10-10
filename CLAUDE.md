@@ -722,8 +722,16 @@ al scrollear. Arreglado el 2026-10-05.
   debajo, decía "$68,50 · 27 %": dos números distintos para lo mismo en la misma
   pantalla.
 - **Alertas proactivas**: `ProfitabilityAlert` (productos por debajo del margen
-  mínimo → `/products`) y `CampaignAlert` (campañas `LOSS`/`AT_RISK` con inversión
-  > 0 **y VIGENTES** → `/campaigns`; ver abajo).
+  mínimo → `/products`), `CampaignAlert` (campañas `LOSS`/`AT_RISK` con inversión
+  > 0 **y VIGENTES** → `/campaigns`; ver abajo) y **`AtrasoDeCompraAlert`**
+  (facturas de compra que no llegaron cuando dijeron → `/compras`, 2026-10-10).
+  ⚠️ **Las tres comparten caja, ícono y forma** (`Link` ámbar, número en
+  negrita, detalle apagado al lado): un cuarto estilo de cartel en la misma
+  pantalla hace que ninguno se lea como un aviso. ⚠️ Y **ninguna calcula**: el
+  atraso lo decide `facturasAtrasadas` de shared, la MISMA función que destaca
+  las facturas en Compras, con `todayKey()` como "hoy". Si el Dashboard contara
+  por su cuenta, el día que la regla cambie el aviso diría "3" y la pantalla a
+  la que lleva mostraría 2.
 
 #### Ventas → «Ventas de mostrador» (2026-10-02)
 
@@ -1044,6 +1052,24 @@ con 133.22 y le quedaban 102.83.
   - ⚠️ **Son DOS estados, no uno**, y la tarjeta muestra los dos: una factura
     puede estar *Pagada* y *Sin llegar*, que es lo normal cuando encargás algo.
     Un solo "estado" tendría que elegir cuál de las dos verdades contar.
+  - ⚠️ **LO QUE NO LLEGÓ** (2026-10-10, shared 0.39.0): una factura con fecha
+    esperada **pasada** y mercadería pendiente se destaca —borde ámbar,
+    insignia *Atrasada*— y **dice hace cuánto**: *"No llegó: la esperabas hace
+    12 días. Quedó para el 28/9 y faltan 2 unidades."* Antes `expectedAt` se
+    guardaba y nadie lo miraba.
+    - El atraso lo calcula **`facturasAtrasadas(facturas, todayKey())`** de
+      shared, no la pantalla; el "hoy" se arma acá en día **LOCAL** y entra
+      como parámetro (el motor es puro y no decide husos).
+    - ⚠️ **Dice hace cuánto y cuánto falta, no solo que está atrasada**: con un
+      "revisá esta factura" a secas hay que abrirla para saber si son dos días
+      o tres semanas, y un aviso que obliga a investigar se deja para después.
+    - ⚠️ La tercera tarjeta de resumen ("No llegaron cuando dijeron") **se
+      pinta siempre, aunque diga 0**: un cero dicho es la respuesta a "¿se me
+      atrasó algo?". Si solo apareciera con atrasos, no habría forma de
+      distinguir "nada atrasado" de "esta pantalla no lo mira", que es justo el
+      estado del que viene.
+    - Con la factura atrasada, el subtítulo **deja de repetir** `· llega X`: es
+      la misma fecha dos veces y en el tiempo verbal equivocado.
   - ⚠️ **Cargar la factura NO mueve la Caja; abonar SÍ.** El formulario lo dice
     en el pie. Y al recibir, el diálogo aclara que *la plata ya se contó al
     abonar*: si no, el dueño vería entrar mercadería y esperaría que el saldo

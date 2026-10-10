@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { NuevoTipo, SuggestedPurchaseLine } from '@calc3d/shared';
-import { FileText, PackageCheck, Plus, Trash2, Undo2 } from 'lucide-react';
+import {
+  facturasAtrasadas,
+  type FacturaAtrasada,
+  type NuevoTipo,
+  type SuggestedPurchaseLine,
+} from '@calc3d/shared';
+import { AlertTriangle, FileText, PackageCheck, Plus, Trash2, Undo2 } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -19,7 +24,9 @@ import {
 import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { api, apiErrorMessage } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { useMoney } from '@/features/settings/useSettings';
+import { todayKey } from '@/lib/today';
 import { useCounterparties } from '@/features/cash/api';
 import { useContacts } from '@/features/contacts/api';
 import {
@@ -43,6 +50,9 @@ const hoyIso = () => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 };
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-VE', { timeZone: 'UTC' });
+
+/** "hace 1 día" / "hace 12 días". En días y nada más: sin redondeos a semanas. */
+const haceCuanto = (dias: number) => `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
 
 /** El color del estado: lo que falta plata o mercadería se ve, lo cerrado no grita. */
 const tonoPago = (p: PurchaseInvoice['status']['pago']) =>
@@ -82,6 +92,21 @@ export function PurchasesPage() {
     .reduce((s, f) => s + f.saldo, 0);
   const pendienteRecibir = facturas.filter((f) => !f.voidedAt && f.porRecibir > 0).length;
 
+  /**
+   * LO QUE NO LLEGÓ. `expectedAt` se guardaba desde el día uno y nadie lo
+   * miraba: encargabas algo para el martes, no llegaba, y la pantalla lo
+   * mostraba igual que al resto.
+   *
+   * ⚠️ El "hoy" se calcula ACÁ, en día LOCAL (`todayKey`), y entra como
+   * parámetro: el motor es puro y no decide husos. Quién está atrasada y
+   * quién no lo decide UNA función, la misma que cuenta el aviso del
+   * Dashboard, así que las dos pantallas no pueden decir cosas distintas.
+   */
+  const atrasadas = useMemo(
+    () => new Map(facturasAtrasadas(facturas, todayKey()).map((a) => [a.id, a])),
+    [facturas],
+  );
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -99,7 +124,7 @@ export function PurchasesPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Falta pagar</p>
@@ -112,6 +137,25 @@ export function PurchasesPage() {
               Facturas esperando mercadería
             </p>
             <p className="font-display text-2xl font-bold tabular-nums">{pendienteRecibir}</p>
+          </CardContent>
+        </Card>
+        {/* La tarjeta se pinta SIEMPRE, aunque diga 0: un cero dicho es la
+            respuesta a "¿se me atrasó algo?". Si solo apareciera cuando hay
+            atrasos, no habría forma de distinguir "nada atrasado" de "esta
+            pantalla no lo mira", que es justo el estado del que viene. */}
+        <Card className={atrasadas.size > 0 ? 'border-amber-500/50 bg-amber-500/5' : undefined}>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              No llegaron cuando dijeron
+            </p>
+            <p
+              className={cn(
+                'font-display text-2xl font-bold tabular-nums',
+                atrasadas.size > 0 && 'text-amber-600 dark:text-amber-400',
+              )}
+            >
+              {atrasadas.size}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -127,7 +171,7 @@ export function PurchasesPage() {
       ) : (
         <ul className="space-y-3">
           {facturas.map((f) => (
-            <FacturaCard key={f.id} factura={f} />
+            <FacturaCard key={f.id} factura={f} atraso={atrasadas.get(f.id) ?? null} />
           ))}
         </ul>
       )}
@@ -139,7 +183,14 @@ export function PurchasesPage() {
   );
 }
 
-function FacturaCard({ factura: f }: { factura: PurchaseInvoice }) {
+function FacturaCard({
+  factura: f,
+  atraso,
+}: {
+  factura: PurchaseInvoice;
+  /** `null` si ya llegó, si no se prometió fecha, o si el día no pasó todavía. */
+  atraso: FacturaAtrasada | null;
+}) {
   const { money } = useMoney();
   const confirm = useConfirm();
   const anular = useVoidInvoice();
@@ -204,7 +255,7 @@ function FacturaCard({ factura: f }: { factura: PurchaseInvoice }) {
 
   return (
     <li>
-      <Card className={anulada ? 'opacity-60' : undefined}>
+      <Card className={cn(anulada && 'opacity-60', atraso && 'border-amber-500/50 bg-amber-500/5')}>
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
@@ -216,7 +267,10 @@ function FacturaCard({ factura: f }: { factura: PurchaseInvoice }) {
               </p>
               <p className="text-xs text-muted-foreground">
                 {fecha(f.date)}
-                {f.expectedAt && ` · llega ${fecha(f.expectedAt)}`}
+                {/* Con la factura atrasada el día lo dice el renglón de abajo, que
+                    además dice hace cuánto: repetirlo acá como "llega" es la misma
+                    fecha dos veces y en el tiempo verbal equivocado. */}
+                {f.expectedAt && !atraso && ` · llega ${fecha(f.expectedAt)}`}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -228,10 +282,34 @@ function FacturaCard({ factura: f }: { factura: PurchaseInvoice }) {
                   <Badge variant={tonoMercaderia(f.status.mercaderia)}>
                     {ETIQUETA_MERCADERIA[f.status.mercaderia]}
                   </Badge>
+                  {atraso && <Badge variant="warning">Atrasada</Badge>}
                 </>
               )}
             </div>
           </div>
+
+          {/* ⚠️ Dice HACE CUÁNTO y CUÁNTO falta, no solo que está atrasada: con
+              un "revisá esta factura" a secas hay que abrirla para saber si
+              son dos días o tres semanas, y un aviso que obliga a investigar se
+              deja para después. */}
+          {atraso && (
+            <p className="flex items-start gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">
+              <AlertTriangle
+                aria-hidden
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+              />
+              <span>
+                <span className="font-semibold text-amber-600 dark:text-amber-400">
+                  No llegó: la esperabas {haceCuanto(atraso.diasDeAtraso)}.
+                </span>{' '}
+                <span className="text-muted-foreground">
+                  Quedó para el {fecha(atraso.expectedAt)} y faltan {atraso.porRecibir}{' '}
+                  {atraso.porRecibir === 1 ? 'unidad' : 'unidades'}. Preguntá al proveedor
+                  antes de volver a encargar.
+                </span>
+              </span>
+            </p>
+          )}
 
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
             <span>
