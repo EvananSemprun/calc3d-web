@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PrecioPorTipo } from '@calc3d/shared';
 import {
+  avisoSinPrecio,
   buscarOpcion,
   materialLabel,
   textoDeOrigen,
@@ -23,7 +24,16 @@ import type { MaterialItem } from '@/features/calculator/useCatalogData';
 const money = (n: number) => `$${n.toFixed(2)}`;
 
 function tipo(p: Partial<PrecioPorTipo>): PrecioPorTipo {
-  return { type: 'PLA', rollPrice: 20.26, rollGrams: 1000, rolls: 47, purchases: 47, ...p };
+  return {
+    type: 'PLA',
+    rollPrice: 20.26,
+    rollGrams: 1000,
+    rolls: 47,
+    purchases: 47,
+    stale: false,
+    lastPurchase: '2026-08-31',
+    ...p,
+  };
 }
 
 function ficha(p: Partial<MaterialItem>): MaterialItem {
@@ -210,5 +220,141 @@ describe('quotableMaterials y materialLabel', () => {
       'PLA Arena — 0 al cierre de agosto',
     );
     expect(materialLabel(ficha({ name: 'PLA Azul' }))).toBe('PLA Azul');
+  });
+});
+
+/**
+ * LA VENTANA DE 6 MESES EN LA PANTALLA (2026-10-10).
+ *
+ * El recorte lo hace el servidor; acá se fija que el renglón **lo diga**, y que
+ * lo diga DISTINTO cuando el número viene de fuera de la ventana: un tipo que
+ * no se compra hace rato no puede presentarse como si fuera precio de hoy.
+ */
+describe('textoDeOrigen y la ventana', () => {
+  it('con un promedio de la ventana dice que son los últimos 6 meses', () => {
+    const t = textoDeOrigen([tipo({ type: 'PLA', rolls: 47 })], 'tipo:PLA');
+
+    expect(t).toBe(
+      'Promedio de PLA de los últimos 6 meses, sobre 47 rollos comprados. El rollo regalado no cuenta.',
+    );
+  });
+
+  it('con un promedio de FUERA de la ventana no dice "promedio": avisa que está viejo', () => {
+    // Presentarlo como "promedio de los últimos 6 meses" sería mentir: ese tipo
+    // no se compra desde enero y el precio puede haber subido sin que se note.
+    const t = textoDeOrigen(
+      [tipo({ type: 'ABS', rolls: 2, purchases: 1, stale: true, lastPurchase: '2026-01-15' })],
+      'tipo:ABS',
+    );
+
+    expect(t).toBe(
+      'ABS no se compra desde enero de 2026: es el precio de esa última compra, no un promedio de los últimos 6 meses.',
+    );
+    expect(t).not.toContain('Promedio de');
+  });
+
+  it('sin fecha de la última compra avisa igual, sin inventar un mes', () => {
+    const t = textoDeOrigen([tipo({ type: 'ASA', stale: true, lastPurchase: null })], 'tipo:ASA');
+
+    expect(t).toBe(
+      'No hay compras de ASA en los últimos 6 meses: es el precio de su última compra, no un promedio.',
+    );
+  });
+});
+
+/**
+ * LA FICHA SIN PRECIO (2026-10-10, decisión del dueño).
+ *
+ * `PLA Creality Azul oscuro` aparece en $0.00 porque fue un **regalo**: su
+ * compra en $0 es verdadera y se queda. Elegirla cotiza el material GRATIS, así
+ * que la opción **sigue en la lista** —esconderla taparía un dato que hay que
+ * ver— pero marcada, y al elegirla la pantalla avisa.
+ */
+describe('la ficha sin precio', () => {
+  const REGALO = ficha({ id: 'regalo', name: 'PLA Creality Azul oscuro', rollPrice: '0' });
+
+  it('sigue en la lista, marcada y diciendo por qué', () => {
+    const { porFicha } = opcionesDeFilamento([], [REGALO, ficha({ id: 'normal' })], money);
+
+    expect(porFicha.map((o) => o.key)).toContain('ficha:regalo');
+    const marcada = porFicha.find((o) => o.key === 'ficha:regalo')!;
+    expect(marcada.sinPrecio).toBe(true);
+    expect(marcada.label).toBe('PLA Creality Azul oscuro — sin precio: su compra fue en $0');
+  });
+
+  /**
+   * ⚠️ **El criterio es "no tiene precio", NO "es barato".** El PLA PURE a $13
+   * contra el PLA a $20 es un precio real y legítimo — es justo el dato que
+   * hace que cotizar por tipo valga la pena. Este test está para que nadie
+   * convierta esto en un filtro de atípicos.
+   */
+  it('una ficha BARATA de verdad NO se marca', () => {
+    const { porFicha } = opcionesDeFilamento(
+      [],
+      [ficha({ id: 'pure', name: 'PLA PURE Blanco', rollPrice: '13' })],
+      money,
+    );
+
+    expect(porFicha[0].sinPrecio).toBe(false);
+    expect(porFicha[0].label).toBe('PLA PURE Blanco — $13.00');
+  });
+
+  it('una ficha con precio normal tampoco se marca', () => {
+    const { porFicha } = opcionesDeFilamento([], [ficha({ id: 'normal' })], money);
+
+    expect(porFicha[0].sinPrecio).toBe(false);
+  });
+
+  it('un precio ilegible (vacío, texto) se trata como SIN precio, no como $NaN', () => {
+    // `rollPrice` llega como string de Prisma: si alguna vez viene vacío,
+    // `Number('')` da 0 y cotizaría gratis igual que el regalo.
+    const { porFicha } = opcionesDeFilamento([], [ficha({ id: 'raro', rollPrice: '' })], money);
+
+    expect(porFicha[0].sinPrecio).toBe(true);
+  });
+
+  it('la que cerró el mes en 0 conserva su aviso Y la marca de sin precio', () => {
+    const { porFicha } = opcionesDeFilamento(
+      [],
+      [ficha({ id: 'regalo', name: 'PLA Arena', rollPrice: '0', outAtLastClose: '2026-08' })],
+      money,
+    );
+
+    expect(porFicha[0].label).toBe(
+      'PLA Arena — 0 al cierre de agosto — sin precio: su compra fue en $0',
+    );
+  });
+});
+
+describe('avisoSinPrecio', () => {
+  const ops = opcionesDeFilamento(
+    [tipo({})],
+    [ficha({ id: 'm1' }), ficha({ id: 'regalo', name: 'PLA Creality Azul oscuro', rollPrice: '0' })],
+    money,
+  );
+
+  it('al elegir la ficha sin precio avisa que el material va en CERO', () => {
+    const aviso = avisoSinPrecio(ops, 'ficha:regalo');
+
+    expect(aviso).toContain('PLA Creality Azul oscuro');
+    expect(aviso).toContain('$0');
+    // Y dice qué hacer, o el aviso es solo un susto.
+    expect(aviso).toContain('a mano');
+  });
+
+  it('con una ficha con precio no avisa nada', () => {
+    expect(avisoSinPrecio(ops, 'ficha:m1')).toBeNull();
+  });
+
+  it('con un tipo no avisa nada: un tipo sin precio no se ofrece', () => {
+    expect(avisoSinPrecio(ops, 'tipo:PLA')).toBeNull();
+  });
+
+  it('con el precio escrito a mano no avisa nada', () => {
+    expect(avisoSinPrecio(ops, '')).toBeNull();
+  });
+
+  it('con una clave que ya no existe no avisa nada', () => {
+    expect(avisoSinPrecio(ops, 'ficha:borrada')).toBeNull();
   });
 });

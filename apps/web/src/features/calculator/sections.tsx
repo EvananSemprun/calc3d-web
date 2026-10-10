@@ -1,10 +1,22 @@
 import * as React from 'react';
-import { Boxes, Layers, Package, Printer, Clock, Box, Percent, Trash2, Zap } from 'lucide-react';
+import {
+  AlertTriangle,
+  Boxes,
+  Layers,
+  Package,
+  Printer,
+  Clock,
+  Box,
+  Percent,
+  Trash2,
+  Zap,
+} from 'lucide-react';
 import { Field, FieldGrid, Input, NumberInput, REQUIRED_INPUT, Select, Switch } from '@/components/ui';
 import { useMoney } from '@/features/settings/useSettings';
 import { useCalculator, removeAt, updateAt } from '@/features/calculator/CalculatorProvider';
 import { CatalogSelect, LineGroup, MiniField } from '@/features/calculator/parts';
 import {
+  avisoSinPrecio,
   buscarOpcion,
   opcionesDeFilamento,
   textoDeOrigen,
@@ -133,6 +145,9 @@ export function SectionFilamento() {
   const elegir = (key: string) => c.pickFilament(key, buscarOpcion(ops, key));
   const esTipo = c.filamentSource.startsWith('tipo:');
   const esFicha = c.filamentSource.startsWith('ficha:');
+  // La ficha del regalo (`rollPrice <= 0`) cotiza el material GRATIS, y eso no
+  // se nota mirando un 0 en el campo: hay que decirlo.
+  const aviso = avisoSinPrecio(ops, c.filamentSource);
 
   return (
     <CostSection
@@ -178,6 +193,20 @@ export function SectionFilamento() {
       }
     >
       <FieldGrid>
+        {aviso && (
+          <div className="col-span-full">
+            <p
+              // `alert` y no un `hint` más: aparece DESPUÉS de elegir, en
+              // respuesta a lo que el dueño acaba de hacer, y es lo único que
+              // distingue un rollo regalado de un precio que todavía no cargó.
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-600 dark:text-amber-400"
+            >
+              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+              {aviso}
+            </p>
+          </div>
+        )}
         <Field label="Precio del rollo" required hint={textoDeOrigen(tipos, c.filamentSource)}>
           <NumberInput
             className={REQUIRED_INPUT}

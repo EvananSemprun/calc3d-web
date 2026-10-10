@@ -363,10 +363,42 @@ al scrollear. Arreglado el 2026-10-05.
     pantalla solo arma opciones y elige. El renglón menciona **el rollo
     regalado** a propósito: su exclusión es invisible, y sin decirla el promedio
     se lee como un error de cuentas.
-  - Tests: `features/calculator/materialOptions.spec.ts` (21, vitest) —
-    `opcionesDeFilamento`, `buscarOpcion`, `textoDeOrigen` y las reglas viejas
-    de `quotableMaterials`/`materialLabel`, que **no se perdieron**: las
-    descontinuadas siguen sin ofrecerse y las que cerraron en 0 van al final.
+  - ⚠️ **El renglón dice la VENTANA, y lo dice DISTINTO cuando el número viene
+    de afuera** (2026-10-10, shared 0.46.0). El servidor promedia los últimos 6
+    meses (`MESES_DE_LA_VENTANA`, que el texto lee de shared en vez de escribir
+    "6" a mano) y marca con `stale` + `lastPurchase` al tipo que no tuvo
+    compras dentro. Los dos textos de `textoDeOrigen`:
+    - Dentro: *"Promedio de PLA de los últimos 6 meses, sobre 47 rollos
+      comprados. El rollo regalado no cuenta."*
+    - Afuera: *"ABS no se compra desde enero de 2026: es el precio de esa
+      última compra, no un promedio de los últimos 6 meses."* (sin fecha de la
+      última compra, no se inventa el mes). **No puede decir "promedio"**: un
+      tipo que no se compra hace rato no se presenta como precio de hoy.
+  - ⚠️ **La ficha SIN PRECIO sigue en la lista, marcada, y al elegirla la
+    pantalla AVISA** (2026-10-10). `PLA Creality Azul oscuro` aparece en $0.00
+    porque fue un **regalo**: su compra en $0 es verdadera y se queda.
+    Esconderla taparía un dato que hay que ver, así que la etiqueta dice
+    *"— sin precio: su compra fue en $0"* (en el TEXTO y no en un color: el
+    desplegable no dibuja estilos por opción en todos los navegadores) y al
+    elegirla sale un `role="alert"` ámbar que dice que el material va GRATIS y
+    que hay que escribir el precio a mano.
+    - ⚠️ **El criterio es `rollPrice <= 0` ("no tiene precio"), NO "es
+      barato"**: el PLA PURE a $13 contra el PLA a $20 es un precio real y
+      legítimo — es justo el dato que hace que cotizar por tipo valga la pena.
+      El test *"una ficha BARATA de verdad NO se marca"* está para que nadie
+      lo convierta después en un filtro de atípicos. Un `rollPrice` ilegible
+      (`''`, texto) también cuenta como sin precio: `Number('')` da 0 y
+      cotizaría gratis igual.
+  - Tests: `features/calculator/materialOptions.spec.ts` (34, vitest) —
+    `opcionesDeFilamento`, `buscarOpcion`, `textoDeOrigen`, `avisoSinPrecio` y
+    las reglas viejas de `quotableMaterials`/`materialLabel`, que **no se
+    perdieron**: las descontinuadas siguen sin ofrecerse y las que cerraron en 0
+    van al final — más `features/calculator/Filamento.pantalla.spec.tsx` (5,
+    jsdom) para el CABLEADO: que el renglón salga del mismo `PrecioPorTipo` que
+    puso el número en el campo y que el aviso se dibuje al elegir el regalo.
+    Medido por mutación: pasarle `[]` a `textoDeOrigen` desde la pantalla tumba
+    5 tests y dejar de preguntar por el aviso, 1 — **ninguno de los dos lo
+    atrapaban los tests de función pura**.
   - ⚠️ **La clave de caché del promedio cuelga del prefijo `filament-purchases`**
     (`['filament-purchases','type-prices']`, no `['filament/type-prices']`). El
     promedio SALE de las compras, así que todo lo que las cambia tiene que
@@ -1528,14 +1560,22 @@ reparto por canal, los totales de Gastos).
   limpia en el `beforeEach`: sin limpiar, un tipo elegido en un test deja la
   lista vacía en el siguiente y los `queryAllBy…` dan 0 por el motivo
   equivocado.
-- Qué hay hoy (**total: 64**, 4 archivos):
+- Qué hay hoy (**total: 84**, 5 archivos):
   `features/finance/expenses-view.spec.ts` (24) — `totalesGastos`, `tipoSeguro`,
-  `filaDeGasto` y `pasaTipo` —, `pages/Expenses.pantalla.spec.tsx` (5, el primer
+  `filaDeGasto` y `pasaTipo` —, `pages/Expenses.pantalla.spec.tsx` (el primer
   test de componente) — la fila de factura sin tacho y con el pagador apagado, y
   que el filtro de tipo guardado se aplique —,
-  `features/calculator/materialOptions.spec.ts` (21) — el selector de filamento
-  por tipo — y `features/purchases/precio-real.spec.ts` (14) — el aviso de que
-  el proveedor te cobró otro precio.
+  `features/calculator/materialOptions.spec.ts` (34) — el selector de filamento
+  por tipo, la ventana de 6 meses y la ficha sin precio —,
+  `features/calculator/Filamento.pantalla.spec.tsx` (5, jsdom) — el cableado de
+  ese selector — y `features/purchases/precio-real.spec.ts` (14) — el aviso de
+  que el proveedor te cobró otro precio.
+- ⚠️ **Un `Select` de Radix se abre en jsdom con `fireEvent.keyDown(trigger,
+  { key: 'Enter' })` y se elige con `fireEvent.click` sobre el texto de la
+  opción.** No hace falta `user-event` ni shims de pointer capture; lo que sí
+  hace falta es el `ResizeObserver` que ya está en `setup-dom.ts`. Las opciones
+  **no existen en el DOM hasta abrirlo** (van en un portal), así que un
+  `getByText` de una opción sin abrir el desplegable falla siempre.
 - ⚠️ **Nueve ramas testeadas no prueban que alguien las llame bien.** El test
   del filtro de tipo en la pantalla existe porque una mutación lo pidió: con
   `pasaTipo` probada rama por rama, cambiar la llamada de la pantalla a

@@ -1,4 +1,4 @@
-import { monthStart, type PrecioPorTipo } from '@calc3d/shared';
+import { MESES_DE_LA_VENTANA, monthStart, type PrecioPorTipo } from '@calc3d/shared';
 import type { MaterialItem } from './useCatalogData';
 
 /**
@@ -24,6 +24,8 @@ export interface OpcionDeFilamento {
   name: string;
   rollPrice: number;
   rollGrams: number;
+  /** true si la opción no tiene precio (`rollPrice <= 0`): cotizaría el material GRATIS. */
+  sinPrecio: boolean;
 }
 
 export interface OpcionesDeFilamento {
@@ -57,15 +59,29 @@ export function opcionesDeFilamento(
     name: `${t.type} (promedio)`,
     rollPrice: t.rollPrice,
     rollGrams: t.rollGrams,
+    // Se deriva con la MISMA regla que las fichas, aunque hoy nunca dé true:
+    // `preciosPorTipo` ya no ofrece un tipo sin compras con precio. Dos reglas
+    // distintas para "no tiene precio" es como vuelve el agujero.
+    sinPrecio: !(t.rollPrice > 0),
   }));
 
-  const porFicha = (quotableMaterials(fichas) ?? []).map((m) => ({
-    key: `ficha:${m.id}`,
-    label: `${materialLabel(m)} — ${money(Number(m.rollPrice))}`,
-    name: m.name,
-    rollPrice: Number(m.rollPrice),
-    rollGrams: m.rollGrams,
-  }));
+  const porFicha = (quotableMaterials(fichas) ?? []).map((m) => {
+    // `Number('')` da 0 y `Number('abc')` da NaN: las dos cosas cotizarían el
+    // material en cero igual que el regalo, así que las dos son "sin precio".
+    const precio = Number(m.rollPrice);
+    const sinPrecio = !(precio > 0);
+    return {
+      key: `ficha:${m.id}`,
+      // La marca va en la ETIQUETA y no solo en un color: el desplegable
+      // nativo no dibuja estilos por opción en todos los navegadores, y un
+      // $0.00 a secas se lee como un error de carga en vez de como un regalo.
+      label: `${materialLabel(m)} — ${sinPrecio ? 'sin precio: su compra fue en $0' : money(precio)}`,
+      name: m.name,
+      rollPrice: precio,
+      rollGrams: m.rollGrams,
+      sinPrecio,
+    };
+  });
 
   return { porTipo, porFicha };
 }
@@ -106,8 +122,26 @@ export function textoDeOrigen(tipos: PrecioPorTipo[] | undefined, key: string): 
   const t = (tipos ?? []).find((x) => claveDeTipo(x.type) === key);
   if (!t) return A_MANO;
 
+  // ⚠️ El promedio de FUERA de la ventana se dice DISTINTO: un tipo que no se
+  // compra hace rato no puede presentarse como si fuera precio de hoy.
+  if (t.stale) {
+    if (!t.lastPurchase) {
+      return `No hay compras de ${t.type} en los últimos ${MESES_DE_LA_VENTANA} meses: es el precio de su última compra, no un promedio.`;
+    }
+    return `${t.type} no se compra desde ${mesDe(t.lastPurchase)}: es el precio de esa última compra, no un promedio de los últimos ${MESES_DE_LA_VENTANA} meses.`;
+  }
+
   const rollos = `${t.rolls} ${t.rolls === 1 ? 'rollo comprado' : 'rollos comprados'}`;
-  return `Promedio de ${t.type}, sobre ${rollos}. El rollo regalado no cuenta.`;
+  return `Promedio de ${t.type} de los últimos ${MESES_DE_LA_VENTANA} meses, sobre ${rollos}. El rollo regalado no cuenta.`;
+}
+
+/** `'2026-01-15'` → `'enero de 2026'`, en UTC como el resto de las fechas de negocio. */
+function mesDe(dia: string): string {
+  return monthStart(dia.slice(0, 7)).toLocaleDateString('es-VE', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 /**
@@ -126,4 +160,23 @@ export function materialLabel(m: MaterialItem): string {
   if (!m.outAtLastClose) return m.name;
   const mes = monthStart(m.outAtLastClose).toLocaleDateString('es-VE', { month: 'long', timeZone: 'UTC' });
   return `${m.name} — 0 al cierre de ${mes}`;
+}
+
+/**
+ * El aviso de que lo elegido **no tiene precio**, o `null`.
+ *
+ * `PLA Creality Azul oscuro` aparece en $0.00 porque fue un **regalo**: su
+ * compra en $0 es verdadera y se queda en el ledger. La opción sigue en la
+ * lista —esconderla taparía un dato que hay que ver— pero elegirla cotiza el
+ * material GRATIS, y eso no se puede notar solo mirando un 0 en un campo.
+ *
+ * ⚠️ El criterio es **"no tiene precio"** (`rollPrice <= 0`), **no "es
+ * barato"**: el PLA PURE a $13 contra el PLA a $20 es un precio real y es justo
+ * el dato que hace que cotizar por tipo valga la pena. Convertir esto en un
+ * filtro de atípicos borraría al PLA PURE junto con el regalo.
+ */
+export function avisoSinPrecio(ops: OpcionesDeFilamento, key: string): string | null {
+  const o = buscarOpcion(ops, key);
+  if (!o || !o.sinPrecio) return null;
+  return `${o.name} no tiene precio: su compra fue en $0 (un regalo), así que el material te va a salir GRATIS. Escribí el precio del rollo a mano o elegí otra opción.`;
 }
