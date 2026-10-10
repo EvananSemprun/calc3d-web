@@ -25,6 +25,7 @@ import {
 } from '@/features/finance/api';
 import { ExpenseModal } from '@/features/finance/ExpenseModal';
 import { useCounterparties } from '@/features/cash/api';
+import { useContacts } from '@/features/contacts/api';
 
 /** Días que duró una campaña (inclusivo). Null si no hay fecha de fin válida. */
 function durationDays(from: string, to?: string | null) {
@@ -34,11 +35,19 @@ function durationDays(from: string, to?: string | null) {
 }
 export function ExpensesPage() {
   const { data: contrapartes = [] } = useCounterparties();
+  // Las opciones del filtro de proveedor son las MISMAS que ofrece el
+  // formulario de gasto: los contactos con tipo Proveedor. Desde 8 opciones el
+  // `Select` saca su buscador solo, así que no hay nada que agregar.
+  const { data: contactos = [] } = useContacts();
+  const proveedores = contactos
+    .filter((c) => c.type === 'SUPPLIER')
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const range = useDateRange('MONTH', 'expenses');
   const { money } = useMoney();
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useExpenses(range);
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [proveedorFilter, setProveedorFilter] = useState<string>('ALL');
   const matchesType = (e: ExpenseRow) => {
     switch (typeFilter) {
       case 'ALL': return true;
@@ -54,7 +63,11 @@ export function ExpensesPage() {
       default: return true;
     }
   };
-  const visibleRows = rows.filter(matchesType);
+  // Se compara por ID y no por nombre: dos proveedores que se llamen parecido
+  // son contactos distintos, y el nombre de uno no puede arrastrar al otro.
+  const matchesProveedor = (e: ExpenseRow) =>
+    proveedorFilter === 'ALL' || e.provider?.id === proveedorFilter;
+  const visibleRows = rows.filter((e) => matchesType(e) && matchesProveedor(e));
   const [open, setOpen] = useState(false);
   const confirm = useConfirm();
 
@@ -109,8 +122,9 @@ export function ExpensesPage() {
             <DateRangePicker range={range} />
           </div>
           <Select
-            className="col-span-full w-full sm:w-48"
+            className="w-full sm:w-48"
             value={typeFilter}
+            aria-label="Filtrar por tipo de gasto"
             onChange={(e) => setTypeFilter(e.target.value)}
           >
             <option value="ALL">Todos los tipos</option>
@@ -123,6 +137,19 @@ export function ExpensesPage() {
             <option value="investment">Inversión</option>
             <option value="owner">Los puso una persona</option>
             <option value="general">General</option>
+          </Select>
+          <Select
+            className="w-full sm:w-48"
+            value={proveedorFilter}
+            aria-label="Filtrar por proveedor"
+            onChange={(e) => setProveedorFilter(e.target.value)}
+          >
+            <option value="ALL">Proveedor: todos</option>
+            {proveedores.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </Select>
         </FilterBar>
         {/* En el teléfono los totales se reparten el ancho en vez de desbordar. */}
@@ -153,7 +180,7 @@ export function ExpensesPage() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <TableSkeleton cols={5} />
+            <TableSkeleton cols={7} />
           ) : visibleRows.length === 0 ? (
             <div className="flex flex-col items-center gap-3 p-12 text-center">
               <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-blue/15 text-brand-blue-bright ring-1 ring-inset ring-brand-blue/30">
@@ -172,6 +199,7 @@ export function ExpensesPage() {
                     <th className="px-4 py-3 font-semibold">Fecha</th>
                     <th className="px-4 py-3 font-semibold">Tipo / Recurso</th>
                     <th className="px-4 py-3 font-semibold">Descripción</th>
+                    <th className="px-4 py-3 font-semibold">Proveedor</th>
                     <th className="px-4 py-3 text-right font-semibold">Cant.</th>
                     <th className="px-4 py-3 text-right font-semibold">Monto</th>
                     <th className="px-4 py-3 font-semibold">Pagó</th>
@@ -210,9 +238,6 @@ export function ExpensesPage() {
                               · duró {durationDays(e.date, e.endDate)} días
                             </span>
                           )}
-                          {e.provider && (
-                            <span className="text-muted-foreground"> · {e.provider.name}</span>
-                          )}
                           {deFactura && (
                             <Tooltip label="Entró por una factura: se corrige en Compras.">
                               <span className="ml-2 cursor-help align-middle">
@@ -221,6 +246,7 @@ export function ExpensesPage() {
                             </Tooltip>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-muted-foreground">{e.provider?.name ?? '—'}</td>
                         <td className="px-4 py-3 text-right tabular">{e.quantity ?? '—'}</td>
                         <td className="px-4 py-3 text-right tabular font-semibold">{money(e.amount)}</td>
                         <td className="px-4 py-3">
