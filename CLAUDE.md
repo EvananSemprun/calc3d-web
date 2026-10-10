@@ -780,6 +780,34 @@ con 133.22 y le quedaban 102.83.
   "Encargo anterior" el 2026-09-14: la condición dejó de dar verdadera y los dos
   segmentos salían del mismo color, sin fallar ni avisar. El texto cambia cuando
   cambia el negocio; la clave no.
+- ⚠️ **La dona la reparte `repartoPorCanal` de shared** (2026-10-10, shared
+  0.36.0), no un `Map` sobre `Sale.kind`. **Encargos = ventas `ENCARGO` + los
+  ABONOS del periodo; mostrador = ventas `COUNTER`**, así que su total es
+  exactamente los KPIs "Ventas" + "Cobrado de encargos" de la misma pantalla.
+  - Armada solo con `Sale.kind` era **ciega a los encargos**: las 25 ventas
+    `ENCARGO` son el histórico semanal del Excel y se cortan el 2026-08-24;
+    desde que la app manda, un encargo cobra **abonos**, no ventas. Con el
+    filtro en octubre decía **100 % mostrador** ($26.75) mientras entraban
+    $114.05 en 4 abonos: faltaba el **81 %** justo en el gráfico cuyo único
+    trabajo es comparar los dos canales, y afirmaba lo contrario de la verdad.
+    `byDay`, `byWeekday` y el KPI ya usaban `paymentRows`; la dona quedó afuera.
+  - ⚠️ **Los abonos NO se convierten en `Sale` ni se suman dos veces**: entran
+    una sola vez, del lado de encargos. El doble conteo es lo que la app evita a
+    propósito desde shared 0.16.0.
+  - ⚠️ **Sus etiquetas NO son `SALE_KIND_LABELS`** (`CANAL_LABELS`, local): ahí
+    `ENCARGO` es "Encargo anterior", correcto en la tabla de Ventas y **falso**
+    en la dona, donde el tramo ya incluye los abonos de hoy.
+  - ⚠️ **La dona NO sigue al selector de canal, y lo dice en su pie.** Filtrada
+    a un canal, una dona de dos tramos solo puede decir "100 %" — justo la
+    mentira que se acaba de arreglar. El selector sí filtra bien los otros dos
+    gráficos: sus series `encargos` salen de `paymentRows`, así que "Solo
+    encargos" muestra los abonos (no hacía falta tocarlo).
+  - ⚠️ **Sus dos colores son los MISMOS que los de los otros tres gráficos por
+    canal** (mostrador oro / encargos azul). Venían al revés: en la misma
+    pantalla el oro significaba mostrador en las barras y encargos en la dona.
+  - ⚠️ `apps/web` **no tiene runner de tests**: el reparto vive en shared
+    (`channels.ts`, 8 tests con números a mano, incluido "un mes solo con
+    abonos no puede dar 100 % mostrador") y acá quedó solo el JSX.
 - **`AnnualIncome` — "Ingresos por mes"** (la tabla del Excel del dueño): bloque
   al final con **su propio selector de año** (derivado de los datos) y, como
   Metas/equilibrio/Reposición, **no responde al filtro de arriba**. Tabla con los

@@ -25,6 +25,8 @@ import {
   monthlyLoanPayments,
   previousDay,
   campaignHealth,
+  repartoPorCanal,
+  type CanalDeIngreso,
   type CashChain,
 } from '@calc3d/shared';
 import { paraEquilibrio, useLoans } from '@/features/loans/api';
@@ -44,7 +46,6 @@ import { DateRangePicker, useDateRange, type RangePreset } from '@/features/fina
 import { storeProductsBelowMargin, useStoreProducts } from '@/features/store/api';
 import {
   LINK_KIND_LABELS,
-  SALE_KIND_LABELS,
   expenseLink,
   useExpenses,
   useSales,
@@ -71,6 +72,20 @@ const PERIODO_EN_CADENA: Record<RangePreset, string> = {
   DAY: 'ese día',
   RANGE: 'en el rango',
   ALL: 'en total',
+};
+
+/**
+ * Las etiquetas de la dona "Mostrador vs encargo".
+ *
+ * ⚠️ **No son `SALE_KIND_LABELS`**, que llama al `kind: 'ENCARGO'` "Encargo
+ * anterior" porque en la tabla de Ventas eso es exactamente lo que son: las 25
+ * filas semanales importadas del Excel. Acá el tramo incluye además los abonos
+ * cobrados en el periodo, así que "anterior" sería falso: son los encargos, a
+ * secas. Dos pantallas, dos verdades distintas sobre el mismo `kind`.
+ */
+const CANAL_LABELS: Record<CanalDeIngreso, string> = {
+  COUNTER: 'Mostrador',
+  ENCARGO: 'Encargos',
 };
 
 const GOLD = '#FFC300';
@@ -159,14 +174,25 @@ export function DashboardPage() {
         encargos: v.encargos,
       }));
 
-    // Mostrador vs Encargo
-    const kindMap = new Map<string, number>();
-    for (const r of saleRows) kindMap.set(r.kind, (kindMap.get(r.kind) ?? 0) + r.amount);
-    const byKind = [...kindMap.entries()].map(([k, v]) => ({
-      kind: k as 'COUNTER' | 'ENCARGO',
-      name: SALE_KIND_LABELS[k as 'COUNTER' | 'ENCARGO'],
-      value: v,
-    }));
+    /**
+     * MOSTRADOR VS ENCARGO. ⚠️ El reparto lo hace `repartoPorCanal` de shared
+     * (función pura, con tests): acá solo se le pasan las dos listas.
+     *
+     * Hasta el 2026-10-10 la dona se armaba SOLO con `Sale.kind` y por eso era
+     * ciega a los encargos: con el filtro en octubre decía **100 % mostrador**
+     * ($26.75) mientras entraban $114.05 en 4 abonos. Faltaba el 81 % de lo
+     * que entró, justo en el gráfico cuyo único trabajo es comparar los dos
+     * canales. El resto de la pantalla ya lo sabía (`byDay`, `byWeekday` y el
+     * KPI "Cobrado de encargos" usan `paymentRows`); la dona quedó afuera.
+     *
+     * ⚠️ Los abonos NO se convierten en ventas: entran UNA vez, del lado de
+     * encargos. Por eso el total de la dona es exactamente
+     * `agg.ventas + agg.abonos` = los KPIs "Ventas" + "Cobrado de encargos"
+     * de arriba, en esta misma pantalla.
+     */
+    const porCanal = repartoPorCanal(saleRows, paymentRows);
+    // La etiqueta visible se agrega acá: `shared` no conoce los textos de la UI.
+    const tramosCanal = porCanal.tramos.map((t) => ({ ...t, name: CANAL_LABELS[t.kind] }));
 
     /**
      * Gasto por tipo de recurso. ⚠️ SIN la inversión en equipos: el KPI de
@@ -221,7 +247,8 @@ export function DashboardPage() {
       historicoCount: historicoRows.length,
       historicoTotal,
       byDay,
-      byKind,
+      porCanal,
+      tramosCanal,
       byResource,
       byWeekday,
     };
@@ -585,17 +612,37 @@ export function DashboardPage() {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Mostrador vs encargo">
+            <ChartCard
+              title="Mostrador vs encargo"
+              /* ⚠️ Dice de qué está hecho cada tramo y que NO sigue al selector
+                 de canal de arriba: filtrada a un canal, una dona de dos
+                 tramos solo puede decir "100 %", que es justo la mentira que
+                 esta tarjeta tenía hasta el 2026-10-10. */
+              footnote={`Encargos = los ${paymentRows.length} abono(s) cobrado(s) en el periodo${
+                agg.historicoCount > 0
+                  ? ` más ${agg.historicoCount} total(es) semanal(es) importado(s) del Excel`
+                  : ''
+              }: un encargo cobra abonos, no genera una venta. El total (${money(
+                agg.porCanal.total,
+              )}) es "Ventas" + "Cobrado de encargos" de arriba. Compara los dos canales, así que no sigue al selector.`}
+            >
               <PieChart>
-                <Pie data={agg.byKind} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3}>
-                  {agg.byKind.map((entry) => (
+                <Pie data={agg.tramosCanal} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                  {agg.tramosCanal.map((entry) => (
                     // Se colorea por la CLAVE (`kind`), no por el texto visible.
                     // Comparaba contra 'Encargo' y la etiqueta pasó a ser
                     // 'Encargo anterior' el 2026-09-14: la condición dejó de
                     // dar verdadera y la dona salía toda azul, sin fallar ni
                     // avisar. El texto cambia cuando cambia el negocio; la
                     // clave no.
-                    <Cell key={entry.kind} fill={entry.kind === 'ENCARGO' ? GOLD : BLUE} stroke="hsl(var(--card))" />
+                    //
+                    // ⚠️ El par de colores es el MISMO que el de los otros tres
+                    // gráficos por canal (mostrador oro / encargos azul). Venía
+                    // al revés, así que en la misma pantalla el oro significaba
+                    // mostrador en las barras y encargos en la dona: dos
+                    // leyendas opuestas se leen mal incluso con los números
+                    // bien.
+                    <Cell key={entry.kind} fill={entry.kind === 'COUNTER' ? GOLD : BLUE} stroke="hsl(var(--card))" />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={tooltipStyle} formatter={(v) => money(Number(v))} />
