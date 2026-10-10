@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  NuevoTipo,
   PurchaseInvoicePaymentDto,
   PurchaseInvoiceUpsertDto,
   PurchaseReceiveDto,
@@ -14,6 +15,12 @@ export interface InvoiceLine {
   printerName: string | null;
   /** Una ficha que todavía no existe: nace al recibir la línea. */
   nombreNuevo: string | null;
+  /**
+   * ⚠️ **QUÉ ficha nace.** `null` solo en una línea del catálogo. Sin este dato
+   * la recepción creaba siempre un filamento, así que encargar una impresora
+   * nueva dejaba un rollo llamado "Impresora A2".
+   */
+  nuevoTipo: NuevoTipo | null;
   quantity: number;
   unitPrice: number;
   received: number;
@@ -133,6 +140,12 @@ export const ETIQUETA_PAGO = {
   PAGADA: 'Pagada',
   PAGADA_DE_MAS: 'Pagada de más',
 } as const;
+
+/** Qué va a nacer al recibir una línea de "algo que todavía no tenés". */
+export const ETIQUETA_NUEVO: Record<NuevoTipo, string> = {
+  MATERIAL: 'filamento nuevo',
+  PRINTER: 'impresora nueva',
+};
 
 export const ETIQUETA_MERCADERIA = {
   SIN_RECIBIR: 'Sin llegar',

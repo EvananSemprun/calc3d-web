@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import type { NuevoTipo } from '@calc3d/shared';
 import { FileText, PackageCheck, Plus, Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -22,6 +23,7 @@ import { useCounterparties } from '@/features/cash/api';
 import { useContacts } from '@/features/contacts/api';
 import {
   ETIQUETA_MERCADERIA,
+  ETIQUETA_NUEVO,
   ETIQUETA_PAGO,
   useAddInvoicePayment,
   useCreateInvoice,
@@ -206,9 +208,11 @@ function FacturaCard({ factura: f }: { factura: PurchaseInvoice }) {
               <li key={l.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span className="min-w-0">
                   {l.materialName ?? l.printerName ?? l.nombreNuevo}
-                  {l.nombreNuevo && !l.materialName && (
+                  {/* ⚠️ Decir QUÉ va a nacer: el nombre no alcanza, y era justo
+                      la pregunta que la pantalla no hacía. */}
+                  {l.nombreNuevo && l.nuevoTipo && !l.materialName && !l.printerName && (
                     <Badge variant="outline" className="ml-1.5">
-                      ficha nueva
+                      {ETIQUETA_NUEVO[l.nuevoTipo]}
                     </Badge>
                   )}
                   <span className="text-muted-foreground">
@@ -393,11 +397,17 @@ function Recibir({
   const [quantity, setQuantity] = useState(l.porRecibir);
   const [date, setDate] = useState(hoyIso());
   const [rollGrams, setRollGrams] = useState(1000);
+  /**
+   * ⚠️ Los gramos son del ROLLO: solo se preguntan si lo que nace es filamento.
+   * Una impresora nace con el precio de la compra y nada más; sus horas de vida
+   * y su consumo se corrigen desde el catálogo.
+   */
   const fichaNueva = l.materialId == null && l.printerId == null;
+  const nacerollo = fichaNueva && l.nuevoTipo === 'MATERIAL';
 
   const guardar = () =>
     recibir.mutate(
-      { id: f.id, lineId: l.id, quantity, date, ...(fichaNueva ? { rollGrams } : {}) },
+      { id: f.id, lineId: l.id, quantity, date, ...(nacerollo ? { rollGrams } : {}) },
       {
         onSuccess: () => {
           notify.success(quantity === l.porRecibir ? 'Llegó completa' : `Entraron ${quantity}`);
@@ -412,6 +422,11 @@ function Recibir({
       <div className="space-y-3">
         <p className="text-sm">
           <strong>{l.materialName ?? l.printerName ?? l.nombreNuevo}</strong>
+          {fichaNueva && l.nuevoTipo && (
+            <Badge variant="outline" className="ml-1.5">
+              {ETIQUETA_NUEVO[l.nuevoTipo]}
+            </Badge>
+          )}
           <span className="text-muted-foreground">
             {' '}
             · pediste {l.quantity}, ya llegaron {l.received}
@@ -428,13 +443,19 @@ function Recibir({
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
         </FieldGrid>
-        {fichaNueva && (
+        {nacerollo && (
           <Field
             label="Gramos del rollo"
             hint="La ficha se crea ahora. Marca, tipo y color los corregís después desde Stock del mes."
           >
             <NumberInput value={rollGrams} onChange={(n) => setRollGrams(Math.max(1, Math.floor(n)))} />
           </Field>
+        )}
+        {fichaNueva && l.nuevoTipo === 'PRINTER' && (
+          <p className="rounded-lg border border-border/70 bg-background/30 p-2 text-xs text-muted-foreground">
+            La impresora se crea ahora con el precio de la compra. Las horas de vida útil y el
+            consumo los corregís después desde Catálogos → Impresoras.
+          </p>
         )}
         <p className="rounded-lg border border-border/70 bg-background/30 p-2 text-xs text-muted-foreground">
           Entra al inventario como una compra de{' '}
@@ -454,9 +475,24 @@ function Recibir({
   );
 }
 
-type Borrador = { tipo: 'material' | 'printer' | 'nuevo'; id: string; nombre: string; quantity: number; unitPrice: number };
+type Borrador = {
+  tipo: 'material' | 'printer' | 'nuevo';
+  id: string;
+  nombre: string;
+  /** Solo cuenta con `tipo: 'nuevo'`: qué ficha va a nacer al recibir. */
+  nuevoTipo: NuevoTipo;
+  quantity: number;
+  unitPrice: number;
+};
 
-const LINEA_VACIA: Borrador = { tipo: 'material', id: '', nombre: '', quantity: 1, unitPrice: 0 };
+const LINEA_VACIA: Borrador = {
+  tipo: 'material',
+  id: '',
+  nombre: '',
+  nuevoTipo: 'MATERIAL',
+  quantity: 1,
+  unitPrice: 0,
+};
 
 function NuevaFactura({ onClose }: { onClose: () => void }) {
   const { money } = useMoney();
@@ -497,6 +533,8 @@ function NuevaFactura({ onClose }: { onClose: () => void }) {
           materialId: l.tipo === 'material' ? l.id : null,
           printerId: l.tipo === 'printer' ? l.id : null,
           nombreNuevo: l.tipo === 'nuevo' ? l.nombre.trim() : null,
+          // ⚠️ El contrato lo EXIGE con `nombreNuevo` y lo PROHÍBE sin él.
+          nuevoTipo: l.tipo === 'nuevo' ? l.nuevoTipo : null,
           quantity: l.quantity,
           unitPrice: l.unitPrice,
         })),
@@ -550,7 +588,14 @@ function NuevaFactura({ onClose }: { onClose: () => void }) {
                 <Field label="Qué es">
                   <Select
                     value={l.tipo}
-                    onChange={(e) => cambiar(i, { tipo: e.target.value as Borrador['tipo'], id: '', nombre: '' })}
+                    onChange={(e) =>
+                      cambiar(i, {
+                        tipo: e.target.value as Borrador['tipo'],
+                        id: '',
+                        nombre: '',
+                        nuevoTipo: 'MATERIAL',
+                      })
+                    }
                   >
                     <option value="material">Filamento del catálogo</option>
                     <option value="printer">Impresora del catálogo</option>
@@ -558,8 +603,17 @@ function NuevaFactura({ onClose }: { onClose: () => void }) {
                   </Select>
                 </Field>
                 {l.tipo === 'nuevo' ? (
-                  <Field label="Nombre" required hint="La ficha se crea cuando llegue.">
-                    <Input value={l.nombre} onChange={(e) => cambiar(i, { nombre: e.target.value })} />
+                  /* ⚠️ La pregunta que faltaba. Sin ella la recepción creaba
+                     siempre un filamento, y una impresora nueva —que por
+                     definición no está en el catálogo— nacía como rollo. */
+                  <Field label="¿Filamento o impresora?" required>
+                    <Select
+                      value={l.nuevoTipo}
+                      onChange={(e) => cambiar(i, { nuevoTipo: e.target.value as NuevoTipo })}
+                    >
+                      <option value="MATERIAL">Un filamento</option>
+                      <option value="PRINTER">Una impresora</option>
+                    </Select>
                   </Field>
                 ) : (
                   <Field label={l.tipo === 'material' ? 'Filamento' : 'Impresora'} required>
@@ -574,6 +628,19 @@ function NuevaFactura({ onClose }: { onClose: () => void }) {
                   </Field>
                 )}
               </FieldGrid>
+              {l.tipo === 'nuevo' && (
+                <Field
+                  label="Nombre"
+                  required
+                  hint={
+                    l.nuevoTipo === 'PRINTER'
+                      ? 'La impresora se crea cuando llegue, con el precio de la compra.'
+                      : 'La ficha del filamento se crea cuando llegue.'
+                  }
+                >
+                  <Input value={l.nombre} onChange={(e) => cambiar(i, { nombre: e.target.value })} />
+                </Field>
+              )}
               <FieldGrid>
                 <Field label="Cantidad" required>
                   <NumberInput

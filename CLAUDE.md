@@ -882,8 +882,16 @@ rechaza crear `ENCARGO`). Lo demás:
     abonar*: si no, el dueño vería entrar mercadería y esperaría que el saldo
     bajara otra vez.
   - Una línea puede ser **algo que todavía no tenés**: la ficha se crea al
-    recibirla, con el precio de la compra y 1000 g. Marca, tipo y color se
-    corrigen después desde Stock del mes.
+    recibirla, con el precio de la compra. ⚠️ **El formulario pregunta si es
+    filamento o impresora** (`nuevoTipo`, shared 0.34.0) y la lista de líneas
+    dice qué va a nacer. Hasta el 2026-10-10 no lo preguntaba y la recepción
+    creaba **siempre** un filamento: encargar una impresora nueva —que por
+    definición NO está en el catálogo, o sea el caso normal— dejaba un rollo
+    llamado "Impresora A2". Los **gramos del rollo solo se piden si lo que nace
+    es filamento**; para una impresora el diálogo avisa que las horas de vida y
+    el consumo se corrigen desde Catálogos → Impresoras. El contrato Zod exige
+    el tipo con `nombreNuevo` y lo prohíbe sin él, así que mandar la línea sin
+    elegir es un 400.
   - **Recepción parcial**: pediste 10, llegaron 6, la línea queda esperando 4.
     El campo se recorta solo a lo que falta.
   - Abonar de más **no se bloquea** —esa plata salió— pero se avisa antes de
