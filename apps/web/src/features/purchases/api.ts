@@ -80,6 +80,11 @@ export function usePurchaseInvoices() {
  *
  * ⚠️ **`cash` siempre**: un abono mueve el saldo del negocio. Y al recibir se
  * tocan el inventario y el precio del rollo, así que también el filamento.
+ *
+ * ⚠️ **`loans` también**, desde que Deuda muestra a los proveedores: un abono
+ * cambia su tercer bloque. Sin esto, con esa pantalla ya abierta en otra
+ * pestaña el número viejo se queda ahí hasta recargar — y es un número de
+ * plata, de los que nadie vuelve a mirar dos veces.
  */
 function useInvoiceMutation<T>(fn: (v: T) => Promise<unknown>) {
   const qc = useQueryClient();
@@ -94,6 +99,7 @@ function useInvoiceMutation<T>(fn: (v: T) => Promise<unknown>) {
         'filament-stock',
         'filament-summary',
         'filament-purchases',
+        'loans',
       ]) {
         qc.invalidateQueries({ queryKey: [key] });
       }
