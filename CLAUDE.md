@@ -411,6 +411,30 @@ al scrollear. Arreglado el 2026-10-05.
   decisión del dueño). La tarjeta "Hay que reponer" cuenta solo las dos
   primeras y anuncia las sugeridas aparte. Los descontinuados nunca entran.
   Se descontinúan desde la ficha (tocando la marca en Stock del mes).
+- **"Armar pedido con lo que falta"** (2026-10-10, shared 0.38.0) — el botón de
+  la `RestockCard` que cierra el circuito stock → pedido: navega a Compras
+  (`/compras`) y abre el diálogo de la factura nueva **ya cargado**. Quién entra
+  lo decide `suggestRestockLines` de shared sobre la **misma** `resumen.restock`
+  que la tarjeta está mostrando (acá no se clasifica nada); el JSX solo cambia
+  de forma y navega.
+  - ⚠️ **Una línea por COLOR, no por ficha**, con una ficha activa del grupo
+    (gana la que ya se compró alguna vez). En la base real 10 de 34 colores
+    tienen más de una ficha activa y el PLA Negro tiene CUATRO marcas: por
+    ficha, el pedido pedía negro cuatro veces.
+  - ⚠️ Solo **Sin rollos** y **Por acabarse**. "Conviene reponer" queda afuera:
+    no es un faltante.
+  - ⚠️ **Es una PROPUESTA**: el diálogo lo dice, se pueden sacar líneas y
+    cambiar cantidades, y **nada se escribe hasta Guardar**.
+  - ⚠️ La ficha **sin compra previa** (o con `rollPrice` en 0 — hay una real,
+    importada del Excel con monto 0) entra con el precio **en blanco**, y
+    `Borrador.unitPrice` es `number | null` para poder representarlo: el botón
+    Guardar se bloquea y el aviso dice cuántas faltan. **Ese campo NO usa
+    `NumberInput`**, que mapea el campo vacío a 0 — con él, vaciar el precio
+    dejaba la línea en $0 y guardable, o sea cargada como si el rollo fuera
+    gratis.
+  - ⚠️ La propuesta viaja en el **estado de la navegación** y se **limpia en el
+    acto** (`navigate(pathname, { replace: true, state: null })`): si quedara,
+    recargar o volver atrás reabriría el diálogo con una propuesta vieja.
 - Los **rollos por identificar** (`needsBrandCheck`, los que vinieron del Excel sin
   marca) se listan aparte; el aviso se apaga al CERRAR el mes (el cierre escribe
   `needsBrandCheck: false` en todas las fichas), no al contarlos a mano.

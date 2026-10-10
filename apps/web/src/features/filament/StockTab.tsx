@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   ChevronLeft,
@@ -9,6 +10,7 @@ import {
   Minus,
   PackageCheck,
   Plus,
+  ShoppingCart,
 } from 'lucide-react';
 import {
   BUSINESS_TIME_ZONE,
@@ -16,8 +18,10 @@ import {
   monthStart,
   previousMonth,
   stockTotal,
+  suggestRestockLines,
   type RestockGroup,
   type StockCountRow,
+  type SuggestedPurchaseLine,
 } from '@calc3d/shared';
 import {
   Badge,
@@ -267,6 +271,28 @@ export function StockTab() {
   const urgentes = resumen?.restock.filter((g) => g.status !== 'SUGGEST').length ?? 0;
   const sugeridos = resumen?.restock.filter((g) => g.status === 'SUGGEST').length ?? 0;
 
+  // ARMAR EL PEDIDO CON LO QUE FALTA. Quién entra y con qué precio lo decide
+  // `suggestRestockLines` en shared, sobre la MISMA lista de reposición que se
+  // está viendo acá arriba: acá no se vuelve a clasificar nada, solo se abre
+  // el diálogo de Compras ya cargado. Nada se escribe hasta que el dueño guarde.
+  const navigate = useNavigate();
+  const propuesta: SuggestedPurchaseLine[] = useMemo(
+    () =>
+      suggestRestockLines(
+        resumen?.restock ?? [],
+        filas.map((f) => ({
+          materialId: f.materialId,
+          name: f.name,
+          type: f.type,
+          color: f.color,
+          status: f.status,
+          lastRollPrice: f.lastRollPrice,
+        })),
+      ),
+    [resumen?.restock, filas],
+  );
+  const armarPedido = () => navigate('/compras', { state: { propuesta } });
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -344,7 +370,12 @@ export function StockTab() {
               />
             </div>
             {resumen.restock.length > 0 && (
-              <RestockCard grupos={resumen.restock} promedio={resumen.averagePurchased} />
+              <RestockCard
+                grupos={resumen.restock}
+                promedio={resumen.averagePurchased}
+                propuesta={propuesta}
+                onArmarPedido={armarPedido}
+              />
             )}
           </>
         ) : null
@@ -906,14 +937,44 @@ const COLUMNAS: {
  * mes a otro, el color es lo que se maneja. Cada columna va de más comprado a
  * menos, para que arriba quede lo que más se usa.
  */
-function RestockCard({ grupos, promedio }: { grupos: RestockGroup[]; promedio: number }) {
+function RestockCard({
+  grupos,
+  promedio,
+  propuesta,
+  onArmarPedido,
+}: {
+  grupos: RestockGroup[];
+  promedio: number;
+  /** Las líneas que armó `suggestRestockLines`: vacío = no hay nada urgente. */
+  propuesta: SuggestedPurchaseLine[];
+  onArmarPedido: () => void;
+}) {
+  const sinPrecio = propuesta.filter((l) => l.unitPrice == null).length;
   return (
     <Card className="border-brand-yellow/40">
       <CardContent className="space-y-4 pt-5">
-        <h3 className="flex items-center gap-2 font-display text-base font-semibold">
-          <PackageCheck className="h-4 w-4 text-brand-yellow-ink" />
-          Lista de reposición
-        </h3>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h3 className="flex items-center gap-2 font-display text-base font-semibold">
+            <PackageCheck className="h-4 w-4 text-brand-yellow-ink" />
+            Lista de reposición
+          </h3>
+          {propuesta.length > 0 && (
+            <div className="flex flex-col items-end gap-0.5">
+              <Button size="sm" variant="accent" onClick={onArmarPedido}>
+                <ShoppingCart className="h-4 w-4" /> Armar pedido con lo que falta
+              </Button>
+              <p className="max-w-xs text-right text-xs text-muted-foreground">
+                {propuesta.length === 1
+                  ? 'Una línea, a un rollo y al último precio que pagaste.'
+                  : `${propuesta.length} líneas, a un rollo cada una y al último precio que pagaste.`}
+                {sinPrecio > 0 &&
+                  (sinPrecio === 1
+                    ? ' Una queda sin precio: nunca la compraste.'
+                    : ` ${sinPrecio} quedan sin precio: nunca las compraste.`)}
+              </p>
+            </div>
+          )}
+        </div>
         <div
           className="grid gap-4"
           style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 15rem), 1fr))' }}
@@ -953,7 +1014,8 @@ function RestockCard({ grupos, promedio }: { grupos: RestockGroup[]; promedio: n
           Por tipo y color, con todas las marcas juntas. «Conviene reponer» son los colores que
           comprás más que el promedio ({promedio.toLocaleString('es', { maximumFractionDigits: 1 })}{' '}
           rollos por color, hasta el cierre del mes) y a los que les queda 1 rollo o menos. Los
-          colores descontinuados no entran.
+          colores descontinuados no entran. El pedido se arma solo
+          con los dos primeros grupos: lo que conviene reponer lo decidís vos.
         </p>
       </CardContent>
     </Card>

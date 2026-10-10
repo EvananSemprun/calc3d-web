@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { NuevoTipo } from '@calc3d/shared';
+import type { NuevoTipo, SuggestedPurchaseLine } from '@calc3d/shared';
 import { FileText, PackageCheck, Plus, Trash2, Undo2 } from 'lucide-react';
 import {
   Badge,
@@ -59,7 +60,22 @@ const tonoMercaderia = (m: PurchaseInvoice['status']['mercaderia']) =>
 export function PurchasesPage() {
   const { money } = useMoney();
   const { data: facturas = [], isLoading } = usePurchaseInvoices();
-  const [creando, setCreando] = useState(false);
+  const [creando, setCreando] = useState<{ propuesta?: SuggestedPurchaseLine[] } | null>(null);
+
+  // "Armar pedido con lo que falta" (Stock del mes) llega acá por el estado de
+  // la navegación: la propuesta la calcula `suggestRestockLines` allá y esta
+  // pantalla solo abre su diálogo ya cargado.
+  const { pathname, state } = useLocation();
+  const navigate = useNavigate();
+  const propuesta = (state as { propuesta?: SuggestedPurchaseLine[] } | null)?.propuesta;
+  useEffect(() => {
+    if (!propuesta?.length) return;
+    setCreando({ propuesta });
+    // ⚠️ El estado se limpia en el acto: si quedara, recargar la página o
+    // volver atrás reabriría el diálogo con una propuesta vieja —de un cierre
+    // de stock que ya no es el último— y el dueño cargaría un pedido fantasma.
+    navigate(pathname, { replace: true, state: null });
+  }, [propuesta, pathname, navigate]);
 
   const pendientePagar = facturas
     .filter((f) => !f.voidedAt)
@@ -78,7 +94,7 @@ export function PurchasesPage() {
             </p>
           </div>
         </div>
-        <Button variant="accent" className="w-full sm:w-auto" onClick={() => setCreando(true)}>
+        <Button variant="accent" className="w-full sm:w-auto" onClick={() => setCreando({})}>
           <Plus className="h-4 w-4" /> Nueva factura
         </Button>
       </div>
@@ -116,7 +132,9 @@ export function PurchasesPage() {
         </ul>
       )}
 
-      {creando && <NuevaFactura onClose={() => setCreando(false)} />}
+      {creando && (
+        <NuevaFactura propuesta={creando.propuesta} onClose={() => setCreando(null)} />
+      )}
     </div>
   );
 }
@@ -524,7 +542,14 @@ type Borrador = {
   /** Solo cuenta con `tipo: 'nuevo'`: qué ficha va a nacer al recibir. */
   nuevoTipo: NuevoTipo;
   quantity: number;
-  unitPrice: number;
+  /**
+   * `null` = EN BLANCO, y el formulario lo pide antes de dejar guardar.
+   *
+   * ⚠️ No es lo mismo que 0: una propuesta armada con lo que falta deja en
+   * blanco el precio de la ficha que nunca se compró, porque proponer 0 sería
+   * cargar la compra como si el rollo fuera gratis.
+   */
+  unitPrice: number | null;
 };
 
 const LINEA_VACIA: Borrador = {
@@ -536,7 +561,32 @@ const LINEA_VACIA: Borrador = {
   unitPrice: 0,
 };
 
-function NuevaFactura({ onClose }: { onClose: () => void }) {
+/**
+ * La propuesta de "armar el pedido con lo que falta" (Stock del mes) traducida
+ * a líneas del formulario. La decide `suggestRestockLines` en shared; acá solo
+ * se cambia de forma.
+ */
+const borradoresDePropuesta = (lineas: SuggestedPurchaseLine[]): Borrador[] =>
+  lineas.map((l) => ({
+    tipo: 'material' as const,
+    id: l.materialId,
+    nombre: '',
+    nuevoTipo: 'MATERIAL' as const,
+    quantity: l.quantity,
+    unitPrice: l.unitPrice,
+  }));
+
+function NuevaFactura({
+  onClose,
+  propuesta,
+}: {
+  onClose: () => void;
+  /**
+   * El pedido armado con lo que falta (Stock del mes). Vacío o ausente = una
+   * factura nueva en blanco, como siempre.
+   */
+  propuesta?: SuggestedPurchaseLine[];
+}) {
   const { money } = useMoney();
   const crear = useCreateInvoice();
   const { data: contactos = [] } = useContacts();
@@ -554,14 +604,23 @@ function NuevaFactura({ onClose }: { onClose: () => void }) {
   const [expectedAt, setExpectedAt] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [reference, setReference] = useState('');
-  const [lineas, setLineas] = useState<Borrador[]>([{ ...LINEA_VACIA }]);
+  const [lineas, setLineas] = useState<Borrador[]>(() =>
+    propuesta?.length ? borradoresDePropuesta(propuesta) : [{ ...LINEA_VACIA }],
+  );
+  const esPropuesta = !!propuesta?.length;
+  const faltantes = propuesta?.filter((l) => l.status === 'OUT') ?? [];
+  const porAcabarse = propuesta?.filter((l) => l.status === 'LOW') ?? [];
+  const sinPrecio = lineas.filter((l) => l.unitPrice == null).length;
 
   const cambiar = (i: number, cambio: Partial<Borrador>) =>
     setLineas((ls) => ls.map((l, n) => (n === i ? { ...l, ...cambio } : l)));
 
-  const total = lineas.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  const total = lineas.reduce((s, l) => s + l.quantity * (l.unitPrice ?? 0), 0);
   const completa = (l: Borrador) =>
-    l.quantity > 0 && l.unitPrice >= 0 && (l.tipo === 'nuevo' ? !!l.nombre.trim() : !!l.id);
+    l.quantity > 0 &&
+    l.unitPrice != null &&
+    l.unitPrice >= 0 &&
+    (l.tipo === 'nuevo' ? !!l.nombre.trim() : !!l.id);
   const sePuede = !!date && lineas.length > 0 && lineas.every(completa);
 
   const guardar = () =>
@@ -578,7 +637,8 @@ function NuevaFactura({ onClose }: { onClose: () => void }) {
           // ⚠️ El contrato lo EXIGE con `nombreNuevo` y lo PROHÍBE sin él.
           nuevoTipo: l.tipo === 'nuevo' ? l.nuevoTipo : null,
           quantity: l.quantity,
-          unitPrice: l.unitPrice,
+          // `sePuede` ya exigió que ninguna esté en blanco.
+          unitPrice: l.unitPrice ?? 0,
         })),
       },
       {
@@ -594,10 +654,26 @@ function NuevaFactura({ onClose }: { onClose: () => void }) {
     <Dialog
       open
       onOpenChange={(a) => !a && onClose()}
-      title="Nueva factura de compra"
+      title={esPropuesta ? 'Pedido con lo que falta' : 'Nueva factura de compra'}
       className="max-h-[90vh] overflow-y-auto"
     >
       <div className="space-y-3">
+        {esPropuesta && (
+          /* ⚠️ Es una PROPUESTA: hasta que no se toque Guardar no se escribe
+             nada. Decirlo acá es lo que la vuelve usable sin miedo. */
+          <p className="rounded-lg border border-brand-blue/40 bg-brand-blue/5 p-2 text-sm">
+            Se armó con el último cierre de stock, a un rollo por color y al último precio que
+            pagaste.
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {faltantes.length > 0 &&
+                `Sin rollos: ${faltantes.map((l) => l.label).join(', ')}. `}
+              {porAcabarse.length > 0 &&
+                `Por acabarse: ${porAcabarse.map((l) => l.label).join(', ')}. `}
+              Sacá las líneas que no quieras y cambiá las cantidades: nada se guarda hasta que
+              toques Guardar.
+            </span>
+          </p>
+        )}
         <FieldGrid>
           <Field label="Fecha de la factura" required>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -690,8 +766,33 @@ function NuevaFactura({ onClose }: { onClose: () => void }) {
                     onChange={(n) => cambiar(i, { quantity: Math.max(1, Math.floor(n)) })}
                   />
                 </Field>
-                <Field label="Precio por unidad (USD)" required>
-                  <NumberInput value={l.unitPrice} onChange={(n) => cambiar(i, { unitPrice: Math.max(0, n) })} />
+                <Field
+                  label="Precio por unidad (USD)"
+                  required
+                  hint={
+                    l.unitPrice == null
+                      ? 'No hay compra previa de esta ficha: poné lo que te va a costar.'
+                      : undefined
+                  }
+                >
+                  {/* ⚠️ Acá NO va `NumberInput`: ese mapea el campo vacío a 0, y
+                      entonces vaciar el precio de una línea propuesta la dejaría
+                      en $0 —guardable, y cargada como si el rollo fuera gratis—
+                      en vez de volver a pedirlo. Vacío tiene que seguir siendo
+                      vacío, que es lo que bloquea el botón Guardar. */}
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    placeholder="0"
+                    value={l.unitPrice ?? ''}
+                    onChange={(e) => {
+                      const t = e.target.value;
+                      if (t.trim() === '') return cambiar(i, { unitPrice: null });
+                      const n = Number(t);
+                      if (!Number.isNaN(n)) cambiar(i, { unitPrice: Math.max(0, n) });
+                    }}
+                  />
                 </Field>
               </FieldGrid>
               {lineas.length > 1 && (
@@ -717,6 +818,15 @@ function NuevaFactura({ onClose }: { onClose: () => void }) {
           <span className="block text-xs text-muted-foreground">
             Cargarla no mueve la Caja. El saldo baja cuando abonás.
           </span>
+          {sinPrecio > 0 && (
+            /* El total de arriba cuenta esas líneas como 0, así que decir por
+               qué no cierra es parte del aviso. */
+            <span className="block text-xs text-destructive">
+              {sinPrecio === 1
+                ? 'Falta el precio de una línea: no hay compra previa de esa ficha.'
+                : `Faltan los precios de ${sinPrecio} líneas: no hay compras previas de esas fichas.`}
+            </span>
+          )}
         </p>
 
         <div className="flex justify-end gap-2 pt-1">
