@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   EmptyState,
   FilterBar,
   Select,
@@ -19,9 +20,12 @@ import { notify } from '@/components/toast';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { useExpenses, type ExpenseRow } from '@/features/finance/api';
 import {
+  CASILLAS,
   TIPOS_DE_GASTO,
   TODOS,
+  etiquetasDeFiltro,
   filaDeGasto,
+  pasaCasillas,
   pasaTipo,
   tipoSeguro,
   totalesGastos,
@@ -40,14 +44,26 @@ export function ExpensesPage() {
   const { money } = useMoney();
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useExpenses(range);
-  // Los dos filtros se RECUERDAN, como el resto del panel (el rango de fechas
-  // de esta misma pantalla ya lo hacía). Cada uno pasa por su valor seguro
-  // antes de usarse: ver `tipoSeguro` y `proveedorSeguro`.
+  // Los CUATRO filtros se RECUERDAN, como el resto del panel (el rango de
+  // fechas de esta misma pantalla ya lo hacía). Los dos de valor cerrado pasan
+  // por su valor seguro antes de usarse: ver `tipoSeguro` y `proveedorSeguro`.
   const [tipoGuardado, setTypeFilter] = usePersistentState('expenses:tipo', TODOS);
   const [proveedorFilter, setProveedorFilter] = usePersistentState(
     'expenses:proveedor',
     TODOS,
   );
+  // ⚠️ Las dos casillas NO necesitan valor seguro, y no es por descuido: un
+  // booleano no tiene valores imposibles. Lo peor que puede dejar un
+  // `localStorage` roto es una casilla marcada de arranque —`usePersistentState`
+  // ya cae al inicial si el JSON no parsea—, y eso **se ve**: la casilla aparece
+  // tildada y el renglón de filtros la nombra. Es exactamente lo que no pasaba
+  // con el tipo, donde un valor retirado vaciaba la tabla sin decir nada.
+  const [soloInversion, setSoloInversion] = usePersistentState(
+    'expenses:solo-inversion',
+    false,
+  );
+  const [soloPersona, setSoloPersona] = usePersistentState('expenses:solo-persona', false);
+  const casillas = { soloInversion, soloPersona };
   const typeFilter = tipoSeguro(tipoGuardado);
   // Las opciones del filtro salen de LAS FILAS CARGADAS, no del directorio
   // entero (el patrón de `PurchasesTab` con `uniqueSorted`): así no se puede
@@ -68,20 +84,33 @@ export function ExpensesPage() {
     : TODOS;
   const matchesProveedor = (e: ExpenseRow) =>
     proveedorSeguro === TODOS || e.provider?.id === proveedorSeguro;
-  const visibleRows = rows.filter((e) => pasaTipo(typeFilter, e) && matchesProveedor(e));
+  // ⚠️ Los cuatro controles se combinan con Y: el tipo es excluyente (un gasto
+  // cae en uno solo) y las casillas son recortes que se aplican ADEMÁS. Así se
+  // puede pedir "filamentos que puso una persona", que con nueve opciones en un
+  // solo desplegable era imposible.
+  const visibleRows = rows.filter(
+    (e) => pasaTipo(typeFilter, e) && matchesProveedor(e) && pasaCasillas(casillas, e),
+  );
 
-  // Qué filtros están puestos, con el mismo texto que el desplegable.
-  const filtrosPuestos = [
-    typeFilter !== TODOS ? TIPOS_DE_GASTO.find((t) => t.value === typeFilter)?.label : null,
-    proveedorSeguro !== TODOS ? proveedores.find((p) => p.id === proveedorSeguro)?.name : null,
-  ].filter((t): t is string => !!t);
+  // Qué filtros están puestos, con el mismo texto que los controles.
+  const filtrosPuestos = etiquetasDeFiltro(
+    typeFilter,
+    casillas,
+    proveedorSeguro !== TODOS
+      ? (proveedores.find((p) => p.id === proveedorSeguro)?.name ?? null)
+      : null,
+  );
   // ⚠️ "Con filtros" solo cambia los textos cuando hay algo que filtrar: en un
   // periodo sin ningún gasto, "ninguno de los 0 pasa el filtro" es peor que
   // decir derecho que no hay gastos.
   const hayFiltros = filtrosPuestos.length > 0 && rows.length > 0;
+  // ⚠️ Limpia LOS CUATRO. Dejar una casilla marcada después de "Quitar filtros"
+  // es un botón que miente, y el total de arriba seguiría siendo el recortado.
   const quitarFiltros = () => {
     setTypeFilter(TODOS);
     setProveedorFilter(TODOS);
+    setSoloInversion(false);
+    setSoloPersona(false);
   };
   const [open, setOpen] = useState(false);
   const confirm = useConfirm();
@@ -185,6 +214,24 @@ export function ExpensesPage() {
               ))}
             </Select>
           )}
+          {/* Las dos casillas transversales, que NO son tipos: se combinan
+              entre sí y con el tipo. Van juntas en UN contenedor
+              `col-span-full` porque "Solo lo que puso una persona" no entra en
+              media fila de teléfono (la columna de `FilterBar` mide 9rem):
+              suelta, el texto se partiría en tres renglones. Con la fila
+              entera, las dos entran a lo ancho y, si no, la segunda baja. */}
+          <div className="col-span-full flex flex-wrap items-center gap-x-4 gap-y-2 sm:col-span-1 sm:w-auto">
+            <Checkbox
+              checked={soloInversion}
+              onChange={setSoloInversion}
+              label={CASILLAS.soloInversion}
+            />
+            <Checkbox
+              checked={soloPersona}
+              onChange={setSoloPersona}
+              label={CASILLAS.soloPersona}
+            />
+          </div>
         </FilterBar>
         {/* En el teléfono los totales se reparten el ancho en vez de desbordar. */}
         <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto">

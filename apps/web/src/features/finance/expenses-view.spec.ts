@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CASILLAS,
   TIPOS_DE_GASTO,
   TODOS,
+  etiquetasDeFiltro,
   filaDeGasto,
+  pasaCasillas,
   pasaTipo,
   tipoSeguro,
   totalesGastos,
@@ -75,8 +78,23 @@ describe('totalesGastos', () => {
 describe('tipoSeguro', () => {
   it('deja pasar un tipo que existe', () => {
     expect(tipoSeguro('material')).toBe('material');
-    expect(tipoSeguro('owner')).toBe('owner');
+    expect(tipoSeguro('printer')).toBe('printer');
     expect(tipoSeguro('general')).toBe('general');
+  });
+
+  /**
+   * ⚠️ **EL CASO REAL DE HOY**, y no una hipótesis: hasta esta misma mañana
+   * `'investment'` y `'owner'` eran opciones del desplegable, así que hay
+   * `localStorage` con esos dos valores guardados. Al salir de la lista (pasaron
+   * a ser casillas) un panel sin esta función abriría la tabla **vacía, con el
+   * desplegable en blanco y sin nada que explique por qué** — justo el bug que
+   * `tipoSeguro` existe para evitar. No alcanza con suponerlo: se fija acá y en
+   * la pantalla (`Expenses.pantalla.spec.tsx`), porque lo que importa es que el
+   * CABLEADO caiga a "todos", no que la función sepa hacerlo.
+   */
+  it('los DOS ejes que salieron de la lista caen a "todos"', () => {
+    expect(tipoSeguro('investment')).toBe('ALL');
+    expect(tipoSeguro('owner')).toBe('ALL');
   });
 
   it('deja pasar "ALL", que es el centinela de "todos"', () => {
@@ -253,23 +271,6 @@ describe('pasaTipo', () => {
     expect(pasaTipo('design', { ...base, category: 'MAINTENANCE' })).toBe(false);
   });
 
-  it('"los puso una persona" es tener contraparte, que es lo que genera deuda', () => {
-    const puestoPorAlguien = {
-      ...base,
-      counterparty: { id: 'c1', name: 'Propietario', kind: 'OWNER' as const },
-    };
-    expect(pasaTipo('owner', puestoPorAlguien)).toBe(true);
-    // `counterparty: null` = lo pagó la caja del negocio y no se le debe a nadie.
-    expect(pasaTipo('owner', base)).toBe(false);
-  });
-
-  it('"inversión" es la marca del gasto, no su categoría', () => {
-    expect(pasaTipo('investment', { ...base, isInvestment: true })).toBe(true);
-    // Categoría de equipo SIN marcar como inversión: no entra. Son dos campos
-    // distintos y el que manda en los totales es `isInvestment`.
-    expect(pasaTipo('investment', { ...base, category: 'EQUIPMENT' })).toBe(false);
-  });
-
   it('"general" es el resto: ni recurso enlazado ni una de las tres categorías', () => {
     expect(pasaTipo('general', base)).toBe(true);
     expect(pasaTipo('general', { ...base, category: 'SHIPPING' })).toBe(true);
@@ -282,25 +283,39 @@ describe('pasaTipo', () => {
     expect(pasaTipo('general', { ...base, category: 'DESIGN' })).toBe(false);
   });
 
-  it('⚠️ "general" EXCLUYE la inversión: cada gasto cae en UN solo filtro', () => {
-    // ⚠️ **Este test decía lo contrario, y a propósito** (hasta el 2026-10-10):
-    // la mudanza de `matchesType` a este archivo no cambiaba lo que la pantalla
-    // hacía, así que fijaba el comportamiento de entonces —una inversión salía
-    // también en "General"— para que el día que se decidiera cambiarlo se viera
-    // que se estaba cambiando una regla. Ese día es hoy.
+  it('⚠️ "general" INCLUYE la inversión que no es ni equipo ni filamento ni insumo', () => {
+    // ⚠️ **Este test afirmó las DOS cosas, y las dos veces a propósito. La
+    // tercera versión es esta, y el porqué de cada vuelta importa más que el
+    // valor esperado:**
     //
-    // **Regla nueva, decidida por el dueño:** "General" significa *lo que no es
-    // filamento, ni impresora, ni inversión*. Una impresora marcada como
-    // inversión y sin ficha enlazada aparecía en "General" **y** en "Inversión"
-    // a la vez: dos filtros mostrando el mismo gasto, las partes sumando más
-    // que el total y ningún filtro siendo "el resto".
-    expect(pasaTipo('general', { ...base, category: 'EQUIPMENT', isInvestment: true })).toBe(false);
-    // Lo que manda es la marca `isInvestment`, no la categoría — igual que en
-    // el filtro "Inversión" y que en los totales de arriba.
-    expect(pasaTipo('general', { ...base, isInvestment: true })).toBe(false);
-    // Y la contracara, para que la exclusión no se coma lo que sí es general:
-    // un gasto suelto que NO es inversión sigue pasando.
-    expect(pasaTipo('general', { ...base, isInvestment: false })).toBe(true);
+    // 1. **Hasta el 2026-10-10** decía que una inversión también salía en
+    //    "General". Fijaba el comportamiento de entonces para que la mudanza de
+    //    `matchesType` a este archivo no cambiara nada sin que se viera.
+    // 2. **Esa mañana** pasó a EXCLUIRLA, por decisión del dueño: con
+    //    `investment` como una de las nueve opciones del desplegable, una
+    //    impresora marcada como inversión y sin ficha enlazada salía en
+    //    "General" **y** en "Inversión" a la vez, las partes sumaban más que el
+    //    total y ninguna etiqueta significaba lo que decía.
+    // 3. **Esa tarde** —hoy— `investment` y `owner` SALIERON de la lista: el
+    //    desplegable mezclaba tres ejes (qué compraste / de qué clase es / cómo
+    //    se cuenta y quién pagó) y ahora los dos transversales son casillas
+    //    combinables. Con siete tipos mutuamente excluyentes, la exclusión de
+    //    la vuelta 2 dejaría un **agujero**: una inversión que no es impresora,
+    //    ni filamento, ni insumo —una herramienta, un mueble— no caería en
+    //    NINGÚN tipo, y las partes volverían a no sumar el total, ahora por el
+    //    otro lado. La decisión anterior era correcta para nueve opciones; en
+    //    siete, estorba.
+    //
+    // La superposición que motivó la vuelta 2 ya no existe por construcción:
+    // "Solo inversión" no es un tipo, es un recorte que se aplica ADEMÁS del
+    // tipo (ver `pasaCasillas`).
+    expect(pasaTipo('general', { ...base, category: 'EQUIPMENT', isInvestment: true })).toBe(true);
+    expect(pasaTipo('general', { ...base, isInvestment: true })).toBe(true);
+    // Y lo que SÍ sigue sacando de "General" es el recurso enlazado: una
+    // inversión con su ficha de impresora es "Impresoras", no "General".
+    expect(
+      pasaTipo('general', { ...base, isInvestment: true, printer: { id: 'p1', name: 'Ender' } }),
+    ).toBe(false);
   });
 
   it('un tipo que no existe deja pasar todo, nunca esconde la lista', () => {
@@ -309,6 +324,11 @@ describe('pasaTipo', () => {
     // el peor resultado posible de un filtro.
     expect(pasaTipo('packaging', base)).toBe(true);
     expect(pasaTipo('', base)).toBe(true);
+    // Los dos que salieron de la lista hoy entran por acá: ya no son tipos, son
+    // casillas. Un guardado viejo cae antes en `tipoSeguro`, que lo manda a
+    // `TODOS`; si igual llegara, el respaldo muestra todo en vez de vaciar.
+    expect(pasaTipo('investment', base)).toBe(true);
+    expect(pasaTipo('owner', base)).toBe(true);
   });
 
   it('cubre TODA la lista: cada tipo del desplegable tiene su rama', () => {
@@ -329,5 +349,122 @@ describe('pasaTipo', () => {
     for (const t of TIPOS_DE_GASTO) {
       expect(candidatos.some((e) => !pasaTipo(t.value, e))).toBe(true);
     }
+  });
+});
+
+/**
+ * LAS DOS CASILLAS TRANSVERSALES.
+ *
+ * ⚠️ **No son tipos y por eso no están en el desplegable** (decisión del dueño,
+ * 2026-10-11). `investment` es *cómo se cuenta* el gasto (lo que el negocio
+ * devuelve) y `owner` es *quién lo pagó*: los dos cruzan con los siete tipos,
+ * así que mezclados en la misma lista una impresora que puso el dueño salía en
+ * tres filtros a la vez y las partes no sumaban el total — y el total es un
+ * número de plata.
+ *
+ * Como son RECORTES y no tipos, se combinan entre sí y con el tipo (es un Y, no
+ * un O): "filamentos que puso Evanan" era imposible con un solo desplegable.
+ */
+describe('pasaCasillas', () => {
+  const base: ExpenseRow = {
+    id: 'g1',
+    date: '2026-10-09T00:00:00.000Z',
+    category: 'OTHER',
+    counterparty: null,
+    description: 'Cinta de embalaje',
+    amount: 12.5,
+    isInvestment: false,
+  };
+  const DUENO = { id: 'c1', name: 'Propietario', kind: 'OWNER' as const };
+  const inversion = { ...base, isInvestment: true };
+  const puestoPorAlguien = { ...base, counterparty: DUENO };
+  const inversionDeAlguien = { ...base, isInvestment: true, counterparty: DUENO };
+  const NINGUNA = { soloInversion: false, soloPersona: false };
+
+  it('sin ninguna marcada no esconde NADA: el gasto suelto también pasa', () => {
+    // ⚠️ La razón de ser del caso: desmarcadas, las casillas no son un filtro.
+    // Si este caso devolviera `false` para algo, la pantalla abriría con filas
+    // escondidas sin que nadie haya filtrado — y los tres totales de arriba,
+    // que suman LO QUE SE VE, dirían menos dinero del que salió.
+    expect(pasaCasillas(NINGUNA, base)).toBe(true);
+    expect(pasaCasillas(NINGUNA, inversion)).toBe(true);
+    expect(pasaCasillas(NINGUNA, puestoPorAlguien)).toBe(true);
+  });
+
+  it('"Solo inversión" mira la MARCA del gasto, no su categoría', () => {
+    const soloInv = { soloInversion: true, soloPersona: false };
+    expect(pasaCasillas(soloInv, inversion)).toBe(true);
+    expect(pasaCasillas(soloInv, base)).toBe(false);
+    // Categoría de equipo SIN marcar como inversión: no entra. Son dos campos
+    // distintos y el que manda en los totales es `isInvestment`.
+    expect(pasaCasillas(soloInv, { ...base, category: 'EQUIPMENT' })).toBe(false);
+  });
+
+  it('"Solo lo que puso una persona" es tener contraparte, que es lo que genera deuda', () => {
+    const soloPers = { soloInversion: false, soloPersona: true };
+    expect(pasaCasillas(soloPers, puestoPorAlguien)).toBe(true);
+    // `counterparty: null` = lo pagó la caja del negocio y no se le debe a nadie.
+    expect(pasaCasillas(soloPers, base)).toBe(false);
+    expect(pasaCasillas(soloPers, inversion)).toBe(false);
+  });
+
+  it('⚠️ LAS DOS SE COMBINAN, y es un Y: la inversión que puso una persona', () => {
+    // Es la pregunta que no se podía hacer con un solo desplegable de nueve
+    // opciones. Con un O, los tres primeros casos pasarían y la respuesta sería
+    // "todo lo que es inversión O lo puso alguien", que no es lo que se pidió.
+    const ambas = { soloInversion: true, soloPersona: true };
+    expect(pasaCasillas(ambas, inversionDeAlguien)).toBe(true);
+    expect(pasaCasillas(ambas, inversion)).toBe(false);
+    expect(pasaCasillas(ambas, puestoPorAlguien)).toBe(false);
+    expect(pasaCasillas(ambas, base)).toBe(false);
+  });
+});
+
+/**
+ * EL RENGLÓN DE "QUÉ FILTROS ESTÁN PUESTOS".
+ *
+ * ⚠️ Existe porque los tres KPIs suman **lo que se ve**: con un filtro puesto,
+ * "Total de lo que se ve" cambia de número y sin este renglón hay que ir a
+ * revisar los controles para saber qué quedó afuera. Un filtro que recorta el
+ * número y no se nombra es un número que cambió solo.
+ *
+ * Los textos salen de `TIPOS_DE_GASTO` y `CASILLAS`, las MISMAS listas que
+ * dibujan los controles: con el texto escrito dos veces, renombrar una opción
+ * deja al renglón diciendo el nombre viejo.
+ */
+describe('etiquetasDeFiltro', () => {
+  const NINGUNA = { soloInversion: false, soloPersona: false };
+
+  it('sin filtros no hay nada que nombrar', () => {
+    expect(etiquetasDeFiltro(TODOS, NINGUNA, null)).toEqual([]);
+  });
+
+  it('nombra el tipo con el MISMO texto del desplegable, y el proveedor', () => {
+    expect(etiquetasDeFiltro('material', NINGUNA, null)).toEqual(['Filamentos']);
+    expect(etiquetasDeFiltro(TODOS, NINGUNA, 'Filaven')).toEqual(['Filaven']);
+    expect(etiquetasDeFiltro('printer', NINGUNA, 'Filaven')).toEqual(['Impresoras', 'Filaven']);
+    // El texto no se escribe acá: sale de la lista que alimenta el `Select`.
+    expect(etiquetasDeFiltro('design', NINGUNA, null)).toEqual([
+      TIPOS_DE_GASTO.find((t) => t.value === 'design')!.label,
+    ]);
+  });
+
+  it('⚠️ NOMBRA LAS CASILLAS: una marcada que no se nombra cambia el total sin decirlo', () => {
+    expect(etiquetasDeFiltro(TODOS, { soloInversion: true, soloPersona: false }, null)).toEqual([
+      CASILLAS.soloInversion,
+    ]);
+    expect(etiquetasDeFiltro(TODOS, { soloInversion: false, soloPersona: true }, null)).toEqual([
+      CASILLAS.soloPersona,
+    ]);
+    expect(etiquetasDeFiltro(TODOS, { soloInversion: true, soloPersona: true }, null)).toEqual([
+      CASILLAS.soloInversion,
+      CASILLAS.soloPersona,
+    ]);
+  });
+
+  it('los cuatro controles juntos, en el orden en que están en la barra', () => {
+    expect(
+      etiquetasDeFiltro('material', { soloInversion: true, soloPersona: true }, 'Filaven'),
+    ).toEqual(['Filamentos', 'Filaven', CASILLAS.soloInversion, CASILLAS.soloPersona]);
   });
 });

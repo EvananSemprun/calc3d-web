@@ -32,6 +32,27 @@ function durationDays(from: string, to?: string | null) {
  * aviso de "qué filtros están puestos" tienen que nombrar el tipo igual. Con el
  * texto escrito dos veces, renombrar una opción deja al aviso diciendo el
  * nombre viejo.
+ *
+ * ⚠️ **SON SIETE Y SON MUTUAMENTE EXCLUYENTES: cada gasto cae en UNO Y SOLO
+ * UNO** (decisión del dueño, 2026-10-11). Hasta ese día eran nueve y la lista
+ * mezclaba **tres ejes distintos**:
+ *
+ * | Eje | Opciones |
+ * |---|---|
+ * | Recursos — *qué compraste* | Impresoras · Filamentos · Insumos |
+ * | Categorías — *de qué clase es* | Mantenimiento · Publicidad · Diseño · General |
+ * | Transversales | ~~Inversión~~ · ~~Los puso una persona~~ |
+ *
+ * Las dos últimas **no son tipos de gasto**: `investment` es *cómo se cuenta*
+ * (lo que el negocio devuelve) y `owner` es *quién pagó*. Por eso cruzaban con
+ * todas las demás —una impresora que puso el dueño salía en "Impresoras", en
+ * "Inversión" **y** en "Los puso una persona"— y con filtros que se solapan
+ * **las partes no suman el total**, que acá es un número de plata. Salieron de
+ * la lista y hoy son las dos casillas combinables de `CASILLAS`.
+ *
+ * ⚠️ Una opción nueva va con su rama en `pasaTipo` (hay un test que recorre
+ * esta lista entera) y **tiene que ser disjunta de las otras seis**: si cruza
+ * con alguna, el lugar es una casilla, no el desplegable.
  */
 export const TIPOS_DE_GASTO = [
   { value: 'printer', label: 'Impresoras' },
@@ -40,8 +61,6 @@ export const TIPOS_DE_GASTO = [
   { value: 'maintenance', label: 'Mantenimiento' },
   { value: 'advertising', label: 'Publicidad' },
   { value: 'design', label: 'Diseño' },
-  { value: 'investment', label: 'Inversión' },
-  { value: 'owner', label: 'Los puso una persona' },
   { value: 'general', label: 'General' },
 ] as const;
 
@@ -52,16 +71,101 @@ export const TIPOS_DE_GASTO = [
 export const TODOS = 'ALL';
 
 /**
+ * LAS DOS CASILLAS TRANSVERSALES, con su texto en UN solo lugar.
+ *
+ * ⚠️ **No son tipos, y por eso no están en el desplegable**: son RECORTES que
+ * se aplican *además* del tipo (decisión del dueño, 2026-10-11 — ver el aviso
+ * de `TIPOS_DE_GASTO`). Al no ser excluyentes se pueden combinar entre sí y con
+ * el tipo, que es lo que habilita preguntas que antes no se podían hacer:
+ * "filamentos que puso Evanan" necesitaba dos filtros a la vez.
+ *
+ * El texto vive acá y no en el JSX porque lo usan DOS lugares: la casilla y el
+ * renglón de "qué filtros están puestos" (`etiquetasDeFiltro`). Escrito dos
+ * veces, renombrar una casilla deja al renglón diciendo el nombre viejo.
+ */
+export const CASILLAS = {
+  soloInversion: 'Solo inversión',
+  soloPersona: 'Solo lo que puso una persona',
+} as const;
+
+/** El estado de las dos casillas. Desmarcadas = no recortan nada. */
+export interface Casillas {
+  /** `isInvestment`: *cómo se cuenta* el gasto (lo que el negocio devuelve). */
+  soloInversion: boolean;
+  /** `counterparty`: *quién pagó*. Sin contraparte lo pagó la caja del negocio. */
+  soloPersona: boolean;
+}
+
+/**
+ * ¿El gasto pasa las casillas?
+ *
+ * ⚠️ **Es un Y, no un O**: con las dos marcadas se piden los gastos que son
+ * inversión **y** los puso una persona. Con un O la respuesta sería "lo que es
+ * inversión o lo puso alguien", que es más que cada una por separado — y lo que
+ * se pidió es cruzarlas.
+ *
+ * ⚠️ Desmarcadas no esconden NADA. Una casilla que recortara de más no da
+ * error: deja la fila afuera de la tabla y los tres totales de arriba —que
+ * suman lo que se ve— diciendo menos dinero del que salió.
+ */
+export function pasaCasillas(c: Casillas, e: ExpenseRow): boolean {
+  if (c.soloInversion && !e.isInvestment) return false;
+  if (c.soloPersona && e.counterparty == null) return false;
+  return true;
+}
+
+/**
+ * Los nombres de los filtros puestos, para el renglón "Se ven N de M · filtros:
+ * …" y para el vacío "ninguno de los M pasa el filtro (…)".
+ *
+ * ⚠️ **Las casillas TIENEN que estar acá.** Los tres KPIs suman *lo que se ve*:
+ * si una casilla recorta la lista y el renglón no la nombra, el número de
+ * arriba cambia sin que nada lo explique, y hay que ir a revisar cuatro
+ * controles para saber qué quedó afuera.
+ *
+ * El orden es el de los controles en la barra (tipo · proveedor · casillas):
+ * leer el renglón y mirar la barra tienen que dar lo mismo.
+ */
+export function etiquetasDeFiltro(
+  tipo: string,
+  casillas: Casillas,
+  proveedor: string | null,
+): string[] {
+  return [
+    tipo !== TODOS ? TIPOS_DE_GASTO.find((t) => t.value === tipo)?.label : null,
+    proveedor,
+    casillas.soloInversion ? CASILLAS.soloInversion : null,
+    casillas.soloPersona ? CASILLAS.soloPersona : null,
+  ].filter((t): t is string => !!t);
+}
+
+/**
  * El valor del filtro de tipo que SE PUEDE usar.
  *
  * ⚠️ **Hace falta porque el filtro se PERSISTE.** Mientras vivía en un
  * `useState` arrancaba siempre en "todos" y un valor imposible no podía
  * existir; guardado en `localStorage` sí puede —una opción retirada o
  * renombrada, un valor de una versión anterior, el almacenamiento editado a
- * mano— y entonces ningún gasto pasa el filtro: la tabla se abre **vacía, con
- * el desplegable en blanco y sin nada que explique por qué**. Es la misma
+ * mano— y entonces el filtro queda apuntando a algo que no existe. Es la misma
  * regla que ya seguían el filtro de proveedor de esta pantalla, los de Ventas
  * (`valorSeguro`) y los de Stock del mes.
+ *
+ * ⚠️ **Y el caso dejó de ser hipotético el 2026-10-11**: `'investment'` y
+ * `'owner'` fueron opciones del desplegable hasta esa mañana, así que hay
+ * `localStorage` real con esos dos valores guardados. Caen a `TODOS` por el
+ * camino normal, sin caso especial, y hay test de la función **y** de la
+ * pantalla: lo que importa es que el cableado los pase por acá.
+ *
+ * ⚠️ **QUÉ SE ROMPE SIN ESTO, medido por mutación ese mismo día** (y no es lo
+ * que esta función decía antes): **la tabla NO se vacía**. El respaldo de
+ * `pasaTipo` es *mostrar* (`default: true`), así que un valor que no está en su
+ * `switch` deja pasar todos los gastos igual — quitarle el `tipoSeguro(…)` a la
+ * pantalla no tumbaba un solo test hasta que se midió lo correcto. Lo que queda
+ * roto es el **control**: el `Select` no encuentra una opción con ese valor y el
+ * trigger se queda **en blanco**, un filtro del que no se puede saber qué está
+ * filtrando. Lo fija `Expenses.pantalla.spec.tsx` leyendo el TEXTO del
+ * desplegable. La red de la tabla sigue haciendo falta igual, por si alguien
+ * agrega una rama a `pasaTipo` sin agregar su opción a `TIPOS_DE_GASTO`.
  */
 export function tipoSeguro(guardado: string): string {
   // ⚠️ Sin caso especial para `TODOS`: no está en la lista, así que
@@ -88,16 +192,9 @@ export function tipoSeguro(guardado: string): string {
  * llega ahí, porque el valor pasa antes por `tipoSeguro`; es la red por si
  * alguien llama a esta función con otra cosa.
  *
- * ⚠️ **"General" es el RESTO y es disjunto de todo** (2026-10-10): de los tres
- * recursos, de las tres categorías y de la inversión. Lo que queda superpuesto
- * —y queda a propósito, pendiente de decisión del dueño— son otros dos pares,
- * los dos porque el desplegable mezcla EJES distintos en una sola lista:
- * - **"Los puso una persona"** cruza con todos: es *quién pagó*, no *qué se
- *   compró*. Una impresora que puso el propietario sale en "Impresoras" y acá.
- * - **"Inversión"** cruza con "Impresoras" / "Filamentos" / "Insumos" cuando el
- *   gasto está enlazado a una ficha: es *cómo se cuenta* (lo que el negocio
- *   devuelve), no el recurso.
- * Separarlos de verdad pide dos filtros, no nueve opciones en uno.
+ * ⚠️ **"General" es el RESTO de los otros SEIS tipos, y nada más** (2026-10-11):
+ * ni recurso enlazado ni una de las tres categorías. Los dos ejes
+ * transversales ya no se filtran acá — son casillas (`pasaCasillas`).
  */
 export function pasaTipo(filtro: string, e: ExpenseRow): boolean {
   switch (filtro) {
@@ -108,15 +205,22 @@ export function pasaTipo(filtro: string, e: ExpenseRow): boolean {
     case 'maintenance': return e.category === 'MAINTENANCE';
     case 'advertising': return e.category === 'ADVERTISING';
     case 'design': return e.category === 'DESIGN';
-    case 'owner': return e.counterparty != null;
-    case 'investment': return e.isInvestment;
-    // ⚠️ "General" es EL RESTO, y para eso tiene que excluir también la
-    // inversión (2026-10-10, decisión del dueño): una impresora marcada como
-    // inversión y sin ficha enlazada salía en "General" **y** en "Inversión" a
-    // la vez. Dos filtros mostrando el mismo gasto hacen que las partes sumen
-    // más que el total, y entonces ninguna de las dos etiquetas significa lo
-    // que dice.
-    case 'general': return !e.material && !e.printer && !e.component && !e.isInvestment && e.category !== 'MAINTENANCE' && e.category !== 'ADVERTISING' && e.category !== 'DESIGN';
+    // ⚠️ **"General" NO excluye la inversión, y esto se revirtió a propósito**
+    // (2026-10-11). Unas horas antes SÍ la excluía, por decisión del dueño: con
+    // `investment` como una de las NUEVE opciones del desplegable, una
+    // impresora marcada como inversión y sin ficha enlazada salía en "General"
+    // **y** en "Inversión" a la vez, las partes sumaban más que el total y
+    // ninguna de las dos etiquetas significaba lo que decía.
+    //
+    // Con `investment` fuera de la lista esa exclusión **estorba**: los siete
+    // tipos son disjuntos y "General" es el resto de verdad, así que una
+    // inversión que no es impresora, ni filamento, ni insumo —una herramienta,
+    // un mueble— no caería en NINGÚN tipo y las partes volverían a no sumar el
+    // total, ahora por el otro lado. La decisión anterior era correcta para
+    // nueve opciones; en siete, no. La superposición que la motivó ya no existe
+    // por construcción: "Solo inversión" es un recorte que se aplica ADEMÁS del
+    // tipo, no una opción que compita con él.
+    case 'general': return !e.material && !e.printer && !e.component && e.category !== 'MAINTENANCE' && e.category !== 'ADVERTISING' && e.category !== 'DESIGN';
     default: return true;
   }
 }

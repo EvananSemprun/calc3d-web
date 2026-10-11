@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/overlays';
 import type { ExpenseRow } from '@/features/finance/api';
@@ -71,8 +71,10 @@ const DE_FACTURA: ExpenseRow = {
 };
 
 /**
- * UNA INVERSIÓN SIN FICHA ENLAZADA: el caso exacto del gasto que aparecía en
- * DOS filtros a la vez ("General" e "Inversión") hasta el 2026-10-10.
+ * UNA INVERSIÓN SIN FICHA ENLAZADA, pagada por la caja del negocio. Es el gasto
+ * que aparecía en DOS filtros a la vez ("General" e "Inversión") hasta el
+ * 2026-10-10 y que hoy vuelve a "General": con `investment` fuera del
+ * desplegable, si "General" lo siguiera excluyendo no caería en NINGÚN tipo.
  */
 const INVERSION: ExpenseRow = {
   id: 'g3',
@@ -84,13 +86,31 @@ const INVERSION: ExpenseRow = {
   isInvestment: true,
 };
 
+/**
+ * EL GASTO QUE CRUZA LOS TRES EJES A LA VEZ: es una inversión (cómo se cuenta),
+ * la puso una persona (quién pagó) y tiene su ficha de impresora enlazada (qué
+ * se compró). Con nueve opciones en un solo desplegable salía en tres filtros
+ * distintos; es el caso que motivó la decisión del dueño.
+ */
+const PUESTA_POR_EL_DUENO: ExpenseRow = {
+  id: 'g4',
+  date: '2026-10-09T00:00:00.000Z',
+  category: 'EQUIPMENT',
+  counterparty: { id: 'c1', name: 'Propietario', kind: 'OWNER' },
+  description: 'Impresora P1S que puso el dueño',
+  amount: 700,
+  isInvestment: true,
+  printer: { id: 'pr1', name: 'P1S' },
+};
+
 const CONTRAPARTES = [
   { id: 'c1', name: 'Propietario', kind: 'OWNER', isDefault: true, active: true, notes: null },
 ];
 
 function montar() {
   mocks.get.mockImplementation((url: string) => {
-    if (url === '/expenses') return Promise.resolve({ data: [A_MANO, DE_FACTURA, INVERSION] });
+    if (url === '/expenses')
+      return Promise.resolve({ data: [A_MANO, DE_FACTURA, INVERSION, PUESTA_POR_EL_DUENO] });
     if (url === '/counterparties') return Promise.resolve({ data: CONTRAPARTES });
     // El resto de lo que consulta la pantalla (ajustes, tasas) no cambia nada
     // de lo que se mide acá: sin ajustes, `useMoney` cae a USD/en-US. Va `null`
@@ -193,36 +213,191 @@ describe('Gastos: el filtro de tipo', () => {
 
     expect(screen.queryAllByText('Cinta de embalaje')).toHaveLength(0);
     // Y se dice qué quedó afuera: los totales de arriba suman LO QUE SE VE.
-    expect(screen.getByText(/Se ven 1 de 3 gasto\(s\) del periodo/)).toBeInTheDocument();
+    expect(screen.getByText(/Se ven 1 de 4 gasto\(s\) del periodo/)).toBeInTheDocument();
   });
 
   /**
-   * ⚠️ **"General" ya no incluye la inversión** (2026-10-10, decisión del
-   * dueño): es *lo que no es filamento, ni impresora, ni inversión*.
+   * ⚠️ **"General" VUELVE a incluir la inversión** (2026-10-11, decisión del
+   * dueño), y el motivo es el cambio de hoy: con `investment` fuera del
+   * desplegable, los siete tipos son mutuamente excluyentes y "General" es el
+   * resto de verdad. Si siguiera excluyendo la inversión, una inversión que no
+   * es impresora, ni filamento, ni insumo no caería en NINGÚN tipo y las partes
+   * volverían a no sumar el total, ahora por el otro lado.
    *
    * Va acá y no solo en el spec de `pasaTipo` por la misma razón que el test de
-   * arriba: nueve ramas testeadas no prueban que la pantalla las llame bien. Y
-   * lo que el dueño va a mirar no es una función, es que la impresora deje de
-   * salir en dos filtros — con el total de "lo que se ve" acompañando.
+   * arriba: las ramas testeadas no prueban que la pantalla las llame bien.
    */
-  it('con "General" guardado esconde la inversión y deja el gasto suelto', async () => {
+  it('con "General" guardado SÍ se ve la inversión sin ficha, y no la que tiene ficha', async () => {
     localStorage.setItem('expenses:tipo', JSON.stringify('general'));
-
-    montar();
-    await screen.findAllByText('Cinta de embalaje');
-
-    expect(screen.queryAllByText('Impresora A1 mini')).toHaveLength(0);
-    expect(screen.queryAllByText('PLA Negro de la factura 0012')).toHaveLength(0);
-    expect(screen.getByText(/Se ven 1 de 3 gasto\(s\) del periodo/)).toBeInTheDocument();
-  });
-
-  it('con "Inversión" guardado deja SOLO la inversión: el gasto suelto no se cuela', async () => {
-    localStorage.setItem('expenses:tipo', JSON.stringify('investment'));
 
     montar();
     await screen.findAllByText('Impresora A1 mini');
 
+    // Lo que SÍ saca de "General" es el recurso enlazado (filamento, impresora).
+    expect(screen.queryAllByText('PLA Negro de la factura 0012')).toHaveLength(0);
+    expect(screen.queryAllByText('Impresora P1S que puso el dueño')).toHaveLength(0);
+    expect(screen.getByText(/Se ven 2 de 4 gasto\(s\) del periodo/)).toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ **EL FILTRO GUARDADO DE AYER NO PUEDE VACIAR LA TABLA.** `'investment'`
+   * y `'owner'` eran opciones del desplegable hasta esta mañana, así que hay
+   * `localStorage` real con esos valores. `tipoSeguro` los manda a "todos" —
+   * pero lo que hay que probar es el CABLEADO: que la pantalla pase el valor
+   * por esa función antes de filtrar. Sin eso, la tabla se abre vacía con el
+   * desplegable en blanco y nada que explique por qué.
+   */
+  it('un tipo guardado que YA NO EXISTE ("investment") cae a "todos" y no vacía la tabla', async () => {
+    localStorage.setItem('expenses:tipo', JSON.stringify('investment'));
+
+    montar();
+    await screen.findAllByText('Cinta de embalaje');
+
+    // Los cuatro gastos a la vista: el valor viejo no filtra nada.
+    expect(screen.getAllByText('Impresora A1 mini')).toHaveLength(2);
+    expect(screen.getAllByText('PLA Negro de la factura 0012')).toHaveLength(2);
+    // Y sin filtros puestos el cartel vuelve a ser el del periodo entero.
+    expect(screen.queryByText(/Se ven \d+ de 4 gasto\(s\)/)).not.toBeInTheDocument();
+    expect(screen.getByText('Total del periodo')).toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ **LO QUE `tipoSeguro` PROTEGE DE VERDAD ES EL DESPLEGABLE, y esto lo
+   * destapó una mutación** (2026-10-11): quitarle el `tipoSeguro(…)` al
+   * cableado de la pantalla **no tumbaba ni un test**. El motivo es que el
+   * respaldo de `pasaTipo` es *mostrar* (`default: true`), así que un valor que
+   * no está en el `switch` deja pasar todos los gastos igual y la tabla NO se
+   * vacía — al contrario de lo que decía el comentario de la función.
+   *
+   * Lo que sí queda roto es el control: el `Select` de marca no encuentra
+   * ninguna opción con ese valor y el trigger se queda **en blanco**, o sea un
+   * filtro del que no se puede saber qué está filtrando. Por eso se mide el
+   * TEXTO del desplegable y no solo las filas.
+   */
+  it('el desplegable no queda EN BLANCO con un tipo retirado: dice "Todos los tipos"', async () => {
+    localStorage.setItem('expenses:tipo', JSON.stringify('owner'));
+
+    montar();
+    await screen.findAllByText('Cinta de embalaje');
+
+    expect(screen.getByLabelText('Filtrar por tipo de gasto')).toHaveTextContent(
+      'Todos los tipos',
+    );
+  });
+
+  it('un tipo guardado que ya no existe ("owner") tampoco esconde nada', async () => {
+    localStorage.setItem('expenses:tipo', JSON.stringify('owner'));
+
+    montar();
+    await screen.findAllByText('Cinta de embalaje');
+
+    expect(screen.getAllByText('Impresora P1S que puso el dueño')).toHaveLength(2);
+    expect(screen.getByText('Total del periodo')).toBeInTheDocument();
+  });
+});
+
+/**
+ * LAS DOS CASILLAS: «Solo inversión» y «Solo lo que puso una persona».
+ *
+ * ⚠️ Son los dos ejes que salieron del desplegable (decisión del dueño,
+ * 2026-10-11) y lo que se prueba acá es el CABLEADO, no `pasaCasillas`: que la
+ * pantalla las lea, las combine con el tipo, las nombre en el renglón de
+ * filtros y recalcule los totales de arriba. Con la función probada caso por
+ * caso, una pantalla que no la llamara —o que llamara con las dos en `false`—
+ * no tumbaría ningún test de función pura.
+ *
+ * ⚠️ **Toda ausencia se mide DESPUÉS de esperar algo presente** de la misma
+ * respuesta `/expenses`: un `queryBy` antes de que lleguen los datos da 0 por
+ * el motivo equivocado (la trampa documentada en `Dashboard.pantalla.spec`).
+ */
+describe('Gastos: las dos casillas', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.get.mockReset();
+  });
+
+  it('al marcar "Solo inversión" deja las dos inversiones y nombra la casilla', async () => {
+    montar();
+    await esperarLaLista();
+
+    fireEvent.click(screen.getByLabelText('Solo inversión'));
+
+    await screen.findByText(/Se ven 2 de 4 gasto\(s\) del periodo/);
     expect(screen.queryAllByText('Cinta de embalaje')).toHaveLength(0);
-    expect(screen.getByText(/Se ven 1 de 3 gasto\(s\) del periodo/)).toBeInTheDocument();
+    expect(screen.getAllByText('Impresora A1 mini')).toHaveLength(2);
+    expect(screen.getAllByText('Impresora P1S que puso el dueño')).toHaveLength(2);
+    // El renglón la nombra con el MISMO texto de la casilla: un recorte que
+    // cambia el total y no se nombra es un número que cambió solo.
+    expect(screen.getByText(/filtros: Solo inversión\./)).toBeInTheDocument();
+    // Y los KPIs cuentan el recorte: 240 + 700, no los $1,012.50 del periodo.
+    expect(screen.getByText('Total de lo que se ve')).toBeInTheDocument();
+    expect(screen.queryByText('$1,012.50')).not.toBeInTheDocument();
+    // Dos veces porque lo que quedó a la vista es TODO inversión: el mismo
+    // número sale en "Total de lo que se ve" y en "De inversión".
+    expect(screen.getAllByText('$940.00')).toHaveLength(2);
+  });
+
+  it('"Solo lo que puso una persona" se guarda y se aplica al volver a la pantalla', async () => {
+    // Se persiste como el resto de los filtros del panel: es el caso real de
+    // volver a Gastos con la casilla de la visita anterior.
+    localStorage.setItem('expenses:solo-persona', JSON.stringify(true));
+
+    montar();
+    await screen.findAllByText('Impresora P1S que puso el dueño');
+
+    expect(screen.queryAllByText('Cinta de embalaje')).toHaveLength(0);
+    expect(screen.queryAllByText('Impresora A1 mini')).toHaveLength(0);
+    expect(
+      screen.getByText(/Se ven 1 de 4 gasto\(s\) del periodo · filtros: Solo lo que puso una persona\./),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Solo lo que puso una persona')).toBeChecked();
+  });
+
+  it('⚠️ LAS DOS SE COMBINAN entre sí: la inversión que puso una persona', async () => {
+    localStorage.setItem('expenses:solo-inversion', JSON.stringify(true));
+    localStorage.setItem('expenses:solo-persona', JSON.stringify(true));
+
+    montar();
+    await screen.findAllByText('Impresora P1S que puso el dueño');
+
+    // Con una sola de las dos se verían 2 (solo inversión) o 1; combinadas, la
+    // única que cumple las dos. Si la pantalla ignorara una, este 1 sería 2.
+    expect(screen.queryAllByText('Impresora A1 mini')).toHaveLength(0);
+    expect(screen.getByText(/Se ven 1 de 4 gasto\(s\) del periodo/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/filtros: Solo inversión · Solo lo que puso una persona\./),
+    ).toBeInTheDocument();
+  });
+
+  it('⚠️ SE COMBINAN CON EL TIPO, y el vacío nombra los tres', async () => {
+    // "Filamentos que puso una persona" es justo la pregunta que no se podía
+    // hacer con un solo desplegable. Acá no hay ninguno, y el vacío tiene que
+    // distinguir "no hay gastos" de "ninguno pasa el filtro".
+    localStorage.setItem('expenses:tipo', JSON.stringify('material'));
+    localStorage.setItem('expenses:solo-persona', JSON.stringify(true));
+
+    montar();
+
+    expect(
+      await screen.findByText(
+        /Ninguno de los 4 gasto\(s\) del periodo pasa el filtro \(Filamentos · Solo lo que puso una persona\)\./,
+      ),
+    ).toBeInTheDocument();
+    // Y el botón es "Quitar filtros", no "Registrar gasto": el gasto ya existe.
+    expect(screen.getByRole('button', { name: 'Quitar filtros' })).toBeInTheDocument();
+  });
+
+  it('"Quitar filtros" también DESMARCA las casillas', async () => {
+    localStorage.setItem('expenses:solo-inversion', JSON.stringify(true));
+
+    montar();
+    await screen.findAllByText('Impresora A1 mini');
+    // Dos botones "Quitar filtros" no: con filas visibles solo está el del
+    // renglón. El del vacío aparece cuando no pasa ninguna.
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar filtros' }));
+
+    await screen.findAllByText('Cinta de embalaje');
+    expect(screen.getByLabelText('Solo inversión')).not.toBeChecked();
+    expect(screen.getByText('Total del periodo')).toBeInTheDocument();
   });
 });

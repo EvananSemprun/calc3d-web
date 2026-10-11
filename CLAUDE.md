@@ -263,8 +263,8 @@ al scrollear. Arreglado el 2026-10-05.
 - **Filtros = SELECTS, no buscador de texto** (decisión del dueño, 2026-09-14). Las
   listas filtran con `Select` sobre valores cerrados (Pedidos: Estado/Cliente;
   Contactos: Tipo/Ciudad; Catálogo: Nombre; Tienda: Categoría/Estado; Compras de
-  filamento: Filamento/Proveedor; Gastos: Tipo/Proveedor; Stock:
-  Color/Marca/Tipo/Estado). Opciones con
+  filamento: Filamento/Proveedor; Gastos: Tipo/Proveedor **+ dos casillas**;
+  Stock: Color/Marca/Tipo/Estado). Opciones con
   `uniqueSorted` (`lib/utils.ts`) y siempre un **valor "seguro"**: si lo guardado ya
   no existe, cae a "todos" (si no, select en blanco y lista vacía). **Única
   excepción: Contactos** lleva `SearchInput` solo por nombre y teléfono (por
@@ -938,58 +938,101 @@ al scrollear. Arreglado el 2026-10-05.
   - **El vacío distingue los dos casos**: "sin gastos en este periodo" vs
     "ninguno de los M pasa el filtro", y en el segundo el botón es "Quitar
     filtros" y no "Registrar gasto" — mandaría a cargar un gasto que ya existe.
-  - ⚠️ Los textos de los tipos viven en `TIPOS_DE_GASTO`, una sola lista que
-    alimenta el desplegable **y** el aviso de filtros: con el texto escrito dos
-    veces, renombrar una opción deja al aviso diciendo el nombre viejo.
+  - ⚠️ Los textos de los filtros viven en `TIPOS_DE_GASTO` y `CASILLAS`, dos
+    listas que alimentan los controles **y** el renglón de filtros: con el texto
+    escrito dos veces, renombrar una opción deja al aviso diciendo el nombre
+    viejo. El renglón lo arma `etiquetasDeFiltro(tipo, casillas, proveedor)`,
+    pura y con test, y **tiene que nombrar las casillas**: un recorte que cambia
+    el total sin nombrarse es un número que cambió solo.
   - **LO QUE DERIVA ESTA PANTALLA VIVE EN `features/finance/expenses-view.ts`**
-    (2026-10-10), como Ventas con `sales-view.ts`: `TIPOS_DE_GASTO`, `TODOS`,
-    `tipoSeguro`, `pasaTipo`, `totalesGastos`, `filaDeGasto` y el tipo
-    `FilaGasto`. La pantalla se queda con el JSX, los hooks y las mutaciones.
+    (2026-10-10), como Ventas con `sales-view.ts`: `TIPOS_DE_GASTO`, `CASILLAS`,
+    `TODOS`, `tipoSeguro`, `pasaTipo`, `pasaCasillas`, `etiquetasDeFiltro`,
+    `totalesGastos`, `filaDeGasto` y los tipos `FilaGasto` y `Casillas`. La
+    pantalla se queda con el JSX, los hooks y las mutaciones.
     ⚠️ No es prolijidad: mientras vivían dentro de `pages/Expenses.tsx`, su spec
     las importaba DESDE la pantalla y arrastraba React, React Query y axios para
     probar una suma — un import roto en cualquier rincón de la pantalla tumbaba
     el test de una función intacta y el fallo señalaba al lugar equivocado.
     `matchesType` era un closure de 9 ramas **sin un solo test**: salió tal cual
-    como `pasaTipo(filtro, gasto)` y hoy tiene las nueve cubiertas.
-  - ⚠️ **"General" NO incluye las inversiones** (2026-10-10, decisión del
-    dueño): significa *lo que no es filamento, ni impresora, ni inversión*.
-    Hasta ese día la rama `general` de `pasaTipo` no miraba `isInvestment`, así
-    que una impresora marcada como inversión y **sin ficha enlazada** aparecía
-    en "General" **y** en "Inversión" a la vez: las partes sumaban más que el
-    total y ninguna de las dos etiquetas significaba lo que decía.
-    - El test que fijaba el comportamiento anterior estaba puesto **a
-      propósito** (la mudanza a `expenses-view.ts` no cambiaba nada de lo que la
-      pantalla hacía) justo para que este cambio no pasara en silencio. Hizo su
-      trabajo: se cambió con su comentario, que ahora dice la regla nueva.
-    - ⚠️ **Quedan DOS superposiciones más, sin tocar porque son decisión de
-      producto**, y las dos por el mismo motivo: el desplegable mezcla EJES
-      distintos en una sola lista. **"Los puso una persona"** cruza con todos
-      (es *quién pagó*, no *qué se compró*) e **"Inversión"** cruza con
-      Impresoras / Filamentos / Insumos cuando el gasto está enlazado a una
-      ficha (es *cómo se cuenta*). Separarlas de verdad pide dos filtros, no
-      nueve opciones en uno. Anotadas en el comentario de `pasaTipo`.
-  - **LOS DOS FILTROS SE RECUERDAN** (2026-10-10): `usePersistentState` con
-    `expenses:tipo` y `expenses:proveedor`, como el resto del panel (el rango de
-    fechas de esta pantalla ya lo hacía, con `daterange:expenses:*`). Los dos
-    pasan por su **valor seguro** antes de usarse.
+    como `pasaTipo(filtro, gasto)` y hoy son siete, todas cubiertas.
+  - ⚠️ **UN DESPLEGABLE DE TIPO + DOS CASILLAS COMBINABLES** (2026-10-11,
+    decisión del dueño). Hasta esa fecha el desplegable tenía NUEVE opciones y
+    mezclaba **tres ejes distintos**: recursos (*qué compraste*: Impresoras ·
+    Filamentos · Insumos), categorías (*de qué clase es*: Mantenimiento ·
+    Publicidad · Diseño · General) y dos **transversales** que no son tipos de
+    gasto — `investment` es *cómo se cuenta* (lo que el negocio devuelve) y
+    `owner` es *quién pagó*. Cruzaban con todas las demás: una impresora que
+    puso el dueño salía en "Impresoras", en "Inversión" **y** en "Los puso una
+    persona", y con filtros que se solapan **las partes no suman el total** —
+    que acá es un número de plata.
+    - **El desplegable quedó con los SIETE tipos de verdad, mutuamente
+      excluyentes**: cada gasto cae en uno y solo uno. `investment` y `owner`
+      SALIERON de la lista.
+    - **Al lado, dos casillas** (`CASILLAS`, `pasaCasillas`): **«Solo
+      inversión»** y **«Solo lo que puso una persona»**. Se combinan entre sí
+      **y** con el tipo, con un Y: así se puede pedir "filamentos que puso
+      Evanan", que con un solo desplegable era imposible.
+    - ⚠️ **Esto REVIRTIÓ la exclusión de la inversión en "General"** que se
+      había decidido esa misma mañana (y que tenía su test puesto para que no
+      pasara en silencio — hizo su trabajo justo acá). Con nueve opciones, una
+      inversión sin ficha enlazada salía en "General" y en "Inversión" a la vez.
+      Con siete tipos disjuntos, esa exclusión dejaría un **agujero**: una
+      inversión que no es impresora, ni filamento, ni insumo —una herramienta,
+      un mueble— no caería en NINGÚN tipo y las partes volverían a no sumar el
+      total, ahora por el otro lado. La decisión anterior era correcta para
+      nueve opciones; en siete, estorba. El test dice las tres vueltas y por
+      qué: `expenses-view.spec.ts`, *"general INCLUYE la inversión…"*.
+    - ⚠️ **Una opción nueva del desplegable tiene que ser DISJUNTA de las otras
+      seis.** Si cruza con alguna, el lugar es una casilla.
+  - **LOS CUATRO FILTROS SE RECUERDAN** (2026-10-10, las casillas el 2026-10-11):
+    `usePersistentState` con `expenses:tipo`, `expenses:proveedor`,
+    `expenses:solo-inversion` y `expenses:solo-persona`, como el resto del panel
+    (el rango de fechas de esta pantalla ya lo hacía, con `daterange:expenses:*`).
+    Los dos de valor cerrado pasan por su **valor seguro** antes de usarse.
+    - ⚠️ **Las casillas NO llevan valor seguro, y no es un olvido**: un booleano
+      no tiene valores imposibles. `usePersistentState` ya cae al inicial si el
+      JSON no parsea, y un JSON válido pero raro se lee por verdad (`0`/`null`/
+      `""` → sin marcar; `1`/`"x"` → marcada). Lo peor que puede pasar es abrir
+      con una casilla marcada, y eso **se ve**: la casilla aparece tildada y el
+      renglón de filtros la nombra. Es exactamente lo que NO pasaba con el tipo.
+    - ⚠️ **Un `expenses:tipo` viejo con `'investment'`/`'owner'` existe de
+      verdad** (fueron opciones hasta esa mañana) y cae a "todos" por
+      `tipoSeguro`, sin caso especial. Con test de la función y de la pantalla.
     - ⚠️ **El de tipo no lo tenía, y persistir sin eso es el bug.** En un
       `useState` arrancaba siempre en "todos" y un valor imposible no podía
       existir; guardado en localStorage sí puede —una opción retirada o
-      renombrada, un valor de una versión anterior— y entonces ningún gasto pasa
-      el filtro: **la tabla se abre vacía, con el desplegable en blanco y sin
-      nada que explique por qué**. Lo cierra `tipoSeguro` (pura, con test), que
-      cae a "todos" igual que el de proveedor.
+      renombrada, un valor de una versión anterior— y el filtro queda apuntando
+      a algo que no existe. Lo cierra `tipoSeguro` (pura, con test), que cae a
+      "todos" igual que el de proveedor.
+    - ⚠️ **QUÉ SE ROMPE SIN `tipoSeguro`, y NO es lo que decía acá** (medido por
+      mutación el 2026-10-11): **la tabla no se vacía**. El respaldo de
+      `pasaTipo` es *mostrar* (`default: true`), así que un valor que no está en
+      su `switch` deja pasar todo igual — quitarle el `tipoSeguro(…)` al
+      cableado de la pantalla **no tumbaba ni un test**. Lo que queda roto es el
+      **control**: el `Select` no encuentra opción con ese valor y el trigger se
+      queda **en blanco**, un filtro del que no se puede saber qué filtra. Hay
+      un test de pantalla que lee el TEXTO del desplegable. La red de la tabla
+      sigue haciendo falta por si alguien agrega una rama a `pasaTipo` sin
+      agregar su opción a `TIPOS_DE_GASTO`.
     - El test de `tipoSeguro` **recorre TODA la lista** `TIPOS_DE_GASTO`: una
-      opción nueva que se olvide de la función rompe el test en vez de vaciar la
-      tabla.
+      opción nueva que se olvide de la función rompe el test en vez de dejar el
+      desplegable en blanco.
     - ⚠️ `TODOS` (= `'ALL'`) es el centinela de "no filtrar" de **los dos**
-      filtros, en una constante. Es un valor y no la ausencia de uno porque el
-      `Select` de marca prohíbe `value=""`.
+      filtros de valor cerrado, en una constante. Es un valor y no la ausencia
+      de uno porque el `Select` de marca prohíbe `value=""`.
     - ⚠️ No hay caso especial para `TODOS` dentro de `tipoSeguro`: no está en la
       lista, cae por el camino normal y el respaldo **es ese mismo valor**. Un
       `if (guardado === TODOS) return TODOS` arriba sería **código muerto** —
       devuelve lo mismo y ninguna mutación puede tumbarlo—; se escribió y se
       borró el mismo día.
+  - **LAS DOS CASILLAS VAN JUNTAS EN UN `col-span-full`** (2026-10-11). Con
+    cuatro controles en la barra (periodo, tipo, proveedor y las dos casillas),
+    a 375 px `FilterBar` es una grilla `auto-fit minmax(9rem, 1fr)` que da **dos
+    columnas de ~166 px**: ahí "Solo lo que puso una persona" se partiría en
+    tres renglones. Las dos casillas van en **un** contenedor
+    `col-span-full sm:col-span-1` con `flex-wrap`, así que se reparten la fila
+    entera y, si no entran las dos, la segunda baja — el mismo criterio que el
+    `DateRangePicker`. Queda: periodo / tipo + proveedor / casillas.
   - **TARJETAS EN EL TELÉFONO** (2026-10-10): era la última lista de finanzas sin
     ellas. Medido ese día: a 375 px la tabla medía **884 px dentro de un
     contenedor de 341**, o sea el 39 % de la fila a la vista y el resto de
@@ -1841,16 +1884,19 @@ reparto por canal, los totales de Gastos).
   limpia en el `beforeEach`: sin limpiar, un tipo elegido en un test deja la
   lista vacía en el siguiente y los `queryAllBy…` dan 0 por el motivo
   equivocado.
-- Qué hay hoy: **140 tests en 12 archivos** (2026-10-10). ⚠️ **El total sale del
+- Qué hay hoy: **162 tests en 12 archivos** (2026-10-11). ⚠️ **El total sale del
   runner** (`pnpm --filter @calc3d/web test`), y la lista de abajo dice PARA QUÉ
   es cada archivo sin repetir su conteo: la versión anterior de esta línea
   afirmaba "101 en 7 archivos" con 123 en 10 y tres archivos sin nombrar — un
   número escrito a mano envejece sin que nada falle.
   - `features/finance/expenses-view.spec.ts` — `totalesGastos`, `tipoSeguro`,
-    `filaDeGasto` y `pasaTipo`.
+    `filaDeGasto`, `pasaTipo`, `pasaCasillas` y `etiquetasDeFiltro`.
   - `pages/Expenses.pantalla.spec.tsx` (jsdom, el primer test de componente) —
-    la fila de factura sin tacho y con el pagador apagado, y los filtros de tipo
-    guardados.
+    la fila de factura sin tacho y con el pagador apagado, el filtro de tipo
+    guardado (incluido uno **retirado**, que cae a "todos" y deja el desplegable
+    diciendo "Todos los tipos") y las dos casillas: que recorten, que se
+    combinen entre sí y con el tipo, que el renglón las nombre y que "Quitar
+    filtros" las desmarque.
   - `features/calculator/materialOptions.spec.ts` — el selector de filamento por
     tipo, la ventana de 6 meses y la ficha sin precio, más
     `features/calculator/Filamento.pantalla.spec.tsx` (jsdom) para su cableado.
@@ -1888,6 +1934,13 @@ reparto por canal, los totales de Gastos).
   `pasaTipo` probada rama por rama, cambiar la llamada de la pantalla a
   `pasaTipo(TODOS, e)` —o sea, dejar de filtrar— **no tumbaba ni un test**. Al
   extraer un closure a función pura, el cableado necesita su propio test.
+- ⚠️ **Y una mutación que tumba MENOS de lo esperado es un hallazgo, no
+  suerte** (2026-10-11): quitarle el `tipoSeguro(…)` al cableado de Gastos no
+  tumbaba nada, porque el `default: true` de `pasaTipo` ya mostraba todo. El
+  comentario de la función afirmaba que sin ella *"la tabla se abre vacía"*, y
+  era falso: lo que se rompe es el **desplegable**, que queda en blanco. Se
+  estaba creyendo proteger la propiedad equivocada; hoy hay un test que lee el
+  texto del `Select` y el comentario dice lo que de verdad pasa.
 
 ## A qué API le habla el panel
 
