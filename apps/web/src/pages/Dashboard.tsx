@@ -39,6 +39,8 @@ import {
   monthlyLoanPayments,
   campaignHealth,
   repartoPorCanal,
+  repartoDePagadores,
+  textoDeReparto,
   type CanalDeIngreso,
   type CashChain,
 } from '@calc3d/shared';
@@ -172,6 +174,38 @@ export function DashboardPage() {
     const utilidad = ingresos - gastosOperativos;
 
     /**
+     * DE DÓNDE SALIÓ LA PLATA DE ESOS GASTOS (2026-10-11, shared 0.50.0).
+     *
+     * El dueño leyó «GASTOS $202.00» y creyó que la caja había soltado $202.
+     * Soltó $142: $50 los puso él de su bolsillo y $10 todavía no se pagaron
+     * (el Cyan, factura de StratoFill). El KPI no mentía —dice cuánto se
+     * gastó, que es otra pregunta—, pero sin el desglose al lado no hay forma
+     * de leerlo bien.
+     *
+     * ⚠️ **El reparto lo hace `repartoDePagadores` de shared**, la MISMA
+     * definición que escribe la línea de cada compra en Filamento → Compras
+     * (`notaDePagador`). Acá no se cuenta nada: solo se le pasan las filas.
+     * Dos lugares calculando "cuánto de esto pagó la caja" es exactamente el
+     * bug que produjo este lío.
+     *
+     * ⚠️ **Sobre las MISMAS filas que suma el KPI** —las que no son inversión
+     * en equipos—, para que las tres partes cierren contra el número de
+     * arriba. Un desglose que no cuadra, parado al lado del total, destruye la
+     * confianza en los dos números. (`reparto.total` es `gastosOperativos`
+     * redondeado al centavo, que es como se muestran los dos.)
+     */
+    const reparto = repartoDePagadores(
+      expenseRows
+        .filter((r) => !r.isInvestment)
+        .map((r) => ({
+          amount: r.amount,
+          counterpartyId: r.counterparty?.id ?? null,
+          counterpartyName: r.counterparty?.name ?? null,
+          invoice: r.invoice ?? null,
+        })),
+    );
+
+    /**
      * Ingresos por día, SEPARADOS POR CANAL (2026-10-02). Saber si la plata de
      * un día entró por mostrador o por abonos de encargos dice más que el total
      * solo. Sin el histórico semanal, que no es diario (ver arriba).
@@ -260,6 +294,7 @@ export function DashboardPage() {
       gastosOperativos,
       utilidad,
       inversion,
+      reparto,
       // Ticket promedio SOLO de mostrador: las 25 filas del histórico son
       // semanas, no ventas, y dividir entre ellas inflaba el promedio.
       ticket: mostradorRows.length ? mostradorRows.reduce((s, r) => s + r.amount, 0) / mostradorRows.length : 0,
@@ -420,15 +455,28 @@ export function DashboardPage() {
           value={<NumberTicker value={agg.abonos} format={money} />}
           sub={moneyAlt ? `≈ ${moneyAlt(agg.abonos)}` : 'abonos del periodo'}
         />
+        {/*
+          ⚠️ EL PIE DICE DE DÓNDE SALIÓ LA PLATA, y GANA el renglón cuando
+          tiene algo que decir (2026-10-11). El dueño leyó «GASTOS $202.00» y
+          se creyó $202 más pobre de caja: $50 los había puesto él y $10 no
+          estaban pagados. Ese dato desplaza a los otros tres pies —la
+          inversión, la moneda alterna y "filamento + generales"—, que son
+          contexto y no una lectura equivocada del número de arriba.
+
+          Cuando la caja pagó todo, `textoDeReparto` devuelve null y el
+          renglón se queda EXACTAMENTE como estaba: el silencio es el caso
+          normal, y un pie en todas las tarjetas no se lee en ninguna.
+        */}
         <Stat
           label="Gastos"
           value={<NumberTicker value={agg.gastosOperativos} format={money} />}
           sub={
-            agg.inversion > 0
+            textoDeReparto(agg.reparto, money) ??
+            (agg.inversion > 0
               ? `+ ${money(agg.inversion)} de inversión en equipos`
               : moneyAlt
                 ? `≈ ${moneyAlt(agg.gastosOperativos)}`
-                : 'filamento + generales'
+                : 'filamento + generales')
           }
         />
         {/*

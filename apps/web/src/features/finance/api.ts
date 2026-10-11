@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import type { FilamentPurchaseInvoice } from '@calc3d/shared';
 import { api } from '@/lib/api';
 import type { DateRange } from '@/features/finance/DateRange';
 import type { CounterpartyKind } from '@/features/cash/api';
@@ -47,6 +48,17 @@ export interface ExpenseRow {
    * 400; la pantalla no tiene que ofrecer lo que sabe que va a fallar.
    */
   purchaseInvoiceLineId?: string | null;
+  /**
+   * La FACTURA de la que nació, con lo que falta pagarle al proveedor.
+   *
+   * ⚠️ Lo usa el pie del KPI de Gastos (`repartoDePagadores`, en shared): el
+   * saldo es de la FACTURA y por eso viajan también su `total` y sus `lineas`
+   * — sin ellos, una factura de cuatro líneas sumaría su saldo cuatro veces.
+   *
+   * ⚠️ **Solo lo devuelve `GET /expenses`.** Las mutaciones devuelven la fila
+   * cruda y el panel recarga la lista, así que es opcional en el tipo.
+   */
+  invoice?: FilamentPurchaseInvoice | null;
 }
 
 /** Tipo de recurso al que se enlaza un gasto (o ninguno). */

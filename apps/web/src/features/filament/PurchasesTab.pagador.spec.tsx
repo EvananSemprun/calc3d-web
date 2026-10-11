@@ -54,6 +54,7 @@ const compra = (over: Partial<FilamentPurchase> & { id: string }): FilamentPurch
 const factura = (over: Partial<NonNullable<FilamentPurchase['invoice']>> = {}) => ({
   id: 'f1',
   saldo: 10,
+  total: 25,
   lineas: 1,
   ...over,
 });
