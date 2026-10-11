@@ -30,7 +30,8 @@ Vite importa.
     `index.css`, claro/oscuro; `brand.*` en `tailwind.config.js`):
     `#000814` (fondo), `#001D3D` (tarjetas), `#003566` (azul primario/bordes),
     `#FFC300` (oro/acento), `#FFD60A` (oro hover, `brand-yellow-hover`). El texto
-    usa blanco/gris por legibilidad; rojo/verde solo para error/éxito. Fuentes:
+    usa blanco/gris por legibilidad; rojo/verde/ámbar solo para
+    error/éxito/advertencia (ver "Rojo vs ámbar en los avisos"). Fuentes:
     Bricolage Grotesque (display), Hanken Grotesk (texto), JetBrains Mono (cifras).
     Concepto visual: **"panel de precisión"** (oro sobre navy profundo, malla de
     gradiente + textura blueprint, superficies *glass*, profundidad por glow).
@@ -310,6 +311,53 @@ al scrollear. Arreglado el 2026-10-05.
   notificaciones de éxito/error (no `alert()` nativo).
 - **Contraste (auditoría AA)**: única falla histórica = `--success` claro sobre
   blanco (4.09:1) → se oscureció a `152 55% 32%` (5.01:1). El resto pasa AA.
+
+#### Rojo vs ámbar en los avisos (2026-10-11, decisión del dueño)
+
+Había **dos clases de aviso pintadas del mismo rojo**: el que frena y el que
+solo advierte. Con el mismo color para las dos cosas, **el color no informa
+nada** — si el rojo aparece también cuando podés seguir, deja de querer decir
+"pará".
+
+- **`destructive` (rojo) = te FRENA o algo YA está mal.** El servidor va a
+  rechazar lo que estás por guardar y el botón queda apagado (`SIN_SALDO` del
+  diálogo de abonar, las líneas sin precio de una factura nueva), o es un
+  hecho consumado: un fetch que falló, un `apiErrorMessage`, un descuadre
+  entre el detalle y su línea, plata que falta en la cuenta.
+- **`warning` (ámbar) = se puede guardar, pero mirá esto.** La operación es
+  legítima y se registra igual (abonar de más, el saldo a favor que salta de
+  una factura a otra, un contador de horas que retrocede, la atribución
+  opcional del faltante de caja).
+- ⚠️ **Una CIFRA en rojo NO entra en esta regla y no se toca**: un saldo
+  negativo, un markup bajo cero, un descuadre. Ahí el rojo ya significa otra
+  cosa ("está en negativo"), no "bloquea". Tampoco entran los íconos de borrar,
+  los `variant="destructive"` ni los `tone: 'destructive'` de las
+  confirmaciones de borrado.
+- ⚠️ **Dos excepciones DOCUMENTADAS que se quedan en rojo aunque no frenen**, y
+  no son descuidos: el estado `LOW` de la calculadora (`ResultPanel`, ver "La
+  calculadora") y el precio bajo el costo de una ficha de la tienda. Las dos por
+  la misma razón: bajar el precio sin darse cuenta es el error que más caro
+  sale, y un aviso tibio es justo lo que un panel bonito esconde.
+- El token y sus contrastes medidos viven en `apps/web/src/index.css`, al lado
+  de `--success`. ⚠️ **El ámbar hay que oscurecerlo**: `amber-600` (#d97706), el
+  que la app venía usando a mano en ~20 lugares, da **3.18:1** sobre blanco y no
+  pasa AA como texto. `--warning` claro es `38 92% 30%` (5.40:1 sobre la
+  tarjeta, 4.72:1 sobre `bg-warning/10`) y oscuro `38 95% 56%`, con
+  `--warning-foreground` navy —no blanco— porque sobre un ámbar brillante el
+  blanco da 1.9:1.
+- ⚠️ **El token llegó tarde: `pages/Goals.tsx` ya usaba `border-warning/50
+  bg-warning/10 text-warning` para su aviso de temporada, y `warning` NO estaba
+  registrado en `tailwind.config.js`.** Tailwind no genera una clase de un color
+  que no existe, así que esas tres clases **no se emitían** y el aviso salía
+  **sin color ninguno** — sin borde, sin fondo y en el gris del texto normal.
+  Nada fallaba: ni el build, ni los tipos, ni los tests (jsdom no aplica CSS).
+  Medido comparando el CSS generado con el `tailwind.config.js` de HEAD contra
+  el nuevo. Es el modo de fallar de esta familia de cambios: **si agregás una
+  clase de color, verificá que salga en el CSS compilado**, no que compile.
+- ⚠️ **Los `amber-*` sueltos de Tailwind siguen ahí** (Dashboard, Purchases,
+  Store, CampaignDetail, `Badge variant="warning"`): no se migraron en este
+  cambio y **no pasan AA como texto en claro**. Lo nuevo va con el token; si
+  tocás uno de esos, pasalo a `warning` de paso.
 
 ### La calculadora (UNA pantalla, `features/calculator/`)
 

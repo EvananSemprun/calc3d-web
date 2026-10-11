@@ -120,8 +120,10 @@ function Fila({ fila, month }: { fila: PrinterReadingRow; month: string }) {
           'Sin dato del mes'
         )}
       </div>
+      {/* ÁMBAR: `guardarSiCambio` guarda en el `onBlur` igual, así que esto
+          avisa, no frena (ver la regla en `index.css`). */}
       {retrocede && (
-        <p className="text-xs text-destructive sm:col-span-3">
+        <p className="text-xs text-warning sm:col-span-3">
           Estás anotando menos horas que el mes anterior ({fila.previous!.hours} h). El contador
           solo sube: revisá el número antes de salir del campo.
         </p>

@@ -1129,8 +1129,12 @@ function ReconciliationDialog({
               </div>
             )}
 
+            {/* ÁMBAR y no rojo: la atribución es OPCIONAL y no frena nada —
+                se confirma igual con la casilla apagada. El rojo de arriba es
+                el error del servidor, que sí frena. Mismo criterio que la
+                casilla de atribución automática en `CashAccountsCard`. */}
             {atribuible && (
-              <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+              <div className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3">
                 <label className="flex items-start gap-2 text-sm">
                   <input
                     type="checkbox"

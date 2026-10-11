@@ -719,8 +719,10 @@ function Abonar({
             {money(aviso.tomado)}. Bajá el monto o abonalo con plata.
           </p>
         )}
+        {/* ÁMBAR, no rojo: se guarda igual. El rojo de arriba es el único que
+            frena (ver la regla en `index.css`). */}
         {aviso?.clase === 'PAGA_DE_MAS' && (
-          <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-xs">
+          <p className="rounded-lg border border-warning/40 bg-warning/10 p-2 text-xs">
             Estás abonando {money(aviso.deMas)} más de lo que falta. Se registra igual —la plata
             salió— y queda marcado como pagado de más.
           </p>
@@ -731,9 +733,10 @@ function Abonar({
             inventa— y por eso NO bloquea; lo que no puede pasar es que ocurra
             sin que el dueño vea cuánto va a quedar a favor en la factura nueva.
             Mismo estilo que el aviso de "pagado de más" de arriba, que también
-            es legítimo y también deja guardar. */}
+            es legítimo y también deja guardar: los dos van en ÁMBAR, que es
+            justo lo que los distingue del de `SIN_SALDO`. */}
         {aviso?.clase === 'SALDO_QUE_SALTA' && (
-          <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-xs">
+          <p className="rounded-lg border border-warning/40 bg-warning/10 p-2 text-xs">
             {aviso.yaEstabaPaga ? (
               <>
                 Esta factura ya está paga, así que los {money(aviso.quedaAFavor)} que tomes quedan
