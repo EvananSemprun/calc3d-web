@@ -238,3 +238,113 @@ describe('Aviso: falta contar el stock del mes anterior', () => {
     expect(screen.getByText(/Faltan 2 conteos de stock/)).toBeInTheDocument();
   });
 });
+
+describe('Aviso: hace mucho que no leés el contador de horas', () => {
+  it('con la última lectura de hace más de un mes avisa y dice cuánto hace', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const { cargar } = montar({ lecturas: ['2026-09'] });
+    await cargar();
+
+    expect(
+      screen.getByText('Hace 51 días que no anotás las horas de tus impresoras.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Hace 51 días/).closest('a')).toHaveAttribute('href', '/production');
+  });
+
+  it('con la lectura del mes pasado NO avisa: todavía está a tiempo', async () => {
+    // Hoy 10/10 y la última lectura es de septiembre: la de octubre se anota a
+    // fin de mes. Avisar acá sería molestar sin que nada esté atrasado.
+    const { cargar } = montar({ lecturas: ['2026-09'] });
+    await cargar();
+
+    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+  });
+
+  it('si NUNCA se leyó un contador, el aviso NO dice "hace N días"', async () => {
+    const { cargar } = montar({ lecturas: [null, null] });
+    await cargar();
+
+    // "Hace N días desde la última" no se puede decir sin una última lectura:
+    // el aviso dice otra cosa.
+    expect(screen.getByText('Nunca anotaste las horas de tus impresoras.')).toBeInTheDocument();
+    expect(screen.queryByText(/Hace \d+ días/)).not.toBeInTheDocument();
+  });
+
+  it('sin impresoras cargadas no avisa nada', async () => {
+    const { cargar } = montar({ lecturas: [] });
+    await cargar();
+
+    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nunca anotaste/)).not.toBeInTheDocument();
+  });
+
+  it('se puede descartar, y vuelve al cambiar el mes', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const primera = montar({ lecturas: ['2026-09'] });
+    await primera.cargar();
+
+    fireEvent.click(screen.getByLabelText('Descartar el aviso de las lecturas de horas'));
+    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+
+    primera.unmount();
+    mocks.hoy.valor = '2026-12-01';
+    const segunda = montar({ lecturas: ['2026-09'] });
+    await segunda.cargar();
+
+    expect(screen.getByText(/anotás las horas/)).toBeInTheDocument();
+  });
+});
+
+describe('Los avisos conviven', () => {
+  /**
+   * ⚠️ **Los dos descartes son INDEPENDIENTES.** Cada uno guarda en su clave
+   * (`dashboard:aviso-conteo` y `dashboard:aviso-lecturas`): con la clave
+   * copiada y pegada, callar uno callaría al otro — y el que se perdería es el
+   * que el dueño no eligió callar, que es la peor forma de perder un aviso.
+   */
+  it('callar el del conteo no calla el de las lecturas', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const { cargar } = montar({ ultimoCierre: '2026-08', lecturas: ['2026-09'] });
+    await cargar();
+
+    // Los dos a la vez, cada uno con su enlace.
+    expect(screen.getByText(SIN_CONTEO).closest('a')).toHaveAttribute(
+      'href',
+      '/filament/stock?mes=2026-10',
+    );
+    expect(screen.getByText(/anotás las horas/).closest('a')).toHaveAttribute(
+      'href',
+      '/production',
+    );
+
+    fireEvent.click(screen.getByLabelText('Descartar el aviso del conteo de octubre de 2026'));
+
+    expect(screen.queryByText(SIN_CONTEO)).not.toBeInTheDocument();
+    expect(screen.getByText(/anotás las horas/)).toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ **EL CASO QUE DESTAPÓ LA MUTACIÓN.** El test de arriba pasaba igual con
+   * las dos claves pisadas, porque los dos avisos guardan meses DISTINTOS (el
+   * del conteo guarda el mes pendiente; el de las lecturas, el mes en curso).
+   * Donde el valor coincide es un mes después: callar las lecturas en noviembre
+   * guarda `'2026-11'`, y en diciembre el conteo pendiente ES noviembre. Con
+   * una sola clave, ese aviso aparecería **ya callado sin que nadie lo
+   * callara** — un aviso perdido en silencio, que es justo lo que esta fase
+   * tiene que evitar.
+   */
+  it('callar las lecturas en noviembre no calla el conteo de noviembre en diciembre', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const primera = montar({ ultimoCierre: '2026-10', lecturas: ['2026-09'] });
+    await primera.cargar();
+    fireEvent.click(screen.getByLabelText('Descartar el aviso de las lecturas de horas'));
+    primera.unmount();
+
+    mocks.hoy.valor = '2026-12-05';
+    const segunda = montar({ ultimoCierre: '2026-10', lecturas: ['2026-09'] });
+    await segunda.cargar();
+
+    // El conteo pendiente ahora es noviembre: nadie lo descartó, tiene que estar.
+    expect(screen.getByText('Falta contar el stock de noviembre de 2026.')).toBeInTheDocument();
+  });
+});

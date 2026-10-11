@@ -19,6 +19,7 @@ import {
   LineChart as LineIcon,
   AlertTriangle,
   ClipboardList,
+  Gauge,
   Megaphone,
   PackageX,
   X,
@@ -27,6 +28,7 @@ import {
   breakEvenProgress,
   conteoDeStockPendiente,
   equilibrioYCompromiso,
+  lecturaDeHorasPendiente,
   cashChain,
   cashChainCuts,
   facturasAtrasadas,
@@ -59,6 +61,7 @@ import {
 import { storeProductsBelowMargin, useStoreProducts } from '@/features/store/api';
 import { usePurchaseInvoices } from '@/features/purchases/api';
 import { useLastClosedStockMonth } from '@/features/filament/api';
+import { usePrinterUsage } from '@/features/equipment/usage';
 import {
   LINK_KIND_LABELS,
   expenseLink,
@@ -396,6 +399,7 @@ export function DashboardPage() {
       <CampaignAlert />
       <AtrasoDeCompraAlert />
       <StockCountAlert />
+      <LecturaDeHorasAlert />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -1016,6 +1020,57 @@ function CampaignAlert() {
           {alerts.length > 3 ? '…' : ''}. Revísalas antes de seguir invirtiendo.
         </>
       }
+    />
+  );
+}
+
+/**
+ * Aviso proactivo: hace mucho que no se lee el contador de horas de ninguna
+ * máquina (2026-10-10).
+ *
+ * Hay DOS lecturas desde que existe la pantalla de Producción, las dos del
+ * mismo mes: no era una pantalla de más, era una pantalla sin aviso. Decisión
+ * del dueño: va el recordatorio y la pantalla se queda.
+ *
+ * ⚠️ **Acá no se decide nada**: avisa `lecturaDeHorasPendiente` de shared, con
+ * `todayKey()` como "hoy" y el umbral `DIAS_SIN_LECTURA` justificado allá (no
+ * un número suelto en un `if`). Sin impresoras cargadas no aparece.
+ *
+ * ⚠️ **Sin NINGUNA lectura el aviso dice OTRA cosa**: "hace N días desde la
+ * última" no se puede afirmar cuando no hubo una última, y un aviso que miente
+ * en su número es peor que no estar.
+ */
+function LecturaDeHorasAlert() {
+  const { data } = usePrinterUsage();
+  const [descartado, setDescartado] = usePersistentState<string | null>(
+    'dashboard:aviso-lecturas',
+    null,
+  );
+  const hoy = todayKey();
+  const pendiente = data ? lecturaDeHorasPendiente(data.printers, hoy) : null;
+  // El descarte dura hasta que cambie el MES, igual que el del conteo: con una
+  // bandera no volvería nunca y sería un aviso perdido.
+  if (!pendiente || descartado === hoy.slice(0, 7)) return null;
+
+  return (
+    <AvisoDelDashboard
+      to="/production"
+      icono={<Gauge className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />}
+      titulo={
+        pendiente.dias == null ? (
+          <>Nunca anotaste las horas de tus impresoras.</>
+        ) : (
+          <>Hace {pendiente.dias} días que no anotás las horas de tus impresoras.</>
+        )
+      }
+      detalle={
+        <>
+          Sin la lectura del contador no se sabe cuánta vida útil le queda a cada máquina, y el
+          desgaste que cobrás es un supuesto que nadie contrasta. Se anota una vez por mes.
+        </>
+      }
+      onDescartar={() => setDescartado(hoy.slice(0, 7))}
+      descartarLabel="Descartar el aviso de las lecturas de horas"
     />
   );
 }

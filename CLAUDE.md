@@ -1023,8 +1023,8 @@ al scrollear. Arreglado el 2026-10-05.
 
 > ⚠️ **El riesgo de esta familia de avisos es el RUIDO.** Uno que aparece
 > siempre deja de verse, y cuando eso pasa también deja de verse el que
-> importaba. Por eso el nuevo **se descarta** y no aparece si no hay nada que
-> hacer.
+> importaba. Por eso los dos nuevos **se descartan** y ninguno aparece si no hay
+> nada que hacer.
 
 - **`StockCountAlert`** — *"Falta contar el stock de septiembre de 2026."*
   Aparece cuando **empezó un mes nuevo y el anterior quedó sin cerrar**, desde
@@ -1039,14 +1039,36 @@ al scrollear. Arreglado el 2026-10-05.
     lee y valida): sin eso abre el mes EN CURSO —que todavía no se puede
     cerrar— y hay que volver con la flecha, fricción justo en la acción que el
     aviso viene a pedir.
+- **`LecturaDeHorasAlert`** — *"Hace 51 días que no anotás las horas de tus
+  impresoras."* / *"Nunca anotaste las horas de tus impresoras."* → `/production`.
+  Lo decide `lecturaDeHorasPendiente(maquinas, hoy)` de shared sobre
+  `GET /printers/usage`; sin impresoras cargadas no aparece.
+  - ⚠️ **Sin ninguna lectura NO puede decir "hace N días"**: dice otra cosa.
+  - El umbral es `DIAS_SIN_LECTURA = 35`, justificado en el código: la lectura
+    es MENSUAL y se anota al cierre, así que durante todo el mes siguiente
+    todavía está a tiempo (31 días como máximo) y un umbral de 30 molestaría sin
+    que nada esté atrasado.
 - ⚠️ **El descarte se guarda con el MES**, no con `descartado: true`
-  (`dashboard:aviso-conteo`): así dura **hasta que el mes cambie**. Si volviera al recargar sería ruido; si no volviera nunca,
-  sería un aviso perdido. Los dos extremos están testeados.
-- ⚠️ **CUATRO avisos apilados no entran en un teléfono.** Cada uno mide ~68 px
-  y los cuatro juntos empujan los KPIs abajo del pliegue. En la práctica es
-  raro verlos juntos (los dos nuevos se descartan y el del conteo solo aparece
-  arriba del mes), pero si el dueño los ve apilados **la conversación es cuál se
-  va, no achicar la letra**.
+  (`dashboard:aviso-conteo` y `dashboard:aviso-lecturas`, **una clave por
+  aviso**): así dura **hasta que el mes cambie**. Si volviera al recargar sería
+  ruido; si no volviera nunca, sería un aviso perdido. Los dos extremos están
+  testeados.
+- ⚠️ **Ahora son CINCO avisos posibles, y apilados no entran en un teléfono.**
+  Cada caja mide ~68 px más 20 de separación: los cinco juntos son ~440 px de un
+  viewport de 844, o sea los KPIs abajo del pliegue. En la práctica es raro
+  verlos todos (los dos nuevos se descartan, el del conteo solo aparece arriba
+  del mes y el de las lecturas recién a los 35 días), pero si el dueño los ve
+  apilados **la conversación es cuál se va, no achicar la letra**. Como los
+  cinco salen de `AvisoDelDashboard`, el arreglo —agruparlos, colapsarlos o
+  sacar uno— se hace en un solo lugar.
+- ⚠️ **Las DOS claves del descarte tienen que ser distintas, y el test que lo
+  fija NO es el obvio.** Con la clave copiada, callar un aviso callaría al otro;
+  pero los dos guardan meses distintos (el del conteo, el mes pendiente; el de
+  las lecturas, el mes en curso), así que el caso donde coinciden es **un mes
+  después**: callar las lecturas en noviembre guarda `'2026-11'` y en diciembre
+  el conteo pendiente ES noviembre, con lo que ese aviso aparecería **ya callado
+  sin que nadie lo callara**. El primer test que escribí pasaba igual con las
+  claves pisadas; lo destapó la mutación y el que lo mata es el de dos pasos.
 
 #### Ventas → «Ventas de mostrador» (2026-10-02)
 
@@ -1748,7 +1770,7 @@ reparto por canal, los totales de Gastos).
   limpia en el `beforeEach`: sin limpiar, un tipo elegido en un test deja la
   lista vacía en el siguiente y los `queryAllBy…` dan 0 por el motivo
   equivocado.
-- Qué hay hoy: **133 tests en 12 archivos** (2026-10-10). ⚠️ **El total sale del
+- Qué hay hoy: **140 tests en 12 archivos** (2026-10-10). ⚠️ **El total sale del
   runner** (`pnpm --filter @calc3d/web test`), y la lista de abajo dice PARA QUÉ
   es cada archivo sin repetir su conteo: la versión anterior de esta línea
   afirmaba "101 en 7 archivos" con 123 en 10 y tres archivos sin nombrar — un
@@ -1775,6 +1797,8 @@ reparto por canal, los totales de Gastos).
     cambie el mes.
   - `features/filament/StockTab.sugerencia.spec.tsx` (jsdom) — que lo recibido
     en el mes se SUGIERA y no se escriba.
+  - ⚠️ `Dashboard.avisos.spec.tsx` cubre los DOS recordatorios de la Fase 6 y
+    que sus descartes sean independientes.
 - ⚠️ **Una ausencia medida antes de que lleguen los datos no prueba nada.**
   `Dashboard.avisos.spec.tsx` monta con una **puerta**: todas las respuestas de
   `api.get` esperan a que el test la abra, y `cargar()` la abre y espera el
