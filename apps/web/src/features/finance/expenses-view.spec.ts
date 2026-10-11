@@ -9,6 +9,7 @@ import {
   pasaTipo,
   tipoSeguro,
   totalesGastos,
+  type Casillas,
 } from '@/features/finance/expenses-view';
 import type { ExpenseRow } from '@/features/finance/api';
 
@@ -466,5 +467,81 @@ describe('etiquetasDeFiltro', () => {
     expect(
       etiquetasDeFiltro('material', { soloInversion: true, soloPersona: true }, 'Filaven'),
     ).toEqual(['Filamentos', 'Filaven', CASILLAS.soloInversion, CASILLAS.soloPersona]);
+  });
+});
+
+/**
+ * EL INVENTARIO DE `CASILLAS`: ninguna clave puede quedar sin su efecto.
+ *
+ * ⚠️ **Es el hermano del "cubre TODA la lista" de `pasaTipo`, que no existía
+ * para las casillas** (2026-10-11). Una tercera clave en `CASILLAS` sin su rama
+ * en `pasaCasillas` **no rompe nada**: la casilla se dibuja, se marca, y la
+ * lista no se mueve. Un filtro que no filtra es peor que no tenerlo — el dueño
+ * cree que está viendo un recorte y está viendo todo.
+ *
+ * ⚠️ **Y se prueba por COMPORTAMIENTO, no por forma.** Comprobar que existe una
+ * propiedad con ese nombre en el objeto `Casillas` no prueba nada: con la rama
+ * vacía la propiedad está igual. Lo que se mide es que, con la casilla marcada,
+ * el resultado **CAMBIE** — que haya algún gasto que pasa y alguno que no.
+ *
+ * El precio de esta red: una casilla nueva necesita, además de su rama, un
+ * `candidato` que la rama rechace. Si falta, el test se pone rojo pidiéndolo, y
+ * eso es lo correcto: sin un gasto que quede afuera no hay manera de saber si
+ * la rama recorta o es un `return true` disfrazado.
+ */
+describe('inventario de CASILLAS', () => {
+  const base: ExpenseRow = {
+    id: 'g1',
+    date: '2026-10-09T00:00:00.000Z',
+    category: 'OTHER',
+    counterparty: null,
+    description: 'Cinta de embalaje',
+    amount: 12.5,
+    isInvestment: false,
+  };
+  const DUENO = { id: 'c1', name: 'Propietario', kind: 'OWNER' as const };
+  /** Las cuatro combinaciones de los dos ejes transversales. */
+  const candidatos: ExpenseRow[] = [
+    base,
+    { ...base, isInvestment: true },
+    { ...base, counterparty: DUENO },
+    { ...base, isInvestment: true, counterparty: DUENO },
+  ];
+  const DESMARCADAS: Casillas = { soloInversion: false, soloPersona: false };
+  const claves = Object.keys(CASILLAS) as (keyof typeof CASILLAS)[];
+  /** Solo esa casilla marcada, las demás apagadas. */
+  const soloEsta = (clave: keyof typeof CASILLAS) =>
+    ({ ...DESMARCADAS, [clave]: true }) as Casillas;
+
+  it('⚠️ cada casilla RECORTA de verdad: marcada, algún gasto pasa y alguno NO', () => {
+    for (const clave of claves) {
+      const marcada = soloEsta(clave);
+      // Que no esconda todo: una casilla que no deja pasar nada vacía la tabla.
+      expect(
+        candidatos.some((e) => pasaCasillas(marcada, e)),
+        `«${CASILLAS[clave]}» no deja pasar ningún gasto: vacía la tabla`,
+      ).toBe(true);
+      // Y que recorte ALGO: acá es donde cae una clave sin su rama en
+      // `pasaCasillas`, porque el respaldo de la función es dejar pasar.
+      expect(
+        candidatos.some((e) => !pasaCasillas(marcada, e)),
+        `«${CASILLAS[clave]}» no recorta nada: o le falta su rama en pasaCasillas, o falta un candidato que la rama rechace`,
+      ).toBe(true);
+    }
+  });
+
+  it('⚠️ cada casilla marcada SE NOMBRA en el renglón de filtros puestos', () => {
+    // Los tres KPIs suman lo que se ve: una casilla que recorta sin nombrarse
+    // cambia el número de arriba sin que nada lo explique.
+    for (const clave of claves) {
+      expect(
+        etiquetasDeFiltro(TODOS, soloEsta(clave), null),
+        `«${CASILLAS[clave]}» recorta la lista y el renglón no la nombra`,
+      ).toContain(CASILLAS[clave]);
+    }
+    // Y los textos tienen que ser DISTINTOS entre sí: con dos casillas que
+    // comparten etiqueta, el `toContain` de arriba pasaría sin que la segunda
+    // esté en el renglón.
+    expect(new Set(Object.values(CASILLAS)).size).toBe(claves.length);
   });
 });
