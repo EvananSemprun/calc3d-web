@@ -18,6 +18,9 @@ import { Link } from 'react-router-dom';
 import {
   LineChart as LineIcon,
   AlertTriangle,
+  Bell,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   Gauge,
   Megaphone,
@@ -395,11 +398,14 @@ export function DashboardPage() {
       </div>
 
       <OnboardingChecklist />
+      {/* LOS TRES QUE EXIGEN UNA ACCIÓN, a la vista y en este orden (decisión
+          del dueño): plata que se está perdiendo. Debajo, los recordatorios
+          descartables en UN renglón que se despliega — ver
+          `RecordatoriosDelDashboard` para por qué. */}
       <ProfitabilityAlert />
       <CampaignAlert />
       <AtrasoDeCompraAlert />
-      <StockCountAlert />
-      <LecturaDeHorasAlert />
+      <RecordatoriosDelDashboard />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -867,14 +873,7 @@ function CadenaDeCaja({
  * hijo: anidado, tocarlo navega además de descartar (un `<button>` dentro de
  * un `<a>` tampoco es HTML válido).
  */
-function AvisoDelDashboard({
-  icono,
-  to,
-  titulo,
-  detalle,
-  onDescartar,
-  descartarLabel,
-}: {
+interface PropsDeAviso {
   icono: React.ReactNode;
   to: string;
   /** La parte en negrita: qué pasa, con su número. */
@@ -884,7 +883,9 @@ function AvisoDelDashboard({
   /** Sin esto el aviso no se puede callar (los dos de datos viejos sí se pueden). */
   onDescartar?: () => void;
   descartarLabel?: string;
-}) {
+}
+
+function AvisoDelDashboard({ icono, to, titulo, detalle, onDescartar, descartarLabel }: PropsDeAviso) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 transition-colors hover:bg-amber-500/15">
       <Link to={to} className="flex min-w-0 flex-1 items-center gap-3">
@@ -933,12 +934,38 @@ function ProfitabilityAlert() {
 }
 
 /**
- * Aviso proactivo: empezó un mes nuevo y el conteo del anterior quedó sin
- * cerrar (2026-10-10).
+ * UN RECORDATORIO ya resuelto: lo que necesita la caja del aviso, más lo que
+ * necesita el renglón que los agrupa.
  *
- * ⚠️ **Vive acá y no en Stock del mes** (decisión del dueño): el mes pasado no
- * contó porque **no entró** a esa pantalla, así que un aviso que viviera ahí
- * llega tarde por definición.
+ * ⚠️ **Son HOOKS y no componentes** (2026-10-10). Los dos recordatorios se
+ * dibujaban cada uno por su cuenta y decidían adentro si aparecían, así que
+ * desde afuera **no se podía saber cuántos hay** — y eso es exactamente lo que
+ * el renglón colapsado necesita saber (con uno no se colapsa; con cero no se
+ * dibuja nada). Devolver el aviso en vez de dibujarlo deja la decisión de
+ * AGRUPAR en un solo lugar, sin que ninguno de los dos sepa del otro.
+ */
+interface Recordatorio extends PropsDeAviso {
+  /** Para el `key` de la lista. */
+  clave: string;
+  /**
+   * De qué es, en minúscula y sin punto, para el renglón colapsado:
+   * "conteo de stock". ⚠️ **El renglón lo lee de acá y no de una lista
+   * escrita a mano**: con la lista, el tercer recordatorio que se sume
+   * quedaría sin nombrar y nadie se enteraría.
+   */
+  resumen: string;
+  /** Un recordatorio SIEMPRE se puede callar: es la mitad de por qué es un recordatorio. */
+  onDescartar: () => void;
+  descartarLabel: string;
+}
+
+/**
+ * Recordatorio: empezó un mes nuevo y el conteo del anterior quedó sin cerrar
+ * (2026-10-10).
+ *
+ * ⚠️ **Vive en el Dashboard y no en Stock del mes** (decisión del dueño): el
+ * mes pasado no contó porque **no entró** a esa pantalla, así que un aviso que
+ * viviera ahí llega tarde por definición.
  *
  * ⚠️ **Acá no se decide nada**: quién avisa es `conteoDeStockPendiente` de
  * shared, con el "hoy" en día LOCAL (`todayKey()`) como parámetro. Las tres
@@ -949,7 +976,7 @@ function ProfitabilityAlert() {
  * true": así dura hasta que el mes cambie. Si volviera al recargar sería
  * ruido; si no volviera nunca, sería un aviso perdido.
  */
-function StockCountAlert() {
+function useRecordatorioDeConteo(): Recordatorio | null {
   const { data } = useLastClosedStockMonth();
   const [descartado, setDescartado] = usePersistentState<string | null>(
     'dashboard:aviso-conteo',
@@ -961,32 +988,31 @@ function StockCountAlert() {
   if (!pendiente || descartado === pendiente.mes) return null;
 
   const mes = labelMes(pendiente.mes);
-  return (
-    <AvisoDelDashboard
-      // El mes pendiente viaja en el enlace: sin eso la pantalla abre en el mes
-      // EN CURSO —que todavía no se puede cerrar— y hay que volver con la flecha.
-      to={`/filament/stock?mes=${pendiente.mes}`}
-      icono={<ClipboardList className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />}
-      titulo={
-        pendiente.meses === 1 ? (
-          <>Falta contar el stock de {mes}.</>
-        ) : (
-          <>
-            Faltan {pendiente.meses} conteos de stock: el último cerrado es{' '}
-            {labelMes(pendiente.ultimoCerrado)}.
-          </>
-        )
-      }
-      detalle={
+  return {
+    clave: 'conteo',
+    resumen: 'conteo de stock',
+    // El mes pendiente viaja en el enlace: sin eso la pantalla abre en el mes
+    // EN CURSO —que todavía no se puede cerrar— y hay que volver con la flecha.
+    to: `/filament/stock?mes=${pendiente.mes}`,
+    icono: <ClipboardList className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />,
+    titulo:
+      pendiente.meses === 1 ? (
+        <>Falta contar el stock de {mes}.</>
+      ) : (
         <>
-          Ese mes terminó sin el conteo de rollos, así que no se sabe cuánto filamento se consumió
-          ni qué hay que reponer. Contalo mirando el estante.
+          Faltan {pendiente.meses} conteos de stock: el último cerrado es{' '}
+          {labelMes(pendiente.ultimoCerrado)}.
         </>
-      }
-      onDescartar={() => setDescartado(pendiente.mes)}
-      descartarLabel={`Descartar el aviso del conteo de ${mes}`}
-    />
-  );
+      ),
+    detalle: (
+      <>
+        Ese mes terminó sin el conteo de rollos, así que no se sabe cuánto filamento se consumió ni
+        qué hay que reponer. Contalo mirando el estante.
+      </>
+    ),
+    onDescartar: () => setDescartado(pendiente.mes),
+    descartarLabel: `Descartar el aviso del conteo de ${mes}`,
+  };
 }
 
 /**
@@ -1025,7 +1051,7 @@ function CampaignAlert() {
 }
 
 /**
- * Aviso proactivo: hace mucho que no se lee el contador de horas de ninguna
+ * Recordatorio: hace mucho que no se lee el contador de horas de ninguna
  * máquina (2026-10-10).
  *
  * Hay DOS lecturas desde que existe la pantalla de Producción, las dos del
@@ -1040,7 +1066,7 @@ function CampaignAlert() {
  * última" no se puede afirmar cuando no hubo una última, y un aviso que miente
  * en su número es peor que no estar.
  */
-function LecturaDeHorasAlert() {
+function useRecordatorioDeLecturas(): Recordatorio | null {
   const { data } = usePrinterUsage();
   const [descartado, setDescartado] = usePersistentState<string | null>(
     'dashboard:aviso-lecturas',
@@ -1052,26 +1078,127 @@ function LecturaDeHorasAlert() {
   // bandera no volvería nunca y sería un aviso perdido.
   if (!pendiente || descartado === hoy.slice(0, 7)) return null;
 
+  return {
+    clave: 'lecturas',
+    resumen: 'lecturas de horas',
+    to: '/production',
+    icono: <Gauge className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />,
+    titulo:
+      pendiente.dias == null ? (
+        <>Nunca anotaste las horas de tus impresoras.</>
+      ) : (
+        <>Hace {pendiente.dias} días que no anotás las horas de tus impresoras.</>
+      ),
+    detalle: (
+      <>
+        Sin la lectura del contador no se sabe cuánta vida útil le queda a cada máquina, y el
+        desgaste que cobrás es un supuesto que nadie contrasta. Se anota una vez por mes.
+      </>
+    ),
+    onDescartar: () => setDescartado(hoy.slice(0, 7)),
+    descartarLabel: 'Descartar el aviso de las lecturas de horas',
+  };
+}
+
+/**
+ * `['a', 'b', 'c']` → `"a, b y c"`. El renglón colapsado se lee como una frase.
+ *
+ * ⚠️ **Sin un `if` de guarda, a propósito.** La primera versión abría con
+ * `if (partes.length <= 1) return partes[0] ?? ''`, y esa rama es
+ * INALCANZABLE: el renglón solo se dibuja con DOS recordatorios o más, así que
+ * nadie la llama nunca con uno. Ninguna mutación la tumbaba — el mismo código
+ * muerto que se ve cubierto y que ya apareció siete veces en este repo. El
+ * contrato es **dos partes o más**, y el único que llama lo cumple por
+ * construcción.
+ *
+ * (`Intl.ListFormat` haría esto sin código, pero sus tipos piden subir el
+ * `lib` del `tsconfig` de ES2020 a ES2021 para toda la app: una decisión de
+ * proyecto, no algo para colar en un cambio de alto del Dashboard.)
+ */
+function listaEnEspanol(partes: string[]): string {
+  return `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1]}`;
+}
+
+const ID_RECORDATORIOS = 'dashboard-recordatorios';
+
+/**
+ * LOS RECORDATORIOS, EN UN SOLO RENGLÓN QUE SE DESPLIEGA (2026-10-10, decisión
+ * del dueño).
+ *
+ * ⚠️ **El problema es de ALTO, y está medido**: con los cinco avisos
+ * encendidos son ~440 px de un viewport de 844 (cada caja ~68 px más 20 de
+ * separación), con el encabezado, el filtro de fechas y el checklist de
+ * onboarding todavía arriba: los KPIs quedaban abajo del pliegue. Los tres
+ * avisos que exigen una ACCIÓN —margen, campaña floja, compra atrasada— se
+ * quedan a la vista; los dos recordatorios descartables se colapsan acá.
+ *
+ * ⚠️ **Con CERO no se dibuja NADA.** Un renglón que dijera "0 recordatorios"
+ * ocupa lo mismo que el aviso que no hay y enseña a ignorar la fila.
+ *
+ * ⚠️ **Con UNO SOLO tampoco hay renglón: va el aviso, directo.** El renglón
+ * mide lo mismo que el aviso que esconde, así que no recupera un píxel y
+ * encima pide un toque para leer algo que ya cabía. "1 recordatorio" no dice
+ * qué hay que hacer; el aviso sí.
+ *
+ * ⚠️ **El renglón NO es ámbar.** Los tres de arriba sí, y ahí está la mitad
+ * del punto: si este compitiera por la misma atención no habríamos bajado el
+ * ruido, solo el alto. Queda en gris con borde (en oscuro, `bg-muted` sin
+ * borde es del mismo navy que la tarjeta y la fila se ve rota).
+ *
+ * ⚠️ **Desplegado/colapsado es de la SESIÓN** (`React.useState`, no
+ * `usePersistentState`): nace cerrado en cada carga, que es el estado que
+ * recupera el alto. Y no toca `localStorage`, así que no puede chocar con las
+ * dos claves del descarte —`dashboard:aviso-conteo` y
+ * `dashboard:aviso-lecturas`—, que guardan MESES y ya tienen su propia trampa
+ * documentada.
+ */
+function RecordatoriosDelDashboard() {
+  // ⚠️ Los dos hooks se llaman SIEMPRE y en este orden: son hooks, no se
+  // pueden saltear según cuántos recordatorios haya.
+  const conteo = useRecordatorioDeConteo();
+  const lecturas = useRecordatorioDeLecturas();
+  const [desplegado, setDesplegado] = React.useState(false);
+
+  const recordatorios = [conteo, lecturas].filter((r): r is Recordatorio => r !== null);
+
+  if (recordatorios.length === 0) return null;
+  if (recordatorios.length === 1) return <AvisoDelDashboard {...recordatorios[0]} />;
+
+  const deQueSon = listaEnEspanol(recordatorios.map((r) => r.resumen));
   return (
-    <AvisoDelDashboard
-      to="/production"
-      icono={<Gauge className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />}
-      titulo={
-        pendiente.dias == null ? (
-          <>Nunca anotaste las horas de tus impresoras.</>
+    <>
+      <button
+        type="button"
+        onClick={() => setDesplegado((v) => !v)}
+        aria-expanded={desplegado}
+        // Solo cuando existe: un `aria-controls` que apunta a un id que no
+        // está en el documento es una referencia rota.
+        aria-controls={desplegado ? ID_RECORDATORIOS : undefined}
+        className="flex w-full items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="shrink-0 font-semibold">{recordatorios.length} recordatorios</span>
+        {/* Dice DE QUÉ son: "2 recordatorios" a secas es una caja cerrada, y
+            una caja cerrada no se abre todos los días. Se corta con "…" para
+            que el renglón sea UN renglón —que es su razón de existir— y el
+            texto entero queda en el `title`. */}
+        <span title={deQueSon} className="min-w-0 flex-1 truncate text-muted-foreground">
+          {deQueSon}
+        </span>
+        {desplegado ? (
+          <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
         ) : (
-          <>Hace {pendiente.dias} días que no anotás las horas de tus impresoras.</>
-        )
-      }
-      detalle={
-        <>
-          Sin la lectura del contador no se sabe cuánta vida útil le queda a cada máquina, y el
-          desgaste que cobrás es un supuesto que nadie contrasta. Se anota una vez por mes.
-        </>
-      }
-      onDescartar={() => setDescartado(hoy.slice(0, 7))}
-      descartarLabel="Descartar el aviso de las lecturas de horas"
-    />
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+      </button>
+      {desplegado && (
+        <div id={ID_RECORDATORIOS} className="space-y-5">
+          {recordatorios.map((r) => (
+            <AvisoDelDashboard key={r.clave} {...r} />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

@@ -55,6 +55,12 @@ interface Escenario {
   ultimoCierre?: string | null;
   /** `GET /printers/usage` → `printers[].lastReading.month` */
   lecturas?: (string | null)[];
+  /** `GET /store/products` → cuántas fichas quedaron bajo el margen mínimo. */
+  fichasBajoMargen?: number;
+  /** `GET /campaigns` → cuántas campañas vigentes no rinden. */
+  campanasFlojas?: number;
+  /** `GET /purchase-invoices` → cuántas facturas no llegaron cuando dijeron. */
+  comprasAtrasadas?: number;
 }
 
 /**
@@ -112,20 +118,44 @@ function montar(e: Escenario = {}) {
         },
       });
     }
+    // Los tres avisos de ACCIÓN, apagados salvo que el escenario los encienda.
+    // Cada fixture trae SOLO lo que su aviso lee: el resto de los campos no
+    // los mira nadie y escribirlos sería pedirle al test que sepa de más.
+    if (url === '/store/products') {
+      return Promise.resolve({
+        data: Array.from({ length: e.fichasBajoMargen ?? 0 }, (_, i) => ({
+          id: `sp${i}`,
+          name: `Llavero ${i}`,
+          recost: { status: { belowMin: true } },
+        })),
+      });
+    }
+    if (url === '/campaigns') {
+      return Promise.resolve({
+        data: Array.from({ length: e.campanasFlojas ?? 0 }, (_, i) => ({
+          id: `c${i}`,
+          name: `Campaña ${i}`,
+          // Vigente (sin fecha de fin) y gastando más de lo que deja → AT_RISK.
+          status: 'ACTIVE',
+          endDate: null,
+          stats: { invested: 50, revenue: 10, profit: 0, sales: 1, orders: 0, hasCost: false },
+        })),
+      });
+    }
+    if (url === '/purchase-invoices') {
+      return Promise.resolve({
+        data: Array.from({ length: e.comprasAtrasadas ?? 0 }, (_, i) => ({
+          id: `f${i}`,
+          expectedAt: '2026-10-05',
+          voidedAt: null,
+          supplier: { name: `Filaven ${i}` },
+          lines: [{ quantity: 2, unitPrice: 10, received: 0 }],
+        })),
+      });
+    }
     // Las listas que el resto del Dashboard pide: vacías. `null` y no
     // `undefined` para lo demás: React Query rechaza `undefined` como dato.
-    if (
-      [
-        '/sales',
-        '/expenses',
-        '/orders/payments',
-        '/campaigns',
-        '/store/products',
-        '/purchase-invoices',
-        '/loans',
-        '/counterparties',
-      ].includes(url)
-    ) {
+    if (['/sales', '/expenses', '/orders/payments', '/loans', '/counterparties'].includes(url)) {
       return Promise.resolve({ data: [] });
     }
     return Promise.resolve({ data: null });
@@ -182,6 +212,19 @@ afterEach(() => localStorage.clear());
  * aparecer el aviso en un negocio sin ningún cierre pasaba inadvertida.
  */
 const SIN_CONTEO = /conteo de rollos/;
+
+/**
+ * EL RENGLÓN COLAPSADO, si se dibujó.
+ *
+ * Se busca por ROL y no por texto: es un disclosure, y lo que el test tiene
+ * que poder afirmar es que hay algo que se puede abrir. Su nombre accesible es
+ * todo su texto ("2 recordatorios · Conteo de stock y lecturas de horas"), así
+ * que `/recordatorios/` lo encuentra sin fijar el detalle.
+ */
+const renglon = () => screen.queryByRole('button', { name: /recordatorios/ });
+
+/** Abre el renglón. Falla si no hay renglón que abrir, que es parte del punto. */
+const desplegar = () => fireEvent.click(screen.getByRole('button', { name: /recordatorios/ }));
 
 describe('Aviso: falta contar el stock del mes anterior', () => {
   it('con septiembre sin cerrar avisa, y el enlace abre ESE mes', async () => {
@@ -295,6 +338,160 @@ describe('Aviso: hace mucho que no leés el contador de horas', () => {
   });
 });
 
+/**
+ * LOS DOS RECORDATORIOS, COLAPSADOS EN UN RENGLÓN (2026-10-10).
+ *
+ * ⚠️ **El problema que resuelve es de ALTO, medido**: los cinco avisos
+ * apilados son ~440 px de un viewport de 844 y dejan los KPIs abajo del
+ * pliegue. Decisión del dueño: los tres que exigen una ACCIÓN se quedan a la
+ * vista y los dos recordatorios descartables se colapsan.
+ *
+ * ⚠️ **Por qué estos tests son de PANTALLA y no de función**: lo que puede
+ * romperse acá no es una rama de `conteoDeStockPendiente` —esas están probadas
+ * en shared— sino el CABLEADO: que el renglón aparezca cuando no hay nada,
+ * que se coma un aviso que tenía que quedar a la vista, o que al desplegarlo
+ * los textos ya no sean los mismos. Nada de eso lo ve un test de función pura.
+ */
+describe('Los dos recordatorios se colapsan en un renglón', () => {
+  it('con los DOS, el renglón los cuenta, los nombra y no se ven sueltos', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const { cargar } = montar({ ultimoCierre: '2026-08', lecturas: ['2026-09'] });
+    await cargar();
+
+    // El renglón dice CUÁNTOS hay y DE QUÉ son: "2 recordatorios" a secas es
+    // una caja cerrada, y nadie abre una caja cerrada todos los días.
+    expect(screen.getByText('2 recordatorios')).toBeInTheDocument();
+    expect(screen.getByText('conteo de stock y lecturas de horas')).toBeInTheDocument();
+    expect(renglon()).toHaveAttribute('aria-expanded', 'false');
+
+    // Y los dos avisos NO están dibujados: si estuvieran, el renglón sería un
+    // adorno que suma alto en vez de recuperarlo.
+    expect(screen.queryByText(SIN_CONTEO)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+  });
+
+  it('al tocarlo se despliegan los dos, con sus textos y enlaces intactos', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const { cargar } = montar({ ultimoCierre: '2026-08', lecturas: ['2026-09'] });
+    await cargar();
+
+    desplegar();
+
+    // Los MISMOS textos y los mismos destinos que antes de colapsarlos:
+    // colapsar es una decisión de alto, no una reescritura de los avisos.
+    expect(screen.getByText(/Faltan 2 conteos de stock/)).toBeInTheDocument();
+    expect(screen.getByText(SIN_CONTEO).closest('a')).toHaveAttribute(
+      'href',
+      '/filament/stock?mes=2026-10',
+    );
+    expect(
+      screen.getByText('Hace 51 días que no anotás las horas de tus impresoras.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/anotás las horas/).closest('a')).toHaveAttribute(
+      'href',
+      '/production',
+    );
+    expect(renglon()).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('se puede volver a cerrar', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const { cargar } = montar({ ultimoCierre: '2026-08', lecturas: ['2026-09'] });
+    await cargar();
+
+    desplegar();
+    expect(screen.getByText(SIN_CONTEO)).toBeInTheDocument();
+
+    desplegar();
+    expect(screen.queryByText(SIN_CONTEO)).not.toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ **CON UNO SOLO NO HAY RENGLÓN.** Un renglón que dice "1 recordatorio"
+   * mide lo mismo que el aviso que esconde: no recupera ni un píxel y encima
+   * pide un toque para leer algo que ya cabía. El colapso existe por el alto,
+   * así que donde no hay alto que ganar no hay colapso.
+   */
+  it('con UN solo recordatorio no hay renglón: el aviso va a la vista', async () => {
+    // Sin impresoras cargadas el de las lecturas no existe: queda el del conteo.
+    const { cargar } = montar({ ultimoCierre: '2026-08' });
+    await cargar();
+
+    expect(renglon()).not.toBeInTheDocument();
+    expect(screen.getByText('Falta contar el stock de septiembre de 2026.')).toBeInTheDocument();
+  });
+
+  /** ⚠️ Con cero, NADA: ni un renglón que diga "0 recordatorios". */
+  it('con CERO recordatorios no se dibuja ningún renglón', async () => {
+    const { cargar } = montar({ ultimoCierre: '2026-09', lecturas: [] });
+    await cargar();
+
+    expect(renglon()).not.toBeInTheDocument();
+    expect(screen.queryByText(SIN_CONTEO)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ El descarte sigue siendo INDIVIDUAL y con su misma clave: colapsar no
+   * cambió cómo se calla un aviso. Y al quedar uno solo, el renglón se va:
+   * ya no hay dos que agrupar.
+   */
+  it('desplegado, cada uno se descarta por su cuenta y el otro queda a la vista', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const { cargar } = montar({ ultimoCierre: '2026-08', lecturas: ['2026-09'] });
+    await cargar();
+
+    desplegar();
+    fireEvent.click(screen.getByLabelText('Descartar el aviso del conteo de octubre de 2026'));
+
+    expect(screen.queryByText(SIN_CONTEO)).not.toBeInTheDocument();
+    expect(screen.getByText(/anotás las horas/)).toBeInTheDocument();
+    expect(renglon()).not.toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ **EL MISMO CASO PERO AL REVÉS, Y NO ES REDUNDANTE.** El test de arriba
+   * calla el PRIMERO de la lista, así que pasaba igual con el grupo cableado
+   * para mandarle a todos el `onDescartar` del primero — lo destapó la
+   * mutación. Callando el SEGUNDO, ese cableado se cae: la X de las lecturas
+   * callaría el conteo, o sea el aviso que el dueño NO eligió callar.
+   */
+  it('desplegado, callar el SEGUNDO no calla el primero', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const { cargar } = montar({ ultimoCierre: '2026-08', lecturas: ['2026-09'] });
+    await cargar();
+
+    desplegar();
+    fireEvent.click(screen.getByLabelText('Descartar el aviso de las lecturas de horas'));
+
+    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+    expect(screen.getByText(SIN_CONTEO)).toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ **LOS TRES QUE EXIGEN ACCIÓN NO SE COLAPSAN**, ni cuando el renglón
+   * está cerrado. Es la mitad de la decisión del dueño y la que un refactor
+   * se lleva sin darse cuenta: el día que alguien decida que la compra
+   * atrasada "también se puede descartar", la plata deja de avisar.
+   */
+  it('los tres avisos que exigen ACCIÓN quedan a la vista con el renglón cerrado', async () => {
+    mocks.hoy.valor = '2026-11-20';
+    const { cargar } = montar({
+      ultimoCierre: '2026-08',
+      lecturas: ['2026-09'],
+      fichasBajoMargen: 2,
+      campanasFlojas: 1,
+      comprasAtrasadas: 1,
+    });
+    await cargar();
+
+    expect(renglon()).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText(/2 productos ya no dan el margen esperado/)).toBeInTheDocument();
+    expect(screen.getByText(/1 campaña no está rindiendo/)).toBeInTheDocument();
+    expect(screen.getByText(/1 compra no llegó cuando dijeron/)).toBeInTheDocument();
+  });
+});
+
 describe('Los avisos conviven', () => {
   /**
    * ⚠️ **Los dos descartes son INDEPENDIENTES.** Cada uno guarda en su clave
@@ -306,6 +503,9 @@ describe('Los avisos conviven', () => {
     mocks.hoy.valor = '2026-11-20';
     const { cargar } = montar({ ultimoCierre: '2026-08', lecturas: ['2026-09'] });
     await cargar();
+    // Con dos recordatorios nacen colapsados: hay que abrir el renglón para
+    // verlos (y para llegar a sus botones de descartar).
+    desplegar();
 
     // Los dos a la vez, cada uno con su enlace.
     expect(screen.getByText(SIN_CONTEO).closest('a')).toHaveAttribute(
@@ -337,12 +537,18 @@ describe('Los avisos conviven', () => {
     mocks.hoy.valor = '2026-11-20';
     const primera = montar({ ultimoCierre: '2026-10', lecturas: ['2026-09'] });
     await primera.cargar();
+    // En noviembre el conteo de octubre ya está cerrado: el de las lecturas es
+    // el ÚNICO recordatorio, así que va a la vista y no hay renglón que abrir.
+    expect(renglon()).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('Descartar el aviso de las lecturas de horas'));
     primera.unmount();
 
     mocks.hoy.valor = '2026-12-05';
     const segunda = montar({ ultimoCierre: '2026-10', lecturas: ['2026-09'] });
     await segunda.cargar();
+    // En diciembre son DOS (noviembre sin contar + las lecturas, que volvieron
+    // al cambiar el mes): colapsados.
+    desplegar();
 
     // El conteo pendiente ahora es noviembre: nadie lo descartó, tiene que estar.
     expect(screen.getByText('Falta contar el stock de noviembre de 2026.')).toBeInTheDocument();

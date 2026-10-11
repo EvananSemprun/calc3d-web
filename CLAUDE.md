@@ -547,6 +547,19 @@ al scrollear. Arreglado el 2026-10-05.
     por mutación: que el borrador NAZCA con lo recibido tumba 1 (el de "sugiere,
     no escribe"), dibujarla sin recepciones tumba 1 y mandarla a "En uso"
     tumba 1 — **ninguno lo atrapan los tests de función pura**.
+  - ⚠️ **CONVIVE con "Copiar todo {mes anterior}" a propósito** (decisión del
+    dueño, 2026-10-10). **No es un descuido: no lo "arregles".** Son dos
+    atajos distintos y los dos sirven — "Igual que agosto" / "Copiar todo
+    agosto" parte de **cómo cerró el mes pasado**, y "Usar N sin abrir" parte
+    de **lo que entró este mes**; según la ficha, uno de los dos es el número
+    que el dueño quiere de arranque.
+    - **El riesgo que se aceptó**, dicho completo: dos atajos en la misma
+      tarjeta invitan a **completar el conteo sin mirar el estante**, y el
+      valor del conteo es justamente que alguien miró. Con los dos a un toque,
+      cerrar el mes entero sin levantar la vista es más fácil que antes.
+    - Lo que acota el riesgo es que **ninguno de los dos escribe solo**: los
+      dos son botones y la casilla arranca vacía. Si algún día uno se
+      precarga, este riesgo deja de estar acotado.
 - **Cómo cerró el mes anterior** (2026-10-01, decisión del dueño): `previous`
   en `GET /filament/stock` (null si ese mes no está cerrado). Cada marca muestra
   "Agosto: 1 por acabarse" con un botón **"Igual que agosto"**, y hay un
@@ -1018,6 +1031,10 @@ al scrollear. Arreglado el 2026-10-05.
   Compras, y el conteo pendiente, `conteoDeStockPendiente`, las dos con
   `todayKey()` como "hoy". Si el Dashboard contara por su cuenta, el día que la
   regla cambie el aviso diría "3" y la pantalla a la que lleva mostraría 2.
+  ⚠️ **No todas se dibujan igual desde el 2026-10-10**: las tres que exigen una
+  ACCIÓN van a la vista y los dos recordatorios descartables
+  (`StockCountAlert`/`LecturaDeHorasAlert`, hoy hooks) van colapsados en un
+  renglón — ver "Los recordatorios van en UN renglón que se despliega".
 
 #### Los recordatorios que SE PUEDEN CALLAR (Fase 6, 2026-10-10)
 
@@ -1053,14 +1070,6 @@ al scrollear. Arreglado el 2026-10-05.
   aviso**): así dura **hasta que el mes cambie**. Si volviera al recargar sería
   ruido; si no volviera nunca, sería un aviso perdido. Los dos extremos están
   testeados.
-- ⚠️ **Ahora son CINCO avisos posibles, y apilados no entran en un teléfono.**
-  Cada caja mide ~68 px más 20 de separación: los cinco juntos son ~440 px de un
-  viewport de 844, o sea los KPIs abajo del pliegue. En la práctica es raro
-  verlos todos (los dos nuevos se descartan, el del conteo solo aparece arriba
-  del mes y el de las lecturas recién a los 35 días), pero si el dueño los ve
-  apilados **la conversación es cuál se va, no achicar la letra**. Como los
-  cinco salen de `AvisoDelDashboard`, el arreglo —agruparlos, colapsarlos o
-  sacar uno— se hace en un solo lugar.
 - ⚠️ **Las DOS claves del descarte tienen que ser distintas, y el test que lo
   fija NO es el obvio.** Con la clave copiada, callar un aviso callaría al otro;
   pero los dos guardan meses distintos (el del conteo, el mes pendiente; el de
@@ -1069,6 +1078,68 @@ al scrollear. Arreglado el 2026-10-05.
   el conteo pendiente ES noviembre, con lo que ese aviso aparecería **ya callado
   sin que nadie lo callara**. El primer test que escribí pasaba igual con las
   claves pisadas; lo destapó la mutación y el que lo mata es el de dos pasos.
+- ⚠️ **Eran CINCO avisos posibles y apilados no entraban en un teléfono.**
+  Cada caja mide ~68 px más 20 de separación: los cinco juntos son ~440 px de un
+  viewport de 844, o sea los KPIs abajo del pliegue (con el encabezado, el
+  filtro de fechas y el checklist de onboarding todavía arriba). **Resuelto el
+  2026-10-10 colapsando los dos recordatorios** — ver abajo.
+
+#### Los recordatorios van en UN renglón que se despliega (2026-10-10)
+
+> Decisión del dueño: **los tres avisos que exigen ACCIÓN se quedan a la
+> vista** (margen, campaña floja, compra atrasada: son plata que se está
+> perdiendo) y **los dos RECORDATORIOS descartables se colapsan** en un solo
+> renglón. Vive en `RecordatoriosDelDashboard` (`pages/Dashboard.tsx`).
+
+- **El renglón:** `2 recordatorios` en negrita + `conteo de stock y lecturas de
+  horas` apagado al lado (cortado con "…" y el texto entero en el `title`: tiene
+  que ser UN renglón, que es su razón de existir) + chevron. Desplegado, debajo
+  salen las dos cajas ámbar **con sus textos y enlaces intactos**.
+- ⚠️ **El detalle se DERIVA de los recordatorios** (un campo `resumen` por
+  recordatorio, unidos con `listaEnEspanol`), no de un texto escrito a mano:
+  así el tercero que se sume queda nombrado solo. Y **"2 recordatorios" a secas
+  no alcanzaba**: una caja cerrada sin etiqueta no se abre todos los días.
+- ⚠️ **Con CERO no se dibuja NADA** (ni un renglón que diga "0").
+- ⚠️ **Con UNO SOLO tampoco hay renglón: va el aviso, directo.** Un renglón que
+  dice "1 recordatorio" mide lo mismo que el aviso que esconde —no recupera ni
+  un píxel— y encima pide un toque para leer algo que ya cabía. El colapso
+  existe por el ALTO, así que donde no hay alto que ganar no hay colapso. Al
+  descartar uno de los dos, el renglón se va y queda el otro a la vista.
+- ⚠️ **El renglón NO es ámbar**, es gris con borde. Si compitiera por la misma
+  atención que los tres de arriba habríamos bajado el alto sin bajar el ruido.
+  (En oscuro, `bg-muted` sin borde es del mismo navy que la tarjeta y la fila se
+  ve rota — misma trampa que `ProgressBar`.)
+- ⚠️ **Los dos recordatorios son HOOKS, no componentes**
+  (`useRecordatorioDeConteo` / `useRecordatorioDeLecturas`, devuelven
+  `Recordatorio | null`). Como componentes decidían adentro si aparecían, así
+  que desde afuera **no se podía saber cuántos hay** — que es justo lo que el
+  renglón necesita. El descarte **no cambió**: cada uno sigue con su clave y su
+  misma trampa de los dos meses.
+- **Desplegado/colapsado es de la SESIÓN** (`React.useState`): nace cerrado en
+  cada carga, que es el estado que recupera el alto, y no toca `localStorage`,
+  así que no puede chocar con las dos claves del descarte.
+- **Alto recuperado** (razonado sobre las medidas de arriba, no medido en
+  navegador): los dos recordatorios pasan de 2 × (68 + 20) = 176 px a un
+  renglón de ~40 px + 20 de separación → **~116 px** menos con los cinco
+  encendidos.
+- Tests: 8 en `pages/Dashboard.avisos.spec.tsx`. Medido por mutación: borrar la
+  guarda de cero tumba 1, colapsar también al único tumba 9, y **meter uno de
+  los tres de acción dentro del grupo tumba 1** (el test que los exige a la
+  vista con el renglón cerrado — sin él, el día que alguien decida que la
+  compra atrasada "también se puede descartar", la plata deja de avisar).
+  ⚠️ **El test de "callar uno no calla al otro" había que escribirlo DOS
+  veces**, una por cada orden: callando solo el primero, el cableado que le
+  manda a todos el `onDescartar` del primero pasa inadvertido.
+- ⚠️ **Lo que NINGÚN test distingue** (sabido y aceptado): cablear el detalle a
+  mano en vez de derivarlo de los `resumen`. Con exactamente dos
+  recordatorios los dos caminos dan el mismo texto, así que no hay nada que
+  medir hasta que exista un tercero. La derivación se defiende con el
+  comentario, no con un test.
+- ⚠️ `listaEnEspanol` va **sin `if` de guarda**: la rama de "una sola parte" es
+  inalcanzable (el renglón solo existe con dos o más) y ninguna mutación la
+  tumbaba. `Intl.ListFormat` haría esto sin código, pero sus **tipos piden
+  subir el `lib` del `tsconfig` de ES2020 a ES2021** para toda la app: es una
+  decisión de proyecto, no algo para colar en un cambio de alto del Dashboard.
 
 #### Ventas → «Ventas de mostrador» (2026-10-02)
 
