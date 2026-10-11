@@ -109,7 +109,7 @@ export function EditarCompra({
    * es la red: una entrada nueva que se olvide de mirarlo no va a poder
    * romper la factura de todos modos.
    */
-  if (compra.fromInvoice) {
+  if (compra.invoice) {
     return (
       <Dialog
         open

@@ -5,7 +5,7 @@ import { Badge, Button, Card, CardContent, EmptyState, FilterBar, Select, Stat, 
 import { ExpenseModal } from '@/features/finance/ExpenseModal';
 import { EditarCompra } from '@/features/filament/EditarCompra';
 import { Tooltip } from '@/components/overlays';
-import type { FilamentPurchase } from '@calc3d/shared';
+import { notaDePagador, type FilamentPurchase } from '@calc3d/shared';
 import { useMoney } from '@/features/settings/useSettings';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { usePersistentState } from '@/lib/usePersistentState';
@@ -18,6 +18,17 @@ import { useFilamentPurchases } from '@/features/filament/api';
  * El costo por rollo y por gramo los deriva el servidor. El **por gramo usa los
  * gramos reales del rollo**, no el ÷1000 fijo de la hoja: para un rollo de 1 kg
  * da lo mismo, para uno de 250 g la hoja miente.
+ *
+ * ⚠️ **QUIÉN PUSO LA PLATA va debajo del proveedor** (2026-10-11), en una línea
+ * chica y solo cuando hay algo que decir. La tabla listaba $202 de compras en
+ * octubre de 2026 y la caja solo había soltado $142: dos rollos los pagó el
+ * dueño de su bolsillo y un tercero entró por una factura abonada a medias.
+ * Nada de eso se veía acá, así que la caja parecía mentir.
+ *
+ * El texto lo arma **`notaDePagador` (shared)**, no este archivo: lo que dice
+ * de una factura es el saldo de LA FACTURA —que puede tener varias líneas— y
+ * repartirlo entre sus renglones sería inventar un hecho. Y **no es una columna
+ * nueva**: la tabla ya tiene 7 y en el teléfono entra justa.
  */
 export function PurchasesTab() {
   const range = useDateRange('ALL', 'filament-purchases');
@@ -113,96 +124,113 @@ export function PurchasesTab() {
                     <th className="p-3 text-right font-semibold">Costo total</th>
                     <th className="p-3 text-right font-semibold">Por rollo</th>
                     <th className="p-3 text-right font-semibold">Por gramo</th>
-                    <th className="p-3 font-semibold">Proveedor</th>
+                    {/* Ancho mínimo para que la nota de quién puso la plata
+                        entre en UN renglón en el caso común: sin él, la
+                        columna se achica al nombre del proveedor y la nota
+                        salía partida en tres. */}
+                    <th className="min-w-[11rem] p-3 font-semibold">Proveedor</th>
                     <th className="p-3" />
                   </tr>
                 </thead>
                 <tbody>
-                  {filtradas.map((c) => (
-                    <tr key={c.id} className="border-b border-border/40 last:border-0">
-                      <td className="p-3 tabular-nums text-muted-foreground">{fecha(c.date)}</td>
-                      <td className="p-3">
-                        <div className="font-medium">{c.materialName ?? '—'}</div>
-                        {c.note && <div className="text-xs text-muted-foreground">{c.note}</div>}
-                      </td>
-                      <td className="p-3 text-right tabular-nums">{c.quantity}</td>
-                      <td className="p-3 text-right tabular-nums">{money(c.amount)}</td>
-                      <td className="p-3 text-right font-semibold tabular-nums">
-                        {money(c.costPerRoll)}
-                      </td>
-                      <td className="p-3 text-right tabular-nums text-muted-foreground">
-                        {porGramo(c.costPerGram)}
-                      </td>
-                      <td className="p-3 text-muted-foreground">{c.providerName ?? '—'}</td>
-                      <td className="p-3 text-right">
-                        {/* Nació de una factura: su monto es el espejo de la
+                  {filtradas.map((c) => {
+                    const nota = notaDePagador(c, money);
+                    return (
+                      <tr key={c.id} className="border-b border-border/40 last:border-0">
+                        <td className="p-3 tabular-nums text-muted-foreground">{fecha(c.date)}</td>
+                        <td className="p-3">
+                          <div className="font-medium">{c.materialName ?? '—'}</div>
+                          {c.note && <div className="text-xs text-muted-foreground">{c.note}</div>}
+                        </td>
+                        <td className="p-3 text-right tabular-nums">{c.quantity}</td>
+                        <td className="p-3 text-right tabular-nums">{money(c.amount)}</td>
+                        <td className="p-3 text-right font-semibold tabular-nums">
+                          {money(c.costPerRoll)}
+                        </td>
+                        <td className="p-3 text-right tabular-nums text-muted-foreground">
+                          {porGramo(c.costPerGram)}
+                        </td>
+                        <td className="p-3 text-muted-foreground">
+                          <div>{c.providerName ?? '—'}</div>
+                          {/* QUIÉN PUSO LA PLATA. Solo cuando hay algo que decir:
+                              con una etiqueta en cada fila, ninguna se ve. */}
+                          {nota && <div className="text-xs text-muted-foreground/80">{nota}</div>}
+                        </td>
+                        <td className="p-3 text-right">
+                          {/* Nació de una factura: su monto es el espejo de la
                             línea recibida y la API rechaza corregirla. Se dice
                             por qué, en vez de ofrecer un lápiz que solo sabe
                             fallar. */}
-                        {c.fromInvoice ? (
-                          <Tooltip label="Entró por una factura: se corrige en Compras.">
-                            <span className="cursor-help">
-                              <Badge variant="outline">de factura</Badge>
-                            </span>
-                          </Tooltip>
-                        ) : (
-                          <Tooltip label="Corregir esta compra">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Corregir la compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}`}
-                              onClick={() => setCorrigiendo(c)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </Tooltip>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                          {c.invoice ? (
+                            <Tooltip label="Entró por una factura: se corrige en Compras.">
+                              <span className="cursor-help">
+                                <Badge variant="outline">de factura</Badge>
+                              </span>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip label="Corregir esta compra">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Corregir la compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}`}
+                                onClick={() => setCorrigiendo(c)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </Tooltip>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
             {/* Móvil: tarjetas apiladas. */}
             <div className="divide-y divide-border/50 md:hidden">
-              {filtradas.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setCorrigiendo(c)}
-                  disabled={c.fromInvoice}
-                  className="w-full space-y-1 p-4 text-left transition-colors enabled:hover:bg-brand-blue/10"
-                  aria-label={
-                    c.fromInvoice
-                      ? `Compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}: entró por una factura y se corrige en Compras`
-                      : `Corregir la compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}`
-                  }
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium">{c.materialName ?? '—'}</span>
-                    <span className="shrink-0 font-semibold tabular-nums">{money(c.amount)}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                    <span>{fecha(c.date)}</span>
-                    <span>{c.quantity} rollo(s)</span>
-                    <span>{money(c.costPerRoll)}/rollo</span>
-                    <span>{porGramo(c.costPerGram)}/g</span>
-                  </div>
-                  {c.providerName && (
-                    <div className="text-xs text-muted-foreground">{c.providerName}</div>
-                  )}
-                  {c.fromInvoice ? (
-                    <span className="text-xs text-muted-foreground">
-                      De factura · se corrige en Compras
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-xs text-brand-blue-bright">
-                      <Pencil className="h-3 w-3" /> Tocá para corregir
-                    </span>
-                  )}
-                </button>
-              ))}
+              {filtradas.map((c) => {
+                const nota = notaDePagador(c, money);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCorrigiendo(c)}
+                    disabled={c.invoice != null}
+                    className="w-full space-y-1 p-4 text-left transition-colors enabled:hover:bg-brand-blue/10"
+                    aria-label={
+                      c.invoice
+                        ? `Compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}: entró por una factura y se corrige en Compras`
+                        : `Corregir la compra de ${c.materialName ?? 'filamento'} del ${fecha(c.date)}`
+                    }
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-medium">{c.materialName ?? '—'}</span>
+                      <span className="shrink-0 font-semibold tabular-nums">{money(c.amount)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                      <span>{fecha(c.date)}</span>
+                      <span>{c.quantity} rollo(s)</span>
+                      <span>{money(c.costPerRoll)}/rollo</span>
+                      <span>{porGramo(c.costPerGram)}/g</span>
+                    </div>
+                    {c.providerName && (
+                      <div className="text-xs text-muted-foreground">{c.providerName}</div>
+                    )}
+                    {/* Debajo del proveedor, igual que en la tabla. */}
+                    {nota && <div className="text-xs text-muted-foreground/80">{nota}</div>}
+                    {c.invoice ? (
+                      <span className="text-xs text-muted-foreground">
+                        De factura · se corrige en Compras
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs text-brand-blue-bright">
+                        <Pencil className="h-3 w-3" /> Tocá para corregir
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
