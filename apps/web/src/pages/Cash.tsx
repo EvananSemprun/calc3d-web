@@ -506,8 +506,10 @@ function FinanciamientoCard({ data }: { data: CashSummary }) {
           Lo que sacás para vos se descuenta de las deudas, de la más antigua a la más reciente. Al
           prestamista se le paga con las cuotas, no con la caja.
         </p>
+        {/* ÁMBAR y no rojo: sacar más de lo que pusiste NO es un error, es
+            retirar ganancia. Hecho consumado y legítimo. */}
         {f.overWithdrawn > 0 && (
-          <p className="text-xs font-medium text-destructive">
+          <p className="text-xs font-medium text-warning">
             Sacaste {money(f.overWithdrawn)} más de lo que pusiste.
           </p>
         )}

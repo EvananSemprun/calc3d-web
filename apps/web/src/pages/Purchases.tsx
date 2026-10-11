@@ -359,7 +359,7 @@ function FacturaCard({
             </p>
           )}
 
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
             <span>
               Total <strong className="tabular-nums">{money(f.total)}</strong>
             </span>
@@ -369,8 +369,23 @@ function FacturaCard({
             <span>
               Falta <strong className="tabular-nums text-brand-yellow-ink">{money(f.saldo)}</strong>
             </span>
+            {/* ÁMBAR y no rojo: pagar de más NO es un error. Genera saldo a
+                favor, que es una función que la app soporta a propósito (se
+                usa desde "Abonar"). Es un hecho consumado y legítimo: "mirá
+                esto", no "algo se rompió".
+                ⚠️ **Y va en PÍLDORA, no en texto suelto como los otros avisos
+                ámbar.** Medido en pantalla el 2026-10-11: en este renglón el
+                vecino de al lado es `Falta` con `text-brand-yellow-ink`, que
+                en claro es `rgb(153,102,0)` contra el `rgb(147,95,6)` del
+                ámbar — el MISMO color a simple vista (1.04:1 entre los dos).
+                En texto suelto la frase se fundía con la cifra de `Falta` y
+                el aviso desaparecía; en rojo se distinguía. El borde y el
+                fondo lo separan por FORMA y no por tono, así que el aviso se
+                ve sin volver al rojo (que diría "algo se rompió") y sin
+                tocar el oro de marca. Si algún día se pinta de ámbar otra
+                cosa de este renglón, revisar esto. */}
             {f.aFavor > 0 && (
-              <span className="text-destructive">
+              <span className="rounded-md border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs text-warning">
                 Pagaste {money(f.aFavor)} de más
                 {/* ⚠️ Lo pagado de más es un HECHO y no se mueve; lo que importa
                     para actuar es cuánto QUEDA. Decir solo el primero ofrece

@@ -327,12 +327,31 @@ nada** — si el rojo aparece también cuando podés seguir, deja de querer deci
 - **`warning` (ámbar) = se puede guardar, pero mirá esto.** La operación es
   legítima y se registra igual (abonar de más, el saldo a favor que salta de
   una factura a otra, un contador de horas que retrocede, la atribución
-  opcional del faltante de caja).
+  opcional del faltante de caja), o ya ocurrió y **no fue un error** (pagaste
+  de más, sacaste más de lo que pusiste).
+- **Un HECHO CONSUMADO y LEGÍTIMO también va en ámbar** (decisión del dueño,
+  2026-10-11). Que algo ya haya pasado no lo vuelve rojo: lo que decide es si
+  **fue un error**. Pagar de más genera saldo a favor —una función que la app
+  soporta a propósito— y sacar más de lo que pusiste es retirar ganancia.
+  Ninguna de las dos es una falla, así que van en ámbar aunque no haya nada
+  que guardar. Rojo queda para el hecho consumado que **sí** es un error: un
+  fetch que falló, un descuadre, plata que falta sin explicación.
 - ⚠️ **Una CIFRA en rojo NO entra en esta regla y no se toca**: un saldo
   negativo, un markup bajo cero, un descuadre. Ahí el rojo ya significa otra
   cosa ("está en negativo"), no "bloquea". Tampoco entran los íconos de borrar,
   los `variant="destructive"` ni los `tone: 'destructive'` de las
-  confirmaciones de borrado.
+  confirmaciones de borrado. La frontera con el punto anterior es el TEXTO: una
+  frase ("Pagaste $15,00 de más") es un aviso aunque viva en un renglón de
+  cifras; un monto pelado es un dato.
+- ⚠️ **EL ÁMBAR Y EL ORO DE MARCA SON EL MISMO COLOR, y eso ya rompió un
+  aviso.** `--brand-yellow-ink` claro es `40 100% 30%` y `--warning` claro es
+  `38 92% 30%`: medidos en pantalla, `rgb(153,102,0)` contra `rgb(147,95,6)`
+  — **1.04:1 entre ellos**, o sea indistinguibles. En el renglón de totales de
+  Compras, "Pagaste $X de más" en ámbar **se fundía con la cifra de `Falta`**,
+  que va en oro justo antes; en rojo se distinguía. Por eso ese aviso va en
+  **píldora** (borde + fondo), que lo separa por FORMA y no por tono. **Antes
+  de poner `text-warning` suelto, mirá si hay oro de marca cerca**: si lo hay,
+  el color solo no alcanza.
 - ⚠️ **Dos excepciones DOCUMENTADAS que se quedan en rojo aunque no frenen**, y
   no son descuidos: el estado `LOW` de la calculadora (`ResultPanel`, ver "La
   calculadora") y el precio bajo el costo de una ficha de la tienda. Las dos por
