@@ -237,6 +237,21 @@ al scrollear. Arreglado el 2026-10-05.
   completo va en el `title`. Un campo a todo el ancho va en un div
   `col-span-full` — **nunca `col-span-2`**: con una sola columna crea una
   columna fantasma y desborda.
+- **`Checkbox`: el foco se dibuja en la CAJA** (2026-10-11). El `input` va
+  `peer sr-only` —mide 1px y está recortado, así que su anillo de foco no se
+  ve— y la caja es un `<span>` al lado: el foco visible sale de una regla
+  **`peer-focus-visible:`** sobre ese span. Hasta ese día no existía y navegando
+  por teclado **no se veía dónde estaba el foco** en ninguna de las 7 casillas,
+  incluido el «Recuérdame» del login.
+  - El anillo es **el mismo de `Button`** (`ring-2 ring-ring` + `ring-offset-2
+    ring-offset-background`), no uno propio: un checkbox enfocado tiene que
+    verse como cualquier otro control enfocado. Con offset y no pegado al borde
+    —como los campos de texto— porque la caja mide 20px y marcada se rellena de
+    azul: ahí dentro el anillo se perdería.
+  - ⚠️ **`peer-*` compila a un selector de hermano (`~`) y no mira hacia
+    atrás**: si el input se envuelve en un div o se manda después del span, el
+    anillo se apaga **sin que nada falle**. Lo fija
+    `components/Checkbox.foco.spec.tsx` (lo único que jsdom puede ver de esto).
 - **Skeletons** — `Skeleton`/`TableSkeleton`/`PageSkeleton` (ya NO queda texto
   "Cargando…") y `EmptyState` (ícono + descripción + acción/CTA). Úsalos en listas.
 - **Dialog** — limita el alto a `100dvh` y scrollea el cuerpo (los modales no se
@@ -1017,6 +1032,16 @@ al scrollear. Arreglado el 2026-10-05.
     - El test de `tipoSeguro` **recorre TODA la lista** `TIPOS_DE_GASTO`: una
       opción nueva que se olvide de la función rompe el test en vez de dejar el
       desplegable en blanco.
+    - ⚠️ **`CASILLAS` tiene su propio inventario desde el 2026-10-11**
+      (`describe('inventario de CASILLAS')`), que antes no existía: una tercera
+      clave sin su rama en `pasaCasillas` **no rompía nada**, la casilla se
+      dibujaba, se marcaba y la lista no se movía. Lo mide por
+      **COMPORTAMIENTO**: con esa casilla marcada, que algún gasto pase y
+      alguno NO —que exista una propiedad con ese nombre no prueba que filtre,
+      con la rama vacía está igual— y que su etiqueta salga en
+      `etiquetasDeFiltro`, más que los dos textos sean distintos. El precio:
+      una casilla nueva necesita además un candidato que su rama rechace, y si
+      falta el test se pone rojo pidiéndolo.
     - ⚠️ `TODOS` (= `'ALL'`) es el centinela de "no filtrar" de **los dos**
       filtros de valor cerrado, en una constante. Es un valor y no la ausencia
       de uno porque el `Select` de marca prohíbe `value=""`.
@@ -1884,7 +1909,7 @@ reparto por canal, los totales de Gastos).
   limpia en el `beforeEach`: sin limpiar, un tipo elegido en un test deja la
   lista vacía en el siguiente y los `queryAllBy…` dan 0 por el motivo
   equivocado.
-- Qué hay hoy: **162 tests en 12 archivos** (2026-10-11). ⚠️ **El total sale del
+- Qué hay hoy: **166 tests en 13 archivos** (2026-10-11). ⚠️ **El total sale del
   runner** (`pnpm --filter @calc3d/web test`), y la lista de abajo dice PARA QUÉ
   es cada archivo sin repetir su conteo: la versión anterior de esta línea
   afirmaba "101 en 7 archivos" con 123 en 10 y tres archivos sin nombrar — un
@@ -1914,6 +1939,10 @@ reparto por canal, los totales de Gastos).
     cambie el mes.
   - `features/filament/StockTab.sugerencia.spec.tsx` (jsdom) — que lo recibido
     en el mes se SUGIERA y no se escriba.
+  - `components/Checkbox.foco.spec.tsx` (jsdom) — la precondición del foco
+    visible del `Checkbox`. ⚠️ **No prueba que el anillo se vea** (jsdom no
+    aplica CSS): fija que el elemento que recibe el foco sea el `peer` y hermano
+    ANTERIOR de la caja, que es lo que el selector de Tailwind necesita.
   - ⚠️ `Dashboard.avisos.spec.tsx` cubre los DOS recordatorios de la Fase 6 y
     que sus descartes sean independientes.
 - ⚠️ **Una ausencia medida antes de que lleguen los datos no prueba nada.**
