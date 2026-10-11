@@ -1448,6 +1448,43 @@ con 133.22 y le quedaban 102.83.
   (`campaignDisplayStatus`), porque nada mueve el `status` guardado a FINISHED
   cuando pasa la fecha de fin.
 
+#### De dónde salió la plata de un gasto (2026-10-11, shared 0.50.0)
+
+Dos lecturas del MISMO hecho, con **una sola definición** en
+`shared/calc/pagador.ts`: la línea chica bajo el proveedor en Filamento →
+Compras (`notaDePagador`) y el pie del KPI de Gastos del Dashboard
+(`repartoDePagadores` + `textoDeReparto`), que es ese mismo hecho sumado.
+
+Nació de una lectura equivocada del dueño, y conviene recordarla: vio
+«GASTOS $202.00» y entendió que la caja había soltado $202. Había soltado
+$142 — $50 los puso él de su bolsillo y $10 del Cyan seguían sin pagarse.
+El KPI no estaba mal; estaba **mal acompañado**.
+
+- El pie **gana el renglón** cuando tiene algo que decir y devuelve `null`
+  cuando la caja pagó todo: ahí el `sub` se queda con su if de tres ramas.
+  **El silencio es el caso normal** — si todas las filas gritan, ninguna se ve.
+- Muestra los tres números para que se vea de un vistazo que suman el total, y
+  **omite el que sea cero**. `caja` es el RESIDUO (`total − bolsillo − sin
+  pagar`), así que cierra por construcción contra `agg.gastosOperativos`.
+- Se le pasan las **mismas filas que suma el KPI** (sin la inversión en
+  equipos). Meter la inversión rompe el cierre: hay un test que lo caza.
+- ⚠️ **El saldo de una factura NO se reparte entre sus líneas en Compras**: ahí
+  se dice entero y se aclara que es de la factura («Faltan $40.00 de la
+  factura entera (4 líneas)»). En el pie sí se prorratea, y está escrito como
+  **convención**, igual que `filamentShare` en `cash.ts`.
+- ⚠️ **Lo que el pie todavía NO dice**: quién puso la plata de los ABONOS de
+  una factura (`PurchaseInvoicePayment.counterpartyId`). Si el dueño abona una
+  factura de su bolsillo, hoy eso se lee como «de la caja». Es un hueco
+  conocido, no un olvido.
+- ⚠️ Para medir los KPIs renderizados hay que **traer la pestaña al frente**:
+  con `NumberTicker` sin compositar la animación se congela y los cuatro
+  números se leen bajos en la misma proporción (mostró $43.93 donde había
+  $217.00). Ya hizo creer dos veces que había una regresión.
+- Tests: `pages/Dashboard.gastos.spec.tsx` (4) y
+  `features/filament/PurchasesTab.pagador.spec.tsx` (6). Por mutación, borrar
+  cualquiera de los dos pies del JSX tumba tests **de pantalla y ninguno de
+  función pura**: la prueba de que los de cableado hacían falta.
+
 ### Multi-moneda / Bs (front)
 - `useMoney()` (en `features/settings/useSettings.ts`) expone `moneyAlt` (tasa default
   vigente), `moneyAtRate`/`moneyInRate` y `rates`; `frozenFromSnapshot()`
