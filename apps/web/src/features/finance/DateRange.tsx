@@ -49,6 +49,23 @@ export function rangoDeMes(mes: string): { from: string; to: string } {
   return { from: iso(new Date(anio, m - 1, 1)), to: iso(new Date(anio, m, 0)) };
 }
 
+/**
+ * El rango de un AÑO entero, de enero a diciembre.
+ *
+ * ⚠️ **Sale de `rangoDeMes`, no de `${anio}-01-01`..`${anio}-12-31` escrito a
+ * mano** (2026-10-11). El literal no estaba mal —diciembre tiene 31 días
+ * siempre—, y por eso justamente es peligroso: funciona, así que invita a
+ * copiarlo para "el rango de marzo" o "el del trimestre", donde el 31 no
+ * existe. Es exactamente el camino por el que el punto de equilibrio terminó
+ * contando tres días de marzo como ingresos de febrero.
+ *
+ * Con esto queda **una sola definición** de dónde empieza y dónde termina un
+ * periodo en este panel.
+ */
+export function rangoDeAnio(anio: number): { from: string; to: string } {
+  return { from: rangoDeMes(`${anio}-01`).from, to: rangoDeMes(`${anio}-12`).to };
+}
+
 export interface DateRange {
   preset: RangePreset;
   from?: string;

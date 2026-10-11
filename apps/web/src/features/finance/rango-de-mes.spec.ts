@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isCalendarDay } from '@calc3d/shared';
-import { rangoDeMes } from './DateRange';
+import { rangoDeAnio, rangoDeMes } from './DateRange';
 
 /**
  * EL RANGO DE UN MES TIENE QUE TERMINAR EN UN DÍA QUE EXISTA.
@@ -61,5 +61,34 @@ describe('rangoDeMes', () => {
     // un `2026-12-01` como `to` de noviembre metería un día de diciembre.
     expect(rangoDeMes('2026-11').to.slice(0, 7)).toBe('2026-11');
     expect(rangoDeMes('2026-12').to).toBe('2026-12-31');
+  });
+});
+
+/**
+ * EL RANGO DE UN AÑO (2026-10-11).
+ *
+ * El Dashboard lo armaba a mano (`${anio}-01-01` .. `${anio}-12-31`). No
+ * estaba mal —diciembre siempre tiene 31— y por eso era peligroso: funciona,
+ * así que invita a copiarlo para un mes donde el 31 no existe, que es el
+ * camino por el que el punto de equilibrio contó tres días de marzo como
+ * ingresos de febrero.
+ */
+describe('rangoDeAnio', () => {
+  it('va del primero de enero al último de diciembre', () => {
+    expect(rangoDeAnio(2026)).toEqual({ from: '2026-01-01', to: '2026-12-31' });
+  });
+
+  /** Sale de `rangoDeMes`: una sola definición de dónde empieza y termina. */
+  it('sus extremos son los mismos que los de enero y diciembre', () => {
+    const anio = rangoDeAnio(2024);
+
+    expect(anio.from).toBe(rangoDeMes('2024-01').from);
+    expect(anio.to).toBe(rangoDeMes('2024-12').to);
+  });
+
+  /** Un bisiesto no cambia los extremos del año, pero sí los de febrero. */
+  it('en un año bisiesto sigue dando los mismos extremos', () => {
+    expect(rangoDeAnio(2024)).toEqual({ from: '2024-01-01', to: '2024-12-31' });
+    expect(rangoDeMes('2024-02').to).toBe('2024-02-29');
   });
 });

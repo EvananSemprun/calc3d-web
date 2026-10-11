@@ -1518,6 +1518,18 @@ saldo a favor del proveedor y el prestamista.
   mismo enum y, al coincidir estructuralmente, TypeScript no habría dicho nada
   el día que se agregara un tipo en una sola de las dos.
 
+#### El rango de un año sale de `rangoDeMes` (2026-10-11)
+
+`AnnualIncome` lo armaba a mano (`${anio}-01-01` .. `${anio}-12-31`). **No
+estaba mal** —diciembre siempre tiene 31 días— y por eso era peligroso:
+funciona, así que invita a copiarlo para "el rango de marzo", donde el 31 no
+existe. Es el camino por el que el punto de equilibrio terminó contando tres
+días de marzo como ingresos de febrero.
+
+Ahora hay `rangoDeAnio(anio)` en `features/finance/DateRange.tsx`, construido
+sobre `rangoDeMes`: **una sola definición** de dónde empieza y dónde termina un
+periodo en el panel. Tests en `rango-de-mes.spec.ts`.
+
 ### Multi-moneda / Bs (front)
 - `useMoney()` (en `features/settings/useSettings.ts`) expone `moneyAlt` (tasa default
   vigente), `moneyAtRate`/`moneyInRate` y `rates`; `frozenFromSnapshot()`

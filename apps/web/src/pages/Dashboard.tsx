@@ -59,6 +59,7 @@ import { useCampaigns, isCampaignVigente } from '@/features/campaigns/api';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import {
   DateRangePicker,
+  rangoDeAnio,
   rangoDeMes,
   useDateRange,
   type RangePreset,
@@ -1356,7 +1357,7 @@ function AnnualIncome() {
   const [anio, setAnio] = usePersistentState<number>('dashboard:anio', anioActual);
   const [orden, setOrden] = usePersistentState<'MES' | 'MONTO'>('dashboard:anio:orden', 'MES');
 
-  const rango = { from: `${anio}-01-01`, to: `${anio}-12-31` };
+  const rango = rangoDeAnio(anio);
   const sales = useSales(rango);
   const payments = useOrderPayments(rango);
   // Para saber qué años ofrecer hace falta mirar TODA la historia, no el año elegido.
