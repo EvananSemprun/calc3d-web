@@ -799,7 +799,29 @@ export function Switch({
   );
 }
 
-/** Casilla de verificación estilizada. */
+/**
+ * Casilla de verificación estilizada.
+ *
+ * ⚠️ **El foco se dibuja en la CAJA, no en el `input`** (2026-10-11). El input
+ * real es `peer sr-only` —está ahí, recibe el foco y responde al teclado, pero
+ * mide 1px y está recortado—, así que su anillo de foco no se ve: la caja es un
+ * `<span>` dibujado al lado. Sin la regla `peer-focus-visible:`, navegando por
+ * teclado **no se veía dónde estaba el foco** en ninguna de las 7 casillas de
+ * la app, incluido el «Recuérdame» del login.
+ *
+ * El anillo es **el mismo que usa `Button`** (`ring-2 ring-ring` +
+ * `ring-offset-2 ring-offset-background`), no uno nuevo: un checkbox enfocado
+ * se ve como se ve cualquier otro control enfocado. Va con offset y no pegado
+ * al borde —como los campos de texto— porque la caja mide 20px y en el estado
+ * marcado se rellena de azul: un anillo sin separación se perdería dentro del
+ * relleno.
+ *
+ * ⚠️ **La regla depende de que el `input` siga siendo el hermano ANTERIOR de la
+ * caja**: `peer-*` de Tailwind es un selector de hermano (`~`) y no mira hacia
+ * atrás. Si alguien lo envuelve en un div o lo manda después del span, el
+ * anillo deja de dibujarse **sin que nada falle**. Lo fija
+ * `Checkbox.foco.spec.tsx`.
+ */
 export function Checkbox({
   checked,
   onChange,
@@ -820,6 +842,9 @@ export function Checkbox({
       <span
         className={cn(
           'grid h-5 w-5 place-items-center rounded-md border transition-all duration-200',
+          // Lo ÚNICO que se suma es el estado de foco: reposo, marcado y
+          // deshabilitado se dibujan igual que antes.
+          'peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background',
           checked
             ? 'border-brand-blue-bright bg-brand-blue-bright text-white shadow-glow-blue'
             : 'border-input bg-background',
