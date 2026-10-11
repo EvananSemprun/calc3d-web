@@ -12,6 +12,7 @@ import type {
   ObligationSource,
   OwnerFinancingKey,
   OwnerMovementCreateDto,
+  PayerKind,
   ReconciliationKind,
 } from '@calc3d/shared';
 import { api } from '@/lib/api';
@@ -308,7 +309,15 @@ export const useConfirmReconciliation = () =>
 export const useVoidReconciliation = () =>
   useCashMutation((id: string) => api.post<CashSummary>(`/cash/reconciliations/${id}/void`, {}));
 
-export type CounterpartyKind = 'OWNER' | 'PARTNER' | 'EXTERNAL_LENDER';
+/**
+ * ⚠️ **Es un ALIAS de `PayerKind`, no una lista propia** (2026-10-11). Eran dos
+ * declaraciones idénticas del mismo enum: la del motor —la que decide si lo
+ * que alguien puso es una deuda del negocio— y esta. Al coincidir
+ * estructuralmente, TypeScript no habría dicho nada el día que se agregara un
+ * tipo de contraparte en una sola de las dos, y el panel habría tratado al
+ * nuevo como "lo puso la caja" sin que fallara ni un test.
+ */
+export type CounterpartyKind = PayerKind;
 export type CashAccountKind = 'EXCHANGE' | 'BANK' | 'CASH' | 'WALLET' | 'OTHER';
 
 export interface Counterparty {

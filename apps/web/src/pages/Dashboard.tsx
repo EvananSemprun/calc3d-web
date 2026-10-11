@@ -201,6 +201,10 @@ export function DashboardPage() {
           amount: r.amount,
           counterpartyId: r.counterparty?.id ?? null,
           counterpartyName: r.counterparty?.name ?? null,
+          // ⚠️ El TIPO, no solo el nombre: lo que puso el prestamista no es un
+          // aporte que el negocio le devuelva por acá —esa deuda ya vive en el
+          // saldo del préstamo— y contarlo como bolsillo la contaría dos veces.
+          counterpartyKind: r.counterparty?.kind ?? null,
           invoice: r.invoice ?? null,
         })),
     );

@@ -1485,6 +1485,39 @@ El KPI no estaba mal; estaba **mal acompañado**.
   cualquiera de los dos pies del JSX tumba tests **de pantalla y ninguno de
   función pura**: la prueba de que los de cableado hacían falta.
 
+#### Los abonos también dicen de dónde salieron (2026-10-11, shared 0.51.0)
+
+Hasta la 0.50.0, todo lo abonado a una factura se contaba como **de la caja**.
+El diálogo de Abonar deja elegir otra cosa desde que existe, así que bastaba un
+abono de bolsillo para que el pie dijera que esa plata la había puesto el
+negocio. Ahora hay cuatro procedencias: la caja, el bolsillo de alguien, el
+saldo a favor del proveedor y el prestamista.
+
+- El pie del Dashboard las nombra a todas y **omite la que sea cero, incluida la
+  caja**: el mes que el negocio no ponga un peso, "$0.00 de la caja" sería lo
+  primero que se lee.
+- La fila de Compras, en cambio, **con varios orígenes dice solo el total**
+  («$30.00 no salió de la caja»). Esa frase vive en una celda de tabla y el
+  detalle completo la parte en tres renglones; el desglose se mira en Compras,
+  que es adonde ibas a ir igual.
+- ⚠️ **Una factura SALDADA puede igual tener algo que decir.** Antes devolvía
+  `null` —no falta plata— y la fila se callaba justo cuando lo que tenía para
+  contar era que la había pagado otro.
+- ⚠️ **Lo del prestamista NO es bolsillo** y no lleva "el negocio se lo debe":
+  esa deuda ya vive en el saldo del préstamo.
+- **Medido a 375 px** con la hoja de estilos compilada: el caso realista (3
+  pedazos) ocupa **3 renglones** y el peor caso (los 5) ocupa **5**, sin
+  desborde horizontal; las tarjetas hermanas se estiran parejo. Si algún día
+  hay que acortarlo, la conversación es qué se agrupa, no achicar la letra.
+- ⚠️ **Tres de las cuatro procedencias no existen en los datos reales** (hay 1
+  factura y 1 abono, de la caja), así que los tests son la única evidencia:
+  `Dashboard.gastos.spec.tsx` (9) y `PurchasesTab.pagador.spec.tsx` (12). Por
+  mutación, borrar el pie del JSX tumba 8 y borrar la nota de la fila tumba 9.
+- `CounterpartyKind` en `features/cash/api.ts` es ahora un **alias de
+  `PayerKind`**, no una lista propia: eran dos declaraciones idénticas del
+  mismo enum y, al coincidir estructuralmente, TypeScript no habría dicho nada
+  el día que se agregara un tipo en una sola de las dos.
+
 ### Multi-moneda / Bs (front)
 - `useMoney()` (en `features/settings/useSettings.ts`) expone `moneyAlt` (tasa default
   vigente), `moneyAtRate`/`moneyInRate` y `rates`; `frozenFromSnapshot()`

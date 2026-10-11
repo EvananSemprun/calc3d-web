@@ -57,7 +57,7 @@ const OCTUBRE: ExpenseRow[] = [
   gasto('g-caja', 142),
   gasto('g-refill', 25, { counterparty: EVANAN }),
   gasto('g-pink', 25, { counterparty: EVANAN }),
-  gasto('g-cyan', 25, { invoice: { id: 'f1', saldo: 10, total: 25, lineas: 1 } }),
+  gasto('g-cyan', 25, { invoice: { id: 'f1', saldo: 10, total: 25, lineas: 1, abonado: { total: 15, bolsillo: 0, saldoAFavor: 0, prestamista: 0 }, bolsillos: [] } }),
 ];
 
 function montar(gastos: ExpenseRow[]) {
@@ -167,7 +167,7 @@ describe('Pie del KPI de Gastos', () => {
    * por fila, el pie diría $160 sin pagar de un total de $100.
    */
   it('una factura de varias líneas no cuenta su saldo una vez por línea', async () => {
-    const f = { id: 'f9', saldo: 40, total: 100, lineas: 4 };
+    const f = { id: 'f9', saldo: 40, total: 100, lineas: 4, abonado: { total: 60, bolsillo: 0, saldoAFavor: 0, prestamista: 0 }, bolsillos: [] };
     const vista = montar([
       gasto('l1', 25, { invoice: f }),
       gasto('l2', 25, { invoice: f }),
@@ -177,5 +177,126 @@ describe('Pie del KPI de Gastos', () => {
     await vista.cargar(/de la caja/);
 
     expect(screen.getByText('$60.00 de la caja · $40.00 sin pagar')).toBeTruthy();
+  });
+});
+
+/**
+ * LAS CUATRO PROCEDENCIAS EN EL PIE (shared 0.51.0).
+ *
+ * Hasta shared 0.50.0 todo lo abonado a una factura se contaba como "de la
+ * caja". El diálogo de Abonar deja elegir otra cosa desde que existe: bastaba
+ * un abono de bolsillo para que este pie dijera que esa plata la puso el
+ * negocio. En producción no había ni un caso cuando esto se escribió, así que
+ * estos tests son la única evidencia de que anda.
+ */
+describe('Pie del KPI de Gastos · de dónde salió la plata de los abonos', () => {
+  const PRESTAMISTA = { id: 'cp9', name: 'Prestamista', kind: 'EXTERNAL_LENDER' as const };
+
+  /** El caso que destapó el hueco: la factura está paga, pero no la pagó la caja. */
+  it('un abono de bolsillo no se cuenta como caja', async () => {
+    const vista = montar([
+      gasto('g-caja', 100),
+      gasto('g-bolsillo', 25, {
+        invoice: {
+          id: 'f7',
+          saldo: 0,
+          total: 25,
+          lineas: 1,
+          abonado: { total: 25, bolsillo: 25, saldoAFavor: 0, prestamista: 0 },
+          bolsillos: ['Evanan'],
+        },
+      }),
+    ]);
+    await vista.cargar(/de la caja/);
+
+    expect(screen.getByText('$100.00 de la caja · $25.00 lo puso Evanan')).toBeTruthy();
+  });
+
+  it('lo tomado del saldo a favor tiene su propio pedazo', async () => {
+    const vista = montar([
+      gasto('g-caja', 100),
+      gasto('g-credito', 25, {
+        invoice: {
+          id: 'f10',
+          saldo: 0,
+          total: 25,
+          lineas: 1,
+          abonado: { total: 25, bolsillo: 0, saldoAFavor: 25, prestamista: 0 },
+          bolsillos: [],
+        },
+      }),
+    ]);
+    await vista.cargar(/de la caja/);
+
+    expect(screen.getByText('$100.00 de la caja · $25.00 con saldo a favor')).toBeTruthy();
+  });
+
+  /**
+   * ⚠️ Lo del prestamista NO engorda el bolsillo: esa deuda ya vive en el
+   * saldo del préstamo y contarla como aporte la contaría dos veces.
+   */
+  it('lo del prestamista se nombra aparte y no como bolsillo', async () => {
+    const vista = montar([
+      gasto('g-caja', 100),
+      gasto('g-prestamo', 40, { counterparty: PRESTAMISTA }),
+    ]);
+    await vista.cargar(/de la caja/);
+
+    expect(screen.getByText('$100.00 de la caja · $40.00 lo puso el prestamista')).toBeTruthy();
+  });
+
+  /**
+   * ⚠️ **LAS CINCO PIEZAS, Y QUE SUMEN.** 100 + 50 + 15 + 30 + 10 = 205, el
+   * total del periodo. Es la propiedad que hace creíble al pie: un desglose
+   * que no cuadra, parado al lado de su total, destruye los dos números.
+   */
+  it('escribe las cinco piezas y suman el total', async () => {
+    const vista = montar([
+      gasto('g-caja', 100),
+      gasto('g-bolsillo', 50, { counterparty: EVANAN }),
+      gasto('g-prestamo', 30, { counterparty: PRESTAMISTA }),
+      gasto('g-factura', 25, {
+        invoice: {
+          id: 'f11',
+          saldo: 10,
+          total: 25,
+          lineas: 1,
+          abonado: { total: 15, bolsillo: 0, saldoAFavor: 15, prestamista: 0 },
+          bolsillos: [],
+        },
+      }),
+    ]);
+    await vista.cargar(/de la caja/);
+
+    expect(
+      screen.getByText(
+        '$100.00 de la caja · $50.00 lo puso Evanan · $15.00 con saldo a favor · ' +
+          '$30.00 lo puso el prestamista · $10.00 sin pagar',
+      ),
+    ).toBeTruthy();
+    expect(100 + 50 + 15 + 30 + 10).toBe(205);
+  });
+
+  /**
+   * ⚠️ "$0.00 de la caja" sería lo primero que se lee en el pie el mes que el
+   * negocio no haya puesto un peso.
+   */
+  it('no dice que la caja puso cero', async () => {
+    const vista = montar([
+      gasto('g-bolsillo', 25, {
+        invoice: {
+          id: 'f12',
+          saldo: 0,
+          total: 25,
+          lineas: 1,
+          abonado: { total: 25, bolsillo: 25, saldoAFavor: 0, prestamista: 0 },
+          bolsillos: ['Evanan'],
+        },
+      }),
+    ]);
+    await vista.cargar(/lo puso Evanan/);
+
+    expect(screen.getByText('$25.00 lo puso Evanan')).toBeTruthy();
+    expect(screen.queryByText(/\$0\.00 de la caja/)).toBeNull();
   });
 });

@@ -45,19 +45,30 @@ const compra = (over: Partial<FilamentPurchase> & { id: string }): FilamentPurch
   providerId: 'p1',
   counterpartyId: null,
   counterpartyName: null,
+  counterpartyKind: null,
   rate: null,
   currencyCode: null,
   invoice: null,
   ...over,
 });
 
-const factura = (over: Partial<NonNullable<FilamentPurchase['invoice']>> = {}) => ({
-  id: 'f1',
-  saldo: 10,
-  total: 25,
-  lineas: 1,
-  ...over,
-});
+const factura = (
+  over: Partial<NonNullable<FilamentPurchase['invoice']>> = {},
+): NonNullable<FilamentPurchase['invoice']> => {
+  const base = { id: 'f1', saldo: 10, total: 25, lineas: 1, ...over };
+  return {
+    ...base,
+    // Por defecto **lo abonado salió todo de la caja**: el caso normal, y lo
+    // que la app suponía de TODAS las facturas hasta shared 0.50.0.
+    abonado: over.abonado ?? {
+      total: Math.max(base.total - base.saldo, 0),
+      bolsillo: 0,
+      saldoAFavor: 0,
+      prestamista: 0,
+    },
+    bolsillos: over.bolsillos ?? [],
+  };
+};
 
 /**
  * Las cinco filas del caso real de octubre de 2026, y cada una es el hermano
@@ -185,5 +196,127 @@ describe('Compras de filamento: quién puso la plata', () => {
     expect(
       within(movil).getAllByText('Faltan $10.00 de esta factura').length,
     ).toBe(2);
+  });
+});
+
+/**
+ * DE DÓNDE SALIÓ LA PLATA DE LOS ABONOS, EN LA PANTALLA (shared 0.51.0).
+ *
+ * El motor ya decide el texto y tiene sus propios tests; lo que se protege acá
+ * es el CABLEADO. Una mutación que hacía que una pantalla dejara de filtrar no
+ * tumbó ni un test de este proyecto con las nueve ramas de la función
+ * probadas: borrar la línea del JSX tiene que ponerse rojo acá.
+ */
+describe('PurchasesTab · de dónde salió la plata de los abonos', () => {
+  /**
+   * ⚠️ El caso que destapó el hueco: la factura está SALDADA, así que la
+   * pantalla no tenía nada que decir y se callaba — justo cuando lo que tenía
+   * para contar era que esa plata no la puso el negocio.
+   */
+  it('una factura saldada de bolsillo dice quién la puso', async () => {
+    montar([
+      compra({
+        id: 'c-bolsillo',
+        materialName: 'PLA Violeta',
+        invoice: factura({
+          id: 'f7',
+          saldo: 0,
+          total: 25,
+          abonado: { total: 25, bolsillo: 25, saldoAFavor: 0, prestamista: 0 },
+          bolsillos: ['Evanan'],
+        }),
+      }),
+    ]);
+    const f = await fila('PLA Violeta');
+
+    expect(f.getByText('$25.00 lo puso Evanan')).toBeTruthy();
+  });
+
+  it('con saldo Y bolsillo dice las dos cosas en la misma línea', async () => {
+    montar([
+      compra({
+        id: 'c-mixta',
+        materialName: 'PLA Verde',
+        invoice: factura({
+          id: 'f8',
+          saldo: 10,
+          total: 25,
+          abonado: { total: 15, bolsillo: 15, saldoAFavor: 0, prestamista: 0 },
+          bolsillos: ['Evanan'],
+        }),
+      }),
+    ]);
+    const f = await fila('PLA Verde');
+
+    expect(f.getByText('Faltan $10.00 de esta factura · $15.00 lo puso Evanan')).toBeTruthy();
+  });
+
+  it('lo tomado del saldo a favor se dice como tal', async () => {
+    montar([
+      compra({
+        id: 'c-credito',
+        materialName: 'PLA Gris',
+        invoice: factura({
+          id: 'f10',
+          saldo: 0,
+          total: 25,
+          abonado: { total: 25, bolsillo: 0, saldoAFavor: 25, prestamista: 0 },
+        }),
+      }),
+    ]);
+    const f = await fila('PLA Gris');
+
+    expect(f.getByText('$25.00 con saldo a favor')).toBeTruthy();
+  });
+
+  /** Con varios orígenes la celda diría tres renglones: se dice el total. */
+  it('con varios orígenes dice el total y no el detalle', async () => {
+    montar([
+      compra({
+        id: 'c-varios',
+        materialName: 'PLA Marrón',
+        invoice: factura({
+          id: 'f11',
+          saldo: 0,
+          total: 30,
+          abonado: { total: 30, bolsillo: 18, saldoAFavor: 12, prestamista: 0 },
+          bolsillos: ['Evanan'],
+        }),
+      }),
+    ]);
+    const f = await fila('PLA Marrón');
+
+    expect(f.getByText('$30.00 no salió de la caja')).toBeTruthy();
+    expect(f.queryByText(/con saldo a favor/)).toBeNull();
+  });
+
+  /**
+   * ⚠️ El prestamista no genera la deuda que sí genera un bolsillo: esa deuda
+   * ya vive en el saldo del préstamo.
+   */
+  it('un gasto directo del prestamista no promete una devolución', async () => {
+    montar([
+      compra({
+        id: 'c-prestamista',
+        materialName: 'PLA Dorado',
+        counterpartyId: 'cp9',
+        counterpartyName: 'Prestamista',
+        counterpartyKind: 'EXTERNAL_LENDER',
+      }),
+    ]);
+    const f = await fila('PLA Dorado');
+
+    expect(f.getByText('Lo puso el prestamista')).toBeTruthy();
+    expect(f.queryByText(/se lo debe/)).toBeNull();
+  });
+
+  /** El silencio sigue siendo el caso normal: lo de la caja no dice nada. */
+  it('una factura saldada por la caja sigue sin decir nada', async () => {
+    montar([
+      compra({ id: 'c-nada', materialName: 'PLA Beige', invoice: factura({ id: 'f12', saldo: 0 }) }),
+    ]);
+    const f = await fila('PLA Beige');
+
+    expect(f.queryByText(/lo puso|saldo a favor|no salió de la caja|faltan/i)).toBeNull();
   });
 });
