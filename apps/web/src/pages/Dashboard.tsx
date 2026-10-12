@@ -17,12 +17,16 @@ import {
 import { Link } from 'react-router-dom';
 import {
   LineChart as LineIcon,
+  AlarmClock,
   AlertTriangle,
   Bell,
+  CalendarClock,
   ChevronDown,
   ChevronUp,
   ClipboardList,
+  FileClock,
   Gauge,
+  HandCoins,
   Megaphone,
   PackageX,
   X,
@@ -39,6 +43,7 @@ import {
   monthlyLoanPayments,
   campaignHealth,
   repartoPorCanal,
+  avisosDeEncargos,
   repartoDePagadores,
   textoDeReparto,
   type CanalDeIngreso,
@@ -54,7 +59,7 @@ import { usePersistentState } from '@/lib/usePersistentState';
 import { cn } from '@/lib/utils';
 import { NumberTicker } from '@/components/effects';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
-import { useOrderPayments } from '@/features/orders/api';
+import { useOrderPayments, useOrders } from '@/features/orders/api';
 import { useCampaigns, isCampaignVigente } from '@/features/campaigns/api';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import {
@@ -1205,14 +1210,178 @@ const ID_RECORDATORIOS = 'dashboard-recordatorios';
  * `dashboard:aviso-lecturas`—, que guardan MESES y ya tienen su propia trampa
  * documentada.
  */
+/**
+ * Recordatorios de ENCARGOS (2026-10-12): una entrega que se pasó, uno
+ * entregado sin cobrar, los que se entregan pronto y una cotización fría.
+ *
+ * ⚠️ **Acá no se decide nada**: las cuatro listas salen de `avisosDeEncargos`
+ * (shared), con `todayKey()` como "hoy" y los dos umbrales justificados allá
+ * con los datos reales del negocio, no como números sueltos en un `if`.
+ *
+ * ⚠️ **El descarte NO dura hasta fin de mes, a diferencia de los otros dos.**
+ * Los de conteo y lecturas son tareas MENSUALES: callarlas hasta que cambie el
+ * mes es exactamente su ritmo. Un encargo vencido no es una tarea del mes: es
+ * una fila concreta. Si se callara por un mes, un encargo nuevo que se venza
+ * mañana quedaría tapado por el descarte del de hoy. Por eso el descarte se
+ * guarda contra **la lista de encargos afectados**: callás lo que estás
+ * viendo, y en cuanto entra otro el aviso vuelve.
+ *
+ * ⚠️ **Son cuatro recordatorios y no uno.** Cada uno pide una acción distinta
+ * —apurar, cobrar, preparar, insistir— y el dueño puede querer callar "se
+ * entregan pronto" sin callar "vencidos". El renglón plegado ya los cuenta y
+ * los nombra solo; no hay nada que tocar ahí.
+ */
+function useRecordatoriosDeEncargos(): Recordatorio[] {
+  const { data } = useOrders();
+  const [descartados, setDescartados] = usePersistentState<Record<string, string>>(
+    'dashboard:avisos-encargos',
+    {},
+  );
+
+  // Mientras la consulta viaja no se afirma nada: ni que hay avisos ni que no.
+  const avisos = React.useMemo(
+    () =>
+      avisosDeEncargos(
+        (data ?? []).map((o) => ({
+          id: o.id,
+          code: o.code,
+          status: o.status,
+          deliveryDate: o.deliveryDate ? o.deliveryDate.slice(0, 10) : null,
+          // ⚠️ El saldo llega DERIVADO por el backend (`orderBalance`): no se
+          // recalcula acá ni en shared. Una segunda cuenta del mismo número es
+          // el bug que este proyecto viene cazando hace semanas.
+          balance: o.balance,
+          createdAt: o.createdAt.slice(0, 10),
+        })),
+        todayKey(),
+      ),
+    [data],
+  );
+  if (!data) return [];
+
+  /** `#25, #26` — lo que el dueño dice en voz alta, y también la firma del descarte. */
+  const codigos = (lista: { code: number }[]) =>
+    lista
+      .map((e) => e.code)
+      .sort((a, b) => a - b)
+      .join(',');
+
+  const armar = (
+    clave: string,
+    lista: { code: number }[],
+    icono: React.ReactNode,
+    resumen: string,
+    titulo: React.ReactNode,
+    detalle: React.ReactNode,
+    descartarLabel: string,
+  ): Recordatorio | null => {
+    if (lista.length === 0) return null;
+    const firma = codigos(lista);
+    if (descartados[clave] === firma) return null;
+    return {
+      clave,
+      resumen,
+      to: '/orders',
+      icono,
+      titulo,
+      detalle,
+      onDescartar: () => setDescartados({ ...descartados, [clave]: firma }),
+      descartarLabel,
+    };
+  };
+
+  const lista = (xs: { code: number }[]) => xs.map((e) => `#${e.code}`).join(', ');
+
+  return [
+    armar(
+      'encargos-vencidos',
+      avisos.vencidos,
+      <AlarmClock className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />,
+      'entregas pasadas de fecha',
+      avisos.vencidos.length === 1 ? (
+        <>Al encargo {lista(avisos.vencidos)} se le pasó la fecha de entrega.</>
+      ) : (
+        <>A {avisos.vencidos.length} encargos se les pasó la fecha: {lista(avisos.vencidos)}.</>
+      ),
+      <>
+        Siguen abiertos y la fecha que les pusiste ya pasó. Si ya los entregaste, lo que falta es
+        marcarlos; si no, el cliente lleva esperando más de lo prometido.
+      </>,
+      'Descartar el aviso de las entregas pasadas de fecha',
+    ),
+    armar(
+      'encargos-sin-cobrar',
+      avisos.sinCobrar,
+      <HandCoins className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />,
+      'encargos entregados sin cobrar',
+      avisos.sinCobrar.length === 1 ? (
+        <>Entregaste el encargo {lista(avisos.sinCobrar)} y todavía te deben.</>
+      ) : (
+        <>
+          Hay {avisos.sinCobrar.length} encargos entregados con saldo: {lista(avisos.sinCobrar)}.
+        </>
+      ),
+      <>
+        La mercadería ya salió y la plata no entró. Es lo único de esta lista que es plata tuya
+        afuera, y la caja no la cuenta hasta que la cobres.
+      </>,
+      'Descartar el aviso de los encargos entregados sin cobrar',
+    ),
+    armar(
+      'encargos-proximos',
+      avisos.proximos,
+      <CalendarClock className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />,
+      'entregas de los próximos días',
+      avisos.proximos.length === 1 ? (
+        <>El encargo {lista(avisos.proximos)} se entrega en los próximos días.</>
+      ) : (
+        <>
+          Se entregan {avisos.proximos.length} encargos en los próximos días:{' '}
+          {lista(avisos.proximos)}.
+        </>
+      ),
+      <>
+        Todavía están abiertos. No es un problema: es para que no te agarre el día de la entrega
+        con la impresora ocupada.
+      </>,
+      'Descartar el aviso de las entregas próximas',
+    ),
+    armar(
+      'encargos-cotizaciones',
+      avisos.cotizacionesFrias,
+      <FileClock className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />,
+      'cotizaciones sin respuesta',
+      avisos.cotizacionesFrias.length === 1 ? (
+        <>La cotización {lista(avisos.cotizacionesFrias)} lleva semanas sin respuesta.</>
+      ) : (
+        <>
+          Hay {avisos.cotizacionesFrias.length} cotizaciones sin respuesta:{' '}
+          {lista(avisos.cotizacionesFrias)}.
+        </>
+      ),
+      <>
+        Quedaron en cotizado y nadie las movió. O se insiste, o se cancelan: una cotización vieja
+        que sigue abierta ensucia la lista de encargos.
+      </>,
+      'Descartar el aviso de las cotizaciones sin respuesta',
+    ),
+  ].filter((r): r is Recordatorio => r !== null);
+}
+
 function RecordatoriosDelDashboard() {
   // ⚠️ Los dos hooks se llaman SIEMPRE y en este orden: son hooks, no se
   // pueden saltear según cuántos recordatorios haya.
   const conteo = useRecordatorioDeConteo();
   const lecturas = useRecordatorioDeLecturas();
+  // ⚠️ Devuelve una LISTA (cuatro clases de aviso de encargos), no uno solo.
+  // El renglón los cuenta y los nombra desde su `resumen`, así que sumar una
+  // clase nueva no obliga a tocar nada más abajo.
+  const encargos = useRecordatoriosDeEncargos();
   const [desplegado, setDesplegado] = React.useState(false);
 
-  const recordatorios = [conteo, lecturas].filter((r): r is Recordatorio => r !== null);
+  const recordatorios = [conteo, lecturas, ...encargos].filter(
+    (r): r is Recordatorio => r !== null,
+  );
 
   if (recordatorios.length === 0) return null;
   if (recordatorios.length === 1) return <AvisoDelDashboard {...recordatorios[0]} />;

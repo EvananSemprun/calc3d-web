@@ -61,6 +61,14 @@ interface Escenario {
   campanasFlojas?: number;
   /** `GET /purchase-invoices` → cuántas facturas no llegaron cuando dijeron. */
   comprasAtrasadas?: number;
+  /** `GET /orders` → los encargos tal como los devuelve el backend. */
+  encargos?: {
+    code: number;
+    status: string;
+    deliveryDate: string | null;
+    balance: number;
+    createdAt?: string;
+  }[];
 }
 
 /**
@@ -150,6 +158,27 @@ function montar(e: Escenario = {}) {
           voidedAt: null,
           supplier: { name: `Filaven ${i}` },
           lines: [{ quantity: 2, unitPrice: 10, received: 0 }],
+        })),
+      });
+    }
+    if (url === '/orders') {
+      return Promise.resolve({
+        data: (e.encargos ?? []).map((o, i) => ({
+          id: `o${i}`,
+          code: o.code,
+          clientId: 'cl1',
+          client: { id: 'cl1', name: 'Cliente' },
+          status: o.status,
+          deliveryDate: o.deliveryDate,
+          notes: null,
+          lines: [],
+          payments: [],
+          createdAt: o.createdAt ?? '2026-10-01T00:00:00.000Z',
+          updatedAt: '2026-10-01T00:00:00.000Z',
+          // El saldo llega DERIVADO por el backend: la pantalla no lo recalcula.
+          total: o.balance,
+          paid: 0,
+          balance: o.balance,
         })),
       });
     }
@@ -552,5 +581,222 @@ describe('Los avisos conviven', () => {
 
     // El conteo pendiente ahora es noviembre: nadie lo descartó, tiene que estar.
     expect(screen.getByText('Falta contar el stock de noviembre de 2026.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * LOS AVISOS DE ENCARGOS, RENDERIZADOS (2026-10-12).
+ *
+ * Las cuatro reglas están probadas en `shared/calc/encargos.spec.ts` con sus
+ * bordes. Lo que se fija acá es el CABLEADO: que la pantalla le pase los
+ * encargos y el "hoy" correctos, que dibuje el aviso, que el descarte dure, y
+ * —sobre todo— que **no aparezca cuando no hay nada que hacer**.
+ *
+ * ⚠️ En producción hay cero casos en las cuatro categorías, así que estos
+ * tests son la única evidencia de que el cableado anda.
+ */
+describe('Avisos de encargos', () => {
+  /** El estado real del negocio: 23 entregados y cobrados. Silencio. */
+  it('con todo entregado y cobrado no dice nada', async () => {
+    const vista = montar({
+      encargos: [
+        { code: 23, status: 'DELIVERED', deliveryDate: '2026-10-02', balance: 0 },
+        { code: 24, status: 'DELIVERED', deliveryDate: '2026-10-08', balance: 0 },
+      ],
+    });
+    await vista.cargar();
+
+    expect(screen.queryByText(/fecha de entrega/i)).toBeNull();
+    expect(screen.queryByText(/todavía te deben/i)).toBeNull();
+    expect(screen.queryByText(/próximos días/i)).toBeNull();
+  });
+
+  it('avisa del encargo al que se le pasó la fecha, y el enlace lleva a Encargos', async () => {
+    const vista = montar({
+      encargos: [{ code: 25, status: 'IN_PRODUCTION', deliveryDate: '2026-10-05', balance: 0 }],
+    });
+    await vista.cargar();
+
+    expect(screen.getByText(/Al encargo #25 se le pasó la fecha de entrega/)).toBeTruthy();
+    const enlace = screen.getByRole('link', { name: /#25/ });
+    expect(enlace.getAttribute('href')).toBe('/orders');
+  });
+
+  /** ⚠️ El hermano alcanzable: entregado, la fecha pasada no es un problema. */
+  it('un entregado con la fecha pasada NO avisa', async () => {
+    const vista = montar({
+      encargos: [{ code: 25, status: 'DELIVERED', deliveryDate: '2026-10-05', balance: 0 }],
+    });
+    await vista.cargar();
+
+    expect(screen.queryByText(/se le pasó la fecha/)).toBeNull();
+  });
+
+  it('avisa de lo entregado y sin cobrar, que es plata afuera', async () => {
+    const vista = montar({
+      encargos: [{ code: 24, status: 'DELIVERED', deliveryDate: '2026-10-02', balance: 15 }],
+    });
+    await vista.cargar();
+
+    expect(screen.getByText(/Entregaste el encargo #24 y todavía te deben/)).toBeTruthy();
+  });
+
+  it('avisa de lo que se entrega en los próximos días', async () => {
+    const vista = montar({
+      encargos: [{ code: 25, status: 'IN_PRODUCTION', deliveryDate: '2026-10-12', balance: 15 }],
+    });
+    await vista.cargar();
+
+    expect(screen.getByText(/El encargo #25 se entrega en los próximos días/)).toBeTruthy();
+    // ⚠️ Y NO como "sin cobrar": que falte plata de un encargo abierto es lo
+    // normal. Avisar de eso sería avisar de todos.
+    expect(screen.queryByText(/todavía te deben/)).toBeNull();
+  });
+
+  it('avisa de la cotización que quedó sin respuesta', async () => {
+    const vista = montar({
+      encargos: [
+        {
+          code: 26,
+          status: 'QUOTED',
+          deliveryDate: null,
+          balance: 0,
+          createdAt: '2026-09-20T00:00:00.000Z',
+        },
+      ],
+    });
+    await vista.cargar();
+
+    expect(screen.getByText(/La cotización #26 lleva semanas sin respuesta/)).toBeTruthy();
+  });
+
+  /**
+   * ⚠️ **EL DESCARTE NO DURA UN MES, dura mientras sean LOS MISMOS encargos.**
+   * Los de conteo y lecturas son tareas mensuales; un encargo vencido es una
+   * fila concreta. Si se callara por un mes, el que se venza mañana quedaría
+   * tapado por el descarte de hoy.
+   */
+  it('se puede descartar, y el descarte sobrevive a recargar la pantalla', async () => {
+    const encargos = [
+      { code: 25, status: 'IN_PRODUCTION', deliveryDate: '2026-10-05', balance: 0 },
+    ];
+    const vista = montar({ encargos });
+    await vista.cargar();
+
+    fireEvent.click(screen.getByLabelText('Descartar el aviso de las entregas pasadas de fecha'));
+    expect(screen.queryByText(/se le pasó la fecha/)).toBeNull();
+
+    vista.unmount();
+    const otra = montar({ encargos });
+    await otra.cargar();
+    expect(screen.queryByText(/se le pasó la fecha/)).toBeNull();
+  });
+
+  it('pero si se vence OTRO encargo, el aviso vuelve', async () => {
+    const vista = montar({
+      encargos: [{ code: 25, status: 'IN_PRODUCTION', deliveryDate: '2026-10-05', balance: 0 }],
+    });
+    await vista.cargar();
+    fireEvent.click(screen.getByLabelText('Descartar el aviso de las entregas pasadas de fecha'));
+    vista.unmount();
+
+    const otra = montar({
+      encargos: [
+        { code: 25, status: 'IN_PRODUCTION', deliveryDate: '2026-10-05', balance: 0 },
+        { code: 27, status: 'CONFIRMED', deliveryDate: '2026-10-06', balance: 0 },
+      ],
+    });
+    await otra.cargar();
+
+    expect(screen.getByText(/A 2 encargos se les pasó la fecha: #25, #27/)).toBeTruthy();
+  });
+
+  /** Cada clase se calla por su cuenta: callar una no calla las otras. */
+  it('descartar las entregas pasadas no calla las que están sin cobrar', async () => {
+    const vista = montar({
+      encargos: [
+        { code: 25, status: 'IN_PRODUCTION', deliveryDate: '2026-10-05', balance: 0 },
+        { code: 24, status: 'DELIVERED', deliveryDate: '2026-10-02', balance: 15 },
+      ],
+    });
+    await vista.cargar();
+
+    // Con dos recordatorios el renglón se colapsa: hay que desplegarlo.
+    fireEvent.click(screen.getByRole('button', { name: /recordatorios/ }));
+    fireEvent.click(screen.getByLabelText('Descartar el aviso de las entregas pasadas de fecha'));
+
+    expect(screen.queryByText(/se le pasó la fecha/)).toBeNull();
+    expect(screen.getByText(/todavía te deben/)).toBeTruthy();
+  });
+
+  /** El renglón los cuenta y los nombra solo, sin lista escrita a mano. */
+  it('con varios, el renglón plegado los cuenta y los nombra', async () => {
+    const vista = montar({
+      encargos: [
+        { code: 25, status: 'IN_PRODUCTION', deliveryDate: '2026-10-05', balance: 0 },
+        { code: 24, status: 'DELIVERED', deliveryDate: '2026-10-02', balance: 15 },
+      ],
+    });
+    await vista.cargar();
+
+    const renglon = screen.getByRole('button', { name: /recordatorios/ });
+    expect(renglon.textContent).toContain('2 recordatorios');
+    expect(renglon.textContent).toContain('entregas pasadas de fecha');
+    expect(renglon.textContent).toContain('encargos entregados sin cobrar');
+  });
+});
+
+/**
+ * ⚠️ **EL AMONTONAMIENTO, que es el riesgo documentado de esta pantalla.**
+ * El plan de la fase 6 lo dejó escrito: "mirar el Dashboard con los cuatro
+ * avisos a la vez; si no entran, la conversación es cuál se va, no achicar la
+ * letra". Con los de encargos pueden ser SEIS recordatorios a la vez, y la
+ * única razón por la que eso no tapa la pantalla es que se pliegan en UN
+ * renglón. Este test es esa garantía: si alguien hace que dejen de plegarse,
+ * se cae acá y no en la cara del dueño.
+ */
+describe('Seis recordatorios siguen siendo un renglón', () => {
+  const TODOS = {
+    ultimoCierre: '2026-08',
+    lecturas: ['2026-07'],
+    encargos: [
+      { code: 25, status: 'IN_PRODUCTION', deliveryDate: '2026-10-05', balance: 0 },
+      { code: 24, status: 'DELIVERED', deliveryDate: '2026-10-02', balance: 15 },
+      { code: 28, status: 'CONFIRMED', deliveryDate: '2026-10-12', balance: 0 },
+      {
+        code: 26,
+        status: 'QUOTED',
+        deliveryDate: null,
+        balance: 0,
+        createdAt: '2026-09-20T00:00:00.000Z',
+      },
+    ],
+  };
+
+  it('los seis se cuentan, se nombran y NINGUNO se dibuja suelto', async () => {
+    const vista = montar(TODOS);
+    await vista.cargar();
+
+    const renglon = screen.getByRole('button', { name: /recordatorios/ });
+    expect(renglon.textContent).toContain('6 recordatorios');
+    // Plegado, ninguno de los seis muestra su texto ni su botón de descarte.
+    expect(screen.queryByText(/se le pasó la fecha/)).toBeNull();
+    expect(screen.queryByText(/Falta contar el stock/)).toBeNull();
+    expect(screen.queryByLabelText(/^Descartar/)).toBeNull();
+  });
+
+  it('desplegado aparecen los seis, cada uno con su botón de callar', async () => {
+    const vista = montar(TODOS);
+    await vista.cargar();
+    fireEvent.click(screen.getByRole('button', { name: /recordatorios/ }));
+
+    expect(screen.getAllByLabelText(/^Descartar/).length).toBe(6);
+    expect(screen.getByText(/se le pasó la fecha/)).toBeTruthy();
+    expect(screen.getByText(/todavía te deben/)).toBeTruthy();
+    // ⚠️ Textos del TÍTULO de cada tarjeta, no los del renglón: el renglón
+    // sigue dibujado cuando está desplegado y nombra lo mismo, así que un
+    // patrón suelto encuentra dos elementos y el test se cae por ambiguo.
+    expect(screen.getByText(/El encargo #28 se entrega en los próximos días/)).toBeTruthy();
+    expect(screen.getByText(/La cotización #26 lleva semanas sin respuesta/)).toBeTruthy();
   });
 });

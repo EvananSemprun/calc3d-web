@@ -1448,6 +1448,37 @@ con 133.22 y le quedaban 102.83.
   (`campaignDisplayStatus`), porque nada mueve el `status` guardado a FINISHED
   cuando pasa la fecha de fin.
 
+#### Avisos de encargos (2026-10-12, shared 0.52.0)
+
+Cuatro recordatorios nuevos, todos en el **renglón plegado** junto al conteo
+de stock y las lecturas de horas: entregas pasadas de fecha, encargos
+entregados sin cobrar, entregas de los próximos días y cotizaciones sin
+respuesta. Las reglas y los dos umbrales viven en `shared/calc/encargos.ts`
+(ver el CLAUDE.md de la API para de dónde salen los números); el hook
+`useRecordatoriosDeEncargos` solo arma los textos.
+
+- ⚠️ **Devuelve una LISTA, no un recordatorio.** Son cuatro clases con cuatro
+  acciones distintas —apurar, cobrar, preparar, insistir— y el dueño puede
+  querer callar una sin callar las otras. El renglón las cuenta y las nombra
+  desde su `resumen`, así que sumar una quinta no obliga a tocarlo.
+- ⚠️ **El descarte NO dura hasta fin de mes, a diferencia de los otros dos.**
+  Conteo y lecturas son tareas MENSUALES; un encargo vencido es una fila
+  concreta. Si se callara por un mes, el que se venza mañana quedaría tapado
+  por el descarte de hoy. Se guarda contra **la lista de códigos afectados**:
+  callás lo que ves, y en cuanto entra otro el aviso vuelve. Hay un test para
+  cada mitad de esa frase.
+- ⚠️ **El amontonamiento es el riesgo de esta pantalla**, y ahora pueden ser
+  **seis** recordatorios. Lo único que impide que tapen el Dashboard es que se
+  plieguen en un renglón, así que eso tiene su propio test: plegados, ninguno
+  de los seis dibuja su texto ni su botón de callar; desplegados, aparecen los
+  seis con el suyo.
+- ⚠️ Al escribir tests sobre el renglón desplegado, usar el texto del **título
+  de la tarjeta** y no un patrón suelto: el renglón sigue dibujado y nombra lo
+  mismo, así que `getByText(/próximos días/)` encuentra dos y el test se cae
+  por ambiguo.
+- Tests: 12 nuevos en `Dashboard.avisos.spec.tsx`. Por mutación, desenganchar
+  los avisos del renglón tumba 8 y pasarle el día equivocado tumba 7.
+
 #### El anillo de foco: uno solo para toda la app (2026-10-11)
 
 `Switch`, el botón de limpiar de `SearchInput` y `SortHeader` usaban el
