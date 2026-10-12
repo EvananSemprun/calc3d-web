@@ -24,6 +24,7 @@ import {
   MapPin,
   Store,
   Inbox,
+  GalleryHorizontalEnd,
   Settings as SettingsIcon,
   LogOut,
   Menu,
@@ -96,7 +97,9 @@ const navGroups: {
     // La bandeja es trabajo ENTRANTE, no un catálogo: no era una "definición".
     heading: 'Tienda',
     items: [
-      { to: '/store', label: 'Tienda', icon: Store },
+      // `end` para que "Tienda" no quede resaltada también en /store/banners y /store/requests.
+      { to: '/store', label: 'Tienda', icon: Store, end: true },
+      { to: '/store/banners', label: 'Banners', icon: GalleryHorizontalEnd },
       { to: '/store/requests', label: 'Bandeja de tienda', icon: Inbox, badge: 'store-requests' },
     ],
   },
