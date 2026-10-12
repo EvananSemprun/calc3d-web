@@ -1448,6 +1448,45 @@ con 133.22 y le quedaban 102.83.
   (`campaignDisplayStatus`), porque nada mueve el `status` guardado a FINISHED
   cuando pasa la fecha de fin.
 
+#### El anillo de foco: uno solo para toda la app (2026-10-11)
+
+`Switch`, el botón de limpiar de `SearchInput` y `SortHeader` usaban el
+**contorno por defecto del navegador**. No era foco invisible —se veía algo—
+pero eran los únicos lugares donde se dibujaba distinto, y eso enseña a no
+mirarlo. Ahora los tres llevan el mismo anillo que `Button` y `Checkbox`
+(`ring-2 ring-ring` + `ring-offset-2 ring-offset-background`).
+
+⚠️ **El anillo del Checkbox en claro + marcada NO se cambió, y hay números
+detrás.** Se veía como el más flojo de los cuatro estados, así que se midió el
+contraste antes de tocarlo:
+
+| | ratio |
+|---|---|
+| CLARO · anillo vs **fondo** (su color adyacente real) | **7.78** |
+| OSCURO · anillo vs tarjeta | **10.42** |
+| CLARO · anillo vs caja marcada | 1.52 |
+| OSCURO · anillo vs caja marcada | 1.69 |
+
+El mínimo de WCAG 1.4.11 para un elemento no textual es **3.0**, y el color
+adyacente al anillo **es el fondo**, no la caja: `ring-offset-2` mete 2px de
+fondo entre los dos. Por eso los dos temas pasan holgados. Las dos
+alternativas que se evaluaron (anillo dorado en claro, anillo azul más claro)
+**empeoraban** lo que sí importa — 7.78 → 4.72 y 4.20 — a cambio de subir de
+1.52 a 2.5/2.8 un número que ni siquiera aplica. Oscuro "se ve mejor" por
+diferencia de TONO (dorado contra azul), que el ratio de contraste no mide.
+**No tocar sin volver a medir.**
+
+⚠️ Verificación: jsdom no aplica CSS, así que los tests de
+`Checkbox.foco.spec.tsx` fijan la **precondición DOM** (que sigan siendo
+`<button>` con nombre y **dentro del orden de tabulación**) y el anillo se
+comprueba a mano en el navegador. Y ojo con dos trampas que ya mordieron acá:
+`.focus()` entra igual en un elemento con `tabIndex={-1}` —una mutación así no
+tumbaba ningún test hasta que se agregó la comprobación del `tabIndex`— y
+**leer `getComputedStyle` mientras corre una transición devuelve el valor
+viejo**: en la pasada de este cambio la lectura decía que la casilla seguía en
+colores claros estando en tema oscuro, y la captura mostraba el anillo dorado
+perfecto. Creerle a la captura.
+
 #### De dónde salió la plata de un gasto (2026-10-11, shared 0.50.0)
 
 Dos lecturas del MISMO hecho, con **una sola definición** en

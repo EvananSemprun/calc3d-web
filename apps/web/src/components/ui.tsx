@@ -525,7 +525,13 @@ export function SearchInput({
           type="button"
           onClick={() => onChange('')}
           aria-label="Limpiar búsqueda"
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+          className={cn(
+            'absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground',
+            // El anillo de la casa, el MISMO de `Button`: este botón aparece
+            // y desaparece con el texto, así que navegando por teclado es el
+            // más fácil de perder de vista.
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          )}
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -553,7 +559,12 @@ export function SortHeader<T>({
       <button
         type="button"
         onClick={() => sort.toggle(sortKey)}
-        className="inline-flex items-center gap-1 hover:text-foreground"
+        className={cn(
+          'inline-flex items-center gap-1 rounded hover:text-foreground',
+          // Ordenar una tabla por teclado es de las pocas cosas que se hacen
+          // SIN mouse; sin anillo propio no se sabe por qué columna se va.
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        )}
       >
         {label}
         <Icon className={cn('h-3.5 w-3.5', active ? 'text-brand-yellow-ink' : 'opacity-40')} />
@@ -784,6 +795,11 @@ export function Switch({
         onClick={() => onChange(!checked)}
         className={cn(
           'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300',
+          // ⚠️ Mismo anillo que `Button` y `Checkbox`. Acá importa más que en
+          // otros: un interruptor **no dice con palabras en qué estado está**
+          // —lo dice su color—, así que sin saber dónde está el foco, pulsar
+          // Espacio es apostar.
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           checked ? 'bg-brand-blue-bright shadow-glow-blue' : 'bg-muted',
         )}
       >
