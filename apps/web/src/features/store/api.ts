@@ -21,6 +21,8 @@ export interface StoreImage {
   width: number | null;
   height: number | null;
   position: number;
+  /** null = foto de la galería base; si no, la opción (color) a la que pertenece. */
+  optionId: string | null;
 }
 
 export interface StoreOption {
@@ -29,12 +31,16 @@ export interface StoreOption {
   /** Decimal de Prisma → string en JSON. */
   priceDeltaUsd: string;
   swatchHex: string | null;
+  /** Fotos propias de este color (solo en el grupo que define la foto). */
+  images: StoreImage[];
 }
 
 export interface StoreOptionGroup {
   id: string;
   name: string;
   required: boolean;
+  /** Marca el grupo cuyas opciones definen la foto de la ficha (a lo sumo uno). */
+  drivesPhoto: boolean;
   options: StoreOption[];
 }
 
@@ -194,7 +200,11 @@ export function usePublishToStore() {
  * almacenamiento (no pasa por la API), y recién después se confirma para que el
  * backend lo verifique y lo registre.
  */
-export async function uploadStoreImage(productId: string, file: File): Promise<StoreProduct> {
+export async function uploadStoreImage(
+  productId: string,
+  file: File,
+  optionId?: string,
+): Promise<StoreProduct> {
   const { data: target } = await api.post<{
     key: string;
     url: string;
@@ -212,6 +222,8 @@ export async function uploadStoreImage(productId: string, file: File): Promise<S
   const { data } = await api.post<StoreProduct>(`/store/products/${productId}/images`, {
     key: target.key,
     ...size,
+    // Si viene, la foto es de un color; si no, va a la galería base.
+    ...(optionId ? { optionId } : {}),
   });
   return data;
 }

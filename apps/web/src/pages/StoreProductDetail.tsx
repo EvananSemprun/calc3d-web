@@ -24,6 +24,7 @@ import {
   useStoreProduct,
   useStoreStatus,
   useUpdateStoreProduct,
+  type StoreImage,
 } from '@/features/store/api';
 import { StoreCategoriesModal } from '@/features/store/StoreCategoriesModal';
 import { ReorderControls } from '@/features/store/ReorderControls';
@@ -43,11 +44,28 @@ import {
   FieldGrid,
 } from '@/components/ui';
 
-/** Grupo de opciones en edición (sin ids: se reemplazan como bloque al guardar). */
+/**
+ * Grupo/opción en edición. Se CONSERVAN los `id` de lo que ya existía: el
+ * backend guarda con diff por id (Fase B), así que un id preservado es lo que
+ * hace que las fotos enlazadas a una opción sobrevivan a editar el producto.
+ * Lo nuevo va sin `id` y el backend lo crea.
+ */
+interface OpcionEdit {
+  id?: string;
+  value: string;
+  priceDeltaUsd: number;
+  swatchHex: string | null;
+  /** Fotos propias del color (solo en el grupo que define la foto). */
+  images: StoreImage[];
+}
+
 interface GrupoEdit {
+  id?: string;
   name: string;
   required: boolean;
-  options: { value: string; priceDeltaUsd: number; swatchHex: string | null }[];
+  /** Marca el grupo cuyas opciones definen la foto de la ficha (a lo sumo uno). */
+  drivesPhoto: boolean;
+  options: OpcionEdit[];
 }
 
 export function StoreProductDetailPage() {
@@ -111,12 +129,16 @@ export function StoreProductDetailPage() {
     setTramos(product.priceTiers ?? []);
     setGrupos(
       product.optionGroups.map((g) => ({
+        id: g.id,
         name: g.name,
         required: g.required,
+        drivesPhoto: g.drivesPhoto,
         options: g.options.map((o) => ({
+          id: o.id,
           value: o.value,
           priceDeltaUsd: Number(o.priceDeltaUsd),
           swatchHex: o.swatchHex,
+          images: o.images ?? [],
         })),
       })),
     );
@@ -175,11 +197,16 @@ export function StoreProductDetailPage() {
           // Un grupo sin nombre o sin opciones no se manda: el backend lo rechazaría.
           .filter((g) => g.name.trim() && g.options.some((o) => o.value.trim()))
           .map((g) => ({
+            // Los ids preservados son lo que el diff del backend reconoce para no
+            // borrar y recrear (y perder las fotos enlazadas a una opción).
+            ...(g.id ? { id: g.id } : {}),
             name: g.name.trim(),
             required: g.required,
+            drivesPhoto: g.drivesPhoto,
             options: g.options
               .filter((o) => o.value.trim())
               .map((o) => ({
+                ...(o.id ? { id: o.id } : {}),
                 value: o.value.trim(),
                 priceDeltaUsd: o.priceDeltaUsd || 0,
                 swatchHex: o.swatchHex || null,
@@ -247,7 +274,7 @@ export function StoreProductDetailPage() {
 
   // La PRIMERA foto es la portada de la vitrina, así que el orden importa.
   const moverFoto = async (from: number, to: number) => {
-    const ids = moveItem(product.images, from, to).map((i) => i.id);
+    const ids = moveItem(fotosBase, from, to).map((i) => i.id);
     try {
       await reorderImages.mutateAsync(ids);
     } catch (e) {
@@ -263,6 +290,40 @@ export function StoreProductDetailPage() {
       notify.error(apiErrorMessage(e));
     }
   };
+
+  // Foto de un COLOR: va enlazada a su opción (Fase B). Reusa el mismo flujo de
+  // subida que la galería base, pasando el optionId.
+  const subirFotoOpcion = async (optionId: string, file: File | undefined) => {
+    if (!file) return;
+    if (!(STORE_IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
+      notify.error('La foto debe ser PNG, JPEG o WebP');
+      return;
+    }
+    if (file.size > STORE_IMAGE_MAX_BYTES) {
+      notify.error('La foto no puede pesar más de 5 MB');
+      return;
+    }
+    try {
+      await uploadStoreImage(product.id, file, optionId);
+      invalidate();
+      notify.success('Foto del color agregada');
+    } catch (e) {
+      notify.error(apiErrorMessage(e));
+    }
+  };
+
+  const quitarFotoOpcion = async (imageId: string) => {
+    try {
+      await deleteStoreImage(product.id, imageId);
+      invalidate();
+    } catch (e) {
+      notify.error(apiErrorMessage(e));
+    }
+  };
+
+  // Galería base = las fotos de nivel producto (las de un color viajan en su
+  // opción). Filtrar acá evita que una foto de color salga también en la portada.
+  const fotosBase = product.images.filter((img) => img.optionId == null);
 
   return (
     <div className="space-y-5">
@@ -408,7 +469,7 @@ export function StoreProductDetailPage() {
                 </p>
               )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {product.images.map((img, i) => (
+                {fotosBase.map((img, i) => (
                   <div
                     key={img.id}
                     className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-brand-blue/10"
@@ -435,14 +496,14 @@ export function StoreProductDetailPage() {
                     <ReorderControls
                       className="absolute inset-x-1 bottom-1 justify-center rounded-md bg-background/85 py-0.5 backdrop-blur-sm"
                       index={i}
-                      total={product.images.length}
+                      total={fotosBase.length}
                       itemLabel={`la foto ${i + 1}`}
                       firstLabel="Usar como portada"
                       onMove={(to) => moverFoto(i, to)}
                     />
                   </div>
                 ))}
-                {product.images.length < STORE_IMAGE_MAX_COUNT && (
+                {fotosBase.length < STORE_IMAGE_MAX_COUNT && (
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
@@ -475,7 +536,13 @@ export function StoreProductDetailPage() {
 
           <SpecsEditor specs={specs} onChange={setSpecs} />
 
-          <OpcionesEditor grupos={grupos} onChange={setGrupos} />
+          <OpcionesEditor
+            grupos={grupos}
+            onChange={setGrupos}
+            storageReady={!!status?.storageReady}
+            onSubirFoto={subirFotoOpcion}
+            onQuitarFoto={quitarFotoOpcion}
+          />
         </div>
 
         <div className="space-y-5">
@@ -648,17 +715,28 @@ function Row({ label, value }: { label: string; value: string }) {
 function OpcionesEditor({
   grupos,
   onChange,
+  storageReady,
+  onSubirFoto,
+  onQuitarFoto,
 }: {
   grupos: GrupoEdit[];
   onChange: (g: GrupoEdit[]) => void;
+  storageReady: boolean;
+  onSubirFoto: (optionId: string, file: File | undefined) => void | Promise<void>;
+  onQuitarFoto: (imageId: string) => void | Promise<void>;
 }) {
   const setGrupo = (i: number, patch: Partial<GrupoEdit>) =>
     onChange(grupos.map((g, gi) => (gi === i ? { ...g, ...patch } : g)));
 
-  const setOpcion = (gi: number, oi: number, patch: Partial<GrupoEdit['options'][number]>) =>
+  const setOpcion = (gi: number, oi: number, patch: Partial<OpcionEdit>) =>
     setGrupo(gi, {
       options: grupos[gi].options.map((o, i) => (i === oi ? { ...o, ...patch } : o)),
     });
+
+  // "Define la foto" es exclusivo: marcar uno desmarca los demás (el backend
+  // solo acepta un grupo con drivesPhoto por producto).
+  const setDefineFoto = (gi: number, v: boolean) =>
+    onChange(grupos.map((g, i) => ({ ...g, drivesPhoto: i === gi ? v : false })));
 
   return (
     <Card>
@@ -686,6 +764,11 @@ function OpcionesEditor({
                 onChange={(v) => setGrupo(gi, { required: v })}
                 label="Obligatorio"
               />
+              <Switch
+                checked={grupo.drivesPhoto}
+                onChange={(v) => setDefineFoto(gi, v)}
+                label="Este grupo define la foto"
+              />
               <Button
                 variant="outline"
                 className="ml-auto"
@@ -695,56 +778,76 @@ function OpcionesEditor({
               </Button>
             </div>
 
+            {grupo.drivesPhoto && (
+              <p className="text-xs text-muted-foreground">
+                Al elegir un color en la tienda, la galería muestra la foto de ese color. Cada
+                opción puede llevar su propia foto.
+              </p>
+            )}
+
             <div className="space-y-2">
               {grupo.options.map((op, oi) => (
-                <div key={oi} className="flex flex-wrap items-center gap-2">
-                  <Input
-                    className="w-full sm:w-44"
-                    value={op.value}
-                    placeholder="Rojo"
-                    onChange={(e) => setOpcion(gi, oi, { value: e.target.value })}
-                  />
-                  <NumberInput
-                    className="w-full sm:w-32"
-                    value={op.priceDeltaUsd}
-                    onChange={(v) => setOpcion(gi, oi, { priceDeltaUsd: v })}
-                    min={0}
-                    step={0.5}
-                    aria-label="Recargo en dólares"
-                  />
-                  <input
-                    type="color"
-                    aria-label="Color de la muestra"
-                    className="h-9 w-12 cursor-pointer rounded-md border border-input bg-background"
-                    value={op.swatchHex ?? '#000000'}
-                    onChange={(e) => setOpcion(gi, oi, { swatchHex: e.target.value })}
-                  />
-                  {op.swatchHex && (
+                <div key={oi} className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      className="w-full sm:w-44"
+                      value={op.value}
+                      placeholder="Rojo"
+                      onChange={(e) => setOpcion(gi, oi, { value: e.target.value })}
+                    />
+                    <NumberInput
+                      className="w-full sm:w-32"
+                      value={op.priceDeltaUsd}
+                      onChange={(v) => setOpcion(gi, oi, { priceDeltaUsd: v })}
+                      min={0}
+                      step={0.5}
+                      aria-label="Recargo en dólares"
+                    />
+                    <input
+                      type="color"
+                      aria-label="Color de la muestra"
+                      className="h-9 w-12 cursor-pointer rounded-md border border-input bg-background"
+                      value={op.swatchHex ?? '#000000'}
+                      onChange={(e) => setOpcion(gi, oi, { swatchHex: e.target.value })}
+                    />
+                    {op.swatchHex && (
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground underline"
+                        onClick={() => setOpcion(gi, oi, { swatchHex: null })}
+                      >
+                        sin color
+                      </button>
+                    )}
                     <button
                       type="button"
-                      className="text-xs text-muted-foreground underline"
-                      onClick={() => setOpcion(gi, oi, { swatchHex: null })}
+                      aria-label="Quitar opción"
+                      className="ml-auto text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        setGrupo(gi, { options: grupo.options.filter((_, i) => i !== oi) })
+                      }
                     >
-                      sin color
+                      <X className="h-4 w-4" />
                     </button>
+                  </div>
+                  {grupo.drivesPhoto && (
+                    <FotoDeOpcion
+                      opcion={op}
+                      storageReady={storageReady}
+                      onSubir={(file) => op.id && onSubirFoto(op.id, file)}
+                      onQuitar={onQuitarFoto}
+                    />
                   )}
-                  <button
-                    type="button"
-                    aria-label="Quitar opción"
-                    className="ml-auto text-muted-foreground hover:text-destructive"
-                    onClick={() =>
-                      setGrupo(gi, { options: grupo.options.filter((_, i) => i !== oi) })
-                    }
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
                 </div>
               ))}
               <Button
                 variant="outline"
                 onClick={() =>
                   setGrupo(gi, {
-                    options: [...grupo.options, { value: '', priceDeltaUsd: 0, swatchHex: null }],
+                    options: [
+                      ...grupo.options,
+                      { value: '', priceDeltaUsd: 0, swatchHex: null, images: [] },
+                    ],
                   })
                 }
               >
@@ -762,7 +865,8 @@ function OpcionesEditor({
               {
                 name: '',
                 required: false,
-                options: [{ value: '', priceDeltaUsd: 0, swatchHex: null }],
+                drivesPhoto: false,
+                options: [{ value: '', priceDeltaUsd: 0, swatchHex: null, images: [] }],
               },
             ])
           }
@@ -771,6 +875,74 @@ function OpcionesEditor({
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Las fotos de un color. Subir requiere que la opción ya exista (tenga `id`): la
+ * foto se enlaza a ese id, así que hay que guardar el producto primero. La
+ * miniatura sale de las fotos que ya tiene la opción.
+ */
+function FotoDeOpcion({
+  opcion,
+  storageReady,
+  onSubir,
+  onQuitar,
+}: {
+  opcion: OpcionEdit;
+  storageReady: boolean;
+  onSubir: (file: File | undefined) => void;
+  onQuitar: (imageId: string) => void | Promise<void>;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const sinGuardar = !opcion.id;
+  return (
+    <div className="flex flex-wrap items-center gap-2 pl-1">
+      {opcion.images.map((img) => (
+        <div
+          key={img.id}
+          className="group relative h-12 w-12 overflow-hidden rounded-md border border-border"
+        >
+          <img src={img.url} alt={img.alt ?? ''} className="h-full w-full object-cover" />
+          <button
+            type="button"
+            aria-label={`Quitar la foto de ${opcion.value || 'la opción'}`}
+            onClick={() => onQuitar(img.id)}
+            className="absolute right-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full bg-background/90 text-destructive ring-1 ring-border"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={sinGuardar || !storageReady}
+        title={
+          sinGuardar
+            ? 'Guardá el producto primero para poder subir la foto de este color'
+            : !storageReady
+              ? 'El almacenamiento no está configurado en el servidor'
+              : undefined
+        }
+        className="grid h-12 w-12 place-items-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-brand-blue/50 hover:text-foreground disabled:opacity-50"
+      >
+        <ImagePlus className="h-4 w-4" />
+      </button>
+      {sinGuardar && (
+        <span className="text-xs text-muted-foreground">Guardá primero para subir su foto</span>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept={STORE_IMAGE_MIME_TYPES.join(',')}
+        className="hidden"
+        onChange={(e) => {
+          onSubir(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+    </div>
   );
 }
 
