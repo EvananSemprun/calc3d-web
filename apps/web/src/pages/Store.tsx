@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ImageOff, Plus, Store as StoreIcon, Tags } from 'lucide-react';
+import { AlertTriangle, ImageOff, Plus, Store as StoreIcon, Tags, Zap } from 'lucide-react';
 import { productMarkup } from '@calc3d/shared';
 import { useMoney } from '@/features/settings/useSettings';
 import { apiErrorMessage } from '@/lib/api';
@@ -14,6 +14,7 @@ import {
   useStoreStatus,
   type StoreProduct,
 } from '@/features/store/api';
+import { FlashSaleDialog } from '@/features/store/FlashSaleDialog';
 import { ReorderControls } from '@/features/store/ReorderControls';
 import { StoreCategoriesModal } from '@/features/store/StoreCategoriesModal';
 import {
@@ -44,6 +45,7 @@ export function StorePage() {
   const [categoriaF, setCategoriaF] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [categorias, setCategorias] = useState(false);
+  const [flash, setFlash] = useState(false);
 
   const nombresCategoria = uniqueSorted(products.map((p) => p.category?.name));
   // Una categoría que se borró o renombró dejaría el select en blanco y la vitrina vacía.
@@ -104,6 +106,9 @@ export function StorePage() {
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
           <Button variant="outline" onClick={() => setCategorias(true)}>
             <Tags className="h-4 w-4" /> Categorías
+          </Button>
+          <Button variant="outline" onClick={() => setFlash(true)}>
+            <Zap className="h-4 w-4" /> Flash Sale
           </Button>
           <Button onClick={nuevo} disabled={create.isPending}>
             <Plus className="h-4 w-4" /> Nuevo producto
@@ -203,6 +208,7 @@ export function StorePage() {
       )}
 
       <StoreCategoriesModal open={categorias} onOpenChange={setCategorias} />
+      <FlashSaleDialog open={flash} onOpenChange={setFlash} />
     </div>
   );
 }
