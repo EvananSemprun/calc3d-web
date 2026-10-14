@@ -20,6 +20,10 @@ export interface StoreRequestLine {
   quantity: number;
   options: Record<string, string>;
   unitPrice: number;
+  /** Personalización del cliente (solo en productos `custom`). La nota y la URL
+   *  de la foto; la clave de R2 nunca sale de la API. */
+  customNote?: string | null;
+  customImageUrl?: string | null;
 }
 
 export interface StoreRequest {

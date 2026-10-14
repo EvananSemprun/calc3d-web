@@ -222,12 +222,32 @@ function RequestCard({
                 .map(([k, v]) => `${k}: ${v}`)
                 .join(' · ');
               return (
-                <li key={`${l.slug}-${i}`} className="flex items-baseline gap-3 px-3 py-2 text-sm">
+                <li key={`${l.slug}-${i}`} className="flex items-start gap-3 px-3 py-2 text-sm">
                   <span className="tabular-nums text-muted-foreground">{l.quantity}×</span>
                   <span className="flex-1">
                     {l.description}
                     {opciones && (
                       <span className="block text-xs text-muted-foreground">{opciones}</span>
+                    )}
+                    {l.customNote && (
+                      <span className="block text-xs text-muted-foreground">
+                        Nota: {l.customNote}
+                      </span>
+                    )}
+                    {l.customImageUrl && (
+                      <a
+                        href={l.customImageUrl}
+                        target="_blank"
+                        rel="noopener"
+                        className="mt-1 inline-block"
+                      >
+                        <img
+                          src={l.customImageUrl}
+                          alt={`Foto de ${l.description}`}
+                          className="h-16 w-16 rounded-md border border-border object-cover"
+                          loading="lazy"
+                        />
+                      </a>
                     )}
                   </span>
                   <span className="tabular-nums">{money(l.unitPrice)}</span>
