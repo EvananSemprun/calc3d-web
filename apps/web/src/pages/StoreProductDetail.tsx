@@ -87,6 +87,8 @@ export function StoreProductDetailPage() {
   });
   const [grupos, setGrupos] = useState<GrupoEdit[]>([]);
   const [specs, setSpecs] = useState<{ label: string; value: string }[]>([]);
+  // Tramos de precio por cantidad. En la UI el descuento va en %, se guarda fracción.
+  const [tramos, setTramos] = useState<{ minQty: number; discountPct: number }[]>([]);
 
   useEffect(() => {
     if (!product) return;
@@ -106,6 +108,7 @@ export function StoreProductDetailPage() {
       custom: product.custom,
     });
     setSpecs(product.specs ?? []);
+    setTramos(product.priceTiers ?? []);
     setGrupos(
       product.optionGroups.map((g) => ({
         name: g.name,
@@ -130,8 +133,29 @@ export function StoreProductDetailPage() {
   const slugPrevio = slugify(form.name) || product.slug;
 
   const guardar = async () => {
+    // Validar los tramos ANTES de mandar: el servidor también los valida, pero
+    // avisamos acá para no esperar un 400.
+    const tramosLimpios = tramos
+      .filter((t) => t.minQty > 0)
+      .sort((a, b) => a.minQty - b.minQty);
+    for (let i = 0; i < tramosLimpios.length; i++) {
+      const t = tramosLimpios[i];
+      if (t.minQty <= form.minQty) {
+        notify.error(`Un tramo tiene que superar el mínimo del producto (${form.minQty})`);
+        return;
+      }
+      if (i > 0 && t.minQty === tramosLimpios[i - 1].minQty) {
+        notify.error('Hay dos tramos con la misma cantidad');
+        return;
+      }
+      if (t.discountPct <= 0 || t.discountPct >= 1) {
+        notify.error('El descuento de un tramo tiene que ir entre 1 % y 99 %');
+        return;
+      }
+    }
     try {
       await update.mutateAsync({
+        priceTiers: tramosLimpios,
         name: form.name,
         kind: form.kind,
         summary: form.summary || null,
@@ -492,6 +516,56 @@ export function StoreProductDetailPage() {
                   step={1}
                 />
               </Field>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Precios por cantidad</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Descuento de mayoreo: desde cierta cantidad, un % de descuento sobre el precio.
+              </p>
+              {tramos.map((t, i) => (
+                <div key={i} className="flex items-end gap-2">
+                  <Field label="Desde (cantidad)">
+                    <NumberInput
+                      aria-label="Cantidad del tramo"
+                      value={t.minQty}
+                      onChange={(v) =>
+                        setTramos((ts) => ts.map((x, xi) => (xi === i ? { ...x, minQty: v || 0 } : x)))
+                      }
+                    />
+                  </Field>
+                  <Field label="% de descuento">
+                    <NumberInput
+                      aria-label="Descuento del tramo %"
+                      value={Math.round(t.discountPct * 100)}
+                      onChange={(v) =>
+                        setTramos((ts) =>
+                          ts.map((x, xi) => (xi === i ? { ...x, discountPct: (v || 0) / 100 } : x)),
+                        )
+                      }
+                    />
+                  </Field>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Quitar tramo"
+                    onClick={() => setTramos((ts) => ts.filter((_, xi) => xi !== i))}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setTramos((ts) => [...ts, { minQty: 0, discountPct: 0 }])}
+              >
+                <Plus className="h-4 w-4" /> Agregar tramo
+              </Button>
             </CardContent>
           </Card>
 

@@ -83,6 +83,7 @@ export function StorePage() {
         visible: false,
         custom: false,
         specs: [],
+        priceTiers: [],
         optionGroups: [],
       });
       navigate(`/store/${creado.id}`);

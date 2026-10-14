@@ -61,6 +61,8 @@ export interface StoreProduct {
   badge: string | null;
   custom: boolean;
   specs: { label: string; value: string }[];
+  /** Tramos de precio por cantidad (mayoreo): desde minQty, discountPct (fracción). */
+  priceTiers: { minQty: number; discountPct: number }[];
   visible: boolean;
   position: number;
   categoryId: string | null;
