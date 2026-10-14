@@ -251,6 +251,23 @@ function BannerForm({
       notify.error('Subí una imagen');
       return;
     }
+    // Validar el destino ANTES de subir la imagen: si no, el servidor rechaza
+    // (400) recién después del upload y queda una imagen huérfana en R2.
+    const destino = form.linkValue.trim();
+    if ((form.linkType === 'CATEGORY' || form.linkType === 'PRODUCT') && !destino) {
+      notify.error('Elegí el destino del enlace');
+      return;
+    }
+    if (form.linkType === 'URL') {
+      if (!destino) {
+        notify.error('Poné el enlace (tiene que empezar con http:// o https://)');
+        return;
+      }
+      if (!/^https?:\/\//i.test(destino)) {
+        notify.error('El enlace tiene que empezar con http:// o https://');
+        return;
+      }
+    }
     setGuardando(true);
     try {
       const imageKey = file ? (await uploadBannerImage(file)).key : form.imageKey;
