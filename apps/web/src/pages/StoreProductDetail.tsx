@@ -408,7 +408,7 @@ export function StoreProductDetailPage() {
                     onChange={(e) => set('material', e.target.value)}
                   />
                   <datalist id="materiales-tienda">
-                    {['PLA', 'PETG', 'ABS', 'TPU', 'Resina', 'ASA', 'Nylon'].map((m) => (
+                    {['PLA', 'PETG', 'ABS', 'TPU', 'ASA', 'Nylon'].map((m) => (
                       <option key={m} value={m} />
                     ))}
                   </datalist>
