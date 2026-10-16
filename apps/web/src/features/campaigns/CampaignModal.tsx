@@ -37,6 +37,7 @@ export function CampaignModal({ campaign, onClose }: { campaign: Campaign | null
     startDate: campaign?.startDate?.slice(0, 10) ?? todayIso(),
     endDate: campaign?.endDate?.slice(0, 10) ?? '',
     budget: campaign?.budget ?? 0,
+    paidUsd: campaign?.paidUsd ?? 0,
     reach: campaign?.reach ?? 0,
     conversations: campaign?.conversations ?? 0,
     profileVisits: campaign?.profileVisits ?? 0,
@@ -59,6 +60,7 @@ export function CampaignModal({ campaign, onClose }: { campaign: Campaign | null
         startDate: form.startDate,
         endDate: form.endDate || null,
         budget: form.budget || null,
+        paidUsd: form.paidUsd || null,
         reach: form.reach || null,
         conversations: form.conversations || null,
         profileVisits: form.profileVisits || null,
@@ -110,6 +112,12 @@ export function CampaignModal({ campaign, onClose }: { campaign: Campaign | null
           </Field>
           <Field label="Presupuesto estimado (USD)">
             <NumberInput step="0.01" value={form.budget} onChange={(v) => set({ budget: v })} />
+          </Field>
+          <Field
+            label="Lo que pagué (USD)"
+            hint="Lo que realmente gastaste. Esto SÍ cuenta como invertido: queda como un gasto de Publicidad de esta campaña (lo verás en Gastos y en la Caja)."
+          >
+            <NumberInput step="0.01" value={form.paidUsd} onChange={(v) => set({ paidUsd: v })} />
           </Field>
           <Field label="Alcance" hint="Lo que reporta la plataforma">
             <NumberInput value={form.reach} onChange={(v) => set({ reach: v })} />

@@ -34,6 +34,12 @@ export interface Campaign {
   startDate: string;
   endDate: string | null;
   budget: number | null;
+  /**
+   * Lo que REALMENTE se pagó (USD), derivado del gasto de Publicidad que gestiona la
+   * campaña (0 si no hay). A diferencia de `budget` (estimado), cuenta como invertido.
+   * El formulario lo usa para prellenar "lo que pagué" al editar.
+   */
+  paidUsd: number;
   notes: string | null;
   /** Lo que reporta la plataforma de anuncios. */
   reach: number | null;
