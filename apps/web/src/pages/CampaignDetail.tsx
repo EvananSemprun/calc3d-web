@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, TrendingUp, PauseCircle, Search, CheckCircle2, Clock, Archive } from 'lucide-react';
+import { ArrowLeft, Download, Pencil, TrendingUp, PauseCircle, Search, CheckCircle2, Clock, Archive } from 'lucide-react';
 import {
   roas,
   roi,
@@ -19,6 +20,7 @@ import {
   PLATFORM_LABELS,
   OBJECTIVE_LABELS,
 } from '@/features/campaigns/api';
+import { CampaignModal } from '@/features/campaigns/CampaignModal';
 import { apiErrorMessage, downloadFile } from '@/lib/api';
 import { formatStoredDay, todayKey } from '@/lib/today';
 import { notify } from '@/components/toast';
@@ -51,6 +53,7 @@ export function CampaignDetailPage() {
   const { id = '' } = useParams();
   const { money } = useMoney();
   const { data: c, isLoading } = useCampaign(id);
+  const [editing, setEditing] = useState(false);
 
   if (isLoading || !c) return <PageSkeleton />;
 
@@ -90,6 +93,9 @@ export function CampaignDetailPage() {
           <Badge variant={h.variant} className="text-sm">
             {h.label}
           </Badge>
+          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="h-4 w-4" /> Editar
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -247,6 +253,8 @@ export function CampaignDetailPage() {
         (las que vienen de una cotización/producto). Las ventas de mostrador sueltas cuentan para ingresos y ROAS,
         pero no para ganancia. Para atribuir una venta o un encargo a esta campaña, elige el origen al crearlos.
       </p>
+
+      {editing && <CampaignModal campaign={c} onClose={() => setEditing(false)} />}
     </div>
   );
 }
