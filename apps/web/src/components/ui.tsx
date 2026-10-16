@@ -145,6 +145,17 @@ function textoDe(node: React.ReactNode): string {
 const normalizar = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
+/**
+ * ¿El dispositivo es táctil (puntero grueso)? Importa para el buscador del Select:
+ * en táctil, enfocar el buscador abre el TECLADO VIRTUAL, y el `resize` que eso
+ * provoca hace que Radix CIERRE el desplegable (su listener de `resize`/`blur`
+ * está hardcodeado en el primitivo). Síntoma: "toco el select, se abre, abre el
+ * teclado y se cierran las dos cosas". Por eso en táctil NO se autoenfoca el
+ * buscador y se ignora ese cierre espurio apenas se enfoca.
+ */
+const esTactil = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true;
+
 export const Select = React.forwardRef<
   HTMLButtonElement,
   {
@@ -199,6 +210,10 @@ export const Select = React.forwardRef<
     // El buscador aparece solo si la lista es larga. Se limpia al cerrar: si
     // quedara escrito, al reabrir verías media lista sin saber por qué.
     const [busqueda, setBusqueda] = React.useState('');
+    // Apertura CONTROLADA: así podemos ignorar el cierre espurio que el teclado
+    // virtual provoca en táctil (ver `esTactil`). En escritorio no cambia nada.
+    const [abierto, setAbierto] = React.useState(false);
+    const ignorarCierre = React.useRef(0);
     // Lo elegido, también cuando el componente va sin `value` (no controlado).
     const [interno, setInterno] = React.useState(defaultValue ?? '');
     const actual = value ?? interno;
@@ -220,8 +235,15 @@ export const Select = React.forwardRef<
         defaultValue={defaultValue === undefined ? undefined : toInner(defaultValue)}
         onValueChange={handle}
         disabled={disabled}
-        onOpenChange={(abierto) => {
-          if (!abierto) setBusqueda('');
+        open={abierto}
+        onOpenChange={(nuevo) => {
+          // En táctil, el teclado que abre el buscador dispara un resize/blur que
+          // Radix convierte en cierre: lo ignoramos en la ventana corta tras enfocar
+          // el buscador, o el desplegable se cerraría solo al tocarlo. En escritorio
+          // `esTactil()` es false, así que el cierre nunca se ignora.
+          if (!nuevo && esTactil() && Date.now() < ignorarCierre.current) return;
+          setAbierto(nuevo);
+          if (!nuevo) setBusqueda('');
         }}
       >
         <SelectPrimitive.Trigger
@@ -271,10 +293,17 @@ export const Select = React.forwardRef<
               >
                 <input
                   // ⚠️ `autoFocus` NO alcanza: Radix enfoca la opción marcada
-                  // DESPUÉS de montar el contenido y se lo lleva. Hay que
-                  // pedirlo en el siguiente tick, cuando Radix ya terminó.
+                  // DESPUÉS de montar el contenido y se lo lleva. Hay que pedirlo en
+                  // el siguiente tick, cuando Radix ya terminó. En TÁCTIL no se
+                  // autoenfoca: abriría el teclado y el resize cerraría el
+                  // desplegable (ver `esTactil`). El buscador igual sirve: se toca.
                   ref={(el) => {
-                    if (el) setTimeout(() => el.focus(), 0);
+                    if (el && !esTactil()) setTimeout(() => el.focus(), 0);
+                  }}
+                  // Al enfocar (en táctil, al tocarlo) el teclado va a provocar un
+                  // resize: marcamos una ventana corta para ignorar ese cierre.
+                  onFocus={() => {
+                    ignorarCierre.current = Date.now() + 600;
                   }}
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
