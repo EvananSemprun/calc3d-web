@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { OrderLineDto, OrderStatusDto } from '@calc3d/shared';
+import type { AttributionChannel, OrderLineDto, OrderStatusDto } from '@calc3d/shared';
 import { api } from '@/lib/api';
 
 export interface Payment {
@@ -39,6 +39,10 @@ export interface Order {
   printerId?: string | null;
   /** 0 es un dato (se imprimió sin fallas); null es "no se midió". */
   reprints?: number | null;
+  /** Atribución de publicidad: cómo llegó el cliente y la campaña (null = sin atribuir).
+   *  Lo vendido de un encargo atribuido suma al ROI de esa campaña. */
+  originChannel?: AttributionChannel | null;
+  campaignId?: string | null;
   payments: Payment[];
   createdAt: string;
   updatedAt: string;

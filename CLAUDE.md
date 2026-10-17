@@ -2016,7 +2016,12 @@ cliente**, publica la ganancia del negocio.
   campaña y por plataforma). `CampaignDetail` muestra **banner de recomendación**
   (`campaignRecommendation` + `REC_META`), ticket promedio y vista por período.
 - **Atribución**: `features/campaigns/AttributionPicker.tsx` en los modales de crear
-  venta/pedido (canal + campaña; se arrastra al convertir cotización→venta).
+  venta/pedido (canal + campaña; se arrastra al convertir cotización→venta) y en
+  el **detalle del encargo** (`OrderDetail`, tarjeta "¿De dónde vino?"), que
+  parchea `originChannel`/`campaignId` al cambiar —como Estado y Fecha de entrega—
+  porque no hay un modal de "editar encargo" (el botón "Editar" es solo artículos).
+  El backend ya aceptaba, escribía y devolvía los dos campos en `PATCH`/`GET
+  /orders/:id`; esto fue solo front (tipo `Order` + la tarjeta).
 - **Lo que reportó la plataforma** (`CampaignDetail`): alcance, conversaciones y
   visitas al perfil, con el **costo por conversación** derivado. Se cargan en el
   formulario de la campaña. Es lo único que mide una campaña que todavía no

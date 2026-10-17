@@ -13,6 +13,7 @@ import { Dialog, useConfirm } from '@/components/overlays';
 import { notify } from '@/components/toast';
 import { formatStoredDay, todayKey } from '@/lib/today';
 import { ProductionCard } from '@/features/orders/ProductionCard';
+import { AttributionPicker } from '@/features/campaigns/AttributionPicker';
 
 const todayIso = () => todayKey();
 
@@ -310,6 +311,23 @@ export function OrderDetailPage() {
                 Encargo saldado
               </Badge>
             )}
+          </CardContent>
+        </Card>
+
+        {/* De dónde vino: alimenta el ROI por campaña. Parchea al cambiar, como
+            Estado y Fecha de entrega — no hay un modal de "editar encargo". */}
+        <Card>
+          <CardHeader>
+            <CardTitle>¿De dónde vino?</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Atribuilo a una campaña para medir cómo le fue: lo vendido de este encargo suma al ROI de esa campaña.
+            </p>
+            <AttributionPicker
+              value={{ originChannel: order.originChannel ?? null, campaignId: order.campaignId ?? null }}
+              onChange={(v) => patch.mutate({ ...v })}
+            />
           </CardContent>
         </Card>
         </div>
