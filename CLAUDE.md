@@ -2073,6 +2073,32 @@ cliente**, publica la ganancia del negocio.
 
 ## Tests de `apps/web` (vitest, desde el 2026-10-10)
 
+> 📖 **El MÉTODO —qué se prueba, cómo se verifica que un test sirve, y cómo se
+> respalda / migra / revisa producción— vive en el `CLAUDE.md` de `calc3d-api`,
+> secciones «Cómo se prueba acá» y «Respaldar, migrar y revisar producción».**
+> Acá queda solo lo propio de este paquete.
+
+### ⚠️ Los dos topes anidados (2026-10-19)
+
+Un test de pantalla tiene **dos** límites de tiempo y hay que mover los **dos**,
+con **interior < exterior**:
+
+| | Dónde | Hoy |
+|---|---|---|
+| interior: cuánto espera un `findBy*` | `asyncUtilTimeout` en `src/test/setup-dom.ts` | 5 s |
+| exterior: cuánto dura el test | `testTimeout` del proyecto `dom` en `vitest.config.ts` | 20 s |
+
+Las dos formas de romperlo se vieron el mismo día: con el interior en 1 s (el
+default) dos o tres specs fallaban **al azar** con "no encuentro el elemento" —
+pasaban 3 de 3 corridos solos y caían con la suite completa—; subiendo solo el
+interior a 5 s, con el exterior también en 5, pasaron a fallar **siempre tres**
+con "Test timed out". Subir solo el exterior **no cambió nada**.
+
+⚠️ **Una suite inestable es peor que una roja**: enseña a volver a correrla
+hasta que pase. Al tocar esto, **5 corridas completas seguidas en verde** antes
+de darlo por arreglado.
+
+
 Hasta ese día este paquete **no tenía runner**: `vitest` figuraba en
 `devDependencies`, instalado y sin configurar, y por eso toda la lógica que
 hiciera falta probar se mudaba a `packages/shared` aunque no tuviera nada que

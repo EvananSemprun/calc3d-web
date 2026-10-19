@@ -55,6 +55,31 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['src/**/*.spec.tsx'],
           setupFiles: ['./src/test/setup-dom.ts'],
+          /**
+           * ⚠️ **SON DOS TOPES ANIDADOS, y hay que mover los DOS** (2026-10-19).
+           * Este es el de afuera —cuánto dura el test entero— y el de adentro
+           * es el `asyncUtilTimeout` de testing-library, en `setup-dom.ts`:
+           * cuánto espera un `findBy*` antes de rendirse.
+           *
+           * La regla es **interior < exterior**, y romperla de cualquiera de
+           * los dos lados deja la suite rota de una manera distinta:
+           *  - interior corto (1 s, el default): el `findBy*` se rinde antes de
+           *    que lleguen los datos y falla con "no encuentro el elemento".
+           *    Con la suite completa en paralelo pasaba al azar, en dos o tres
+           *    archivos que no eran siempre los mismos.
+           *  - interior ≥ exterior: el `findBy*` todavía está esperando cuando
+           *    se acaba el test, y falla con "Test timed out". Subir solo el
+           *    interior cambió una falla intermitente por tres fijas.
+           *
+           * Hoy: 5 s adentro, 20 s acá. Los specs de pantalla montan una página
+           * entera en jsdom y tardan 5 a 8 s con la máquina cargada; el aire es
+           * para eso y no esconde un cuelgue, porque lo que no llega nunca
+           * sigue fallando, solo que más tarde.
+           *
+           * Los puros (`node`) NO lo heredan: son instantáneos, y si uno tarda
+           * 20 s hay algo que mirar.
+           */
+          testTimeout: 20_000,
         },
       },
     ],
