@@ -2073,6 +2073,12 @@ cliente**, publica la ganancia del negocio.
 
 ## Tests de `apps/web` (vitest, desde el 2026-10-10)
 
+> 🪝 **Hooks de git (2026-10-19)**: `.githooks/` está versionado y hay que
+> activarlo **una vez por clon** con `git config core.hooksPath .githooks`.
+> `pre-commit` bloquea secretos (instantáneo); `pre-push` corre esta suite
+> (~37 s, la más lenta de los tres repos). El detalle y por qué el guard nació
+> roto, en el `CLAUDE.md` de `calc3d-api`.
+
 > 📖 **El MÉTODO —qué se prueba, cómo se verifica que un test sirve, y cómo se
 > respalda / migra / revisa producción— vive en el `CLAUDE.md` de `calc3d-api`,
 > secciones «Cómo se prueba acá» y «Respaldar, migrar y revisar producción».**

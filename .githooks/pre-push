@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# LOS TESTS, ANTES DE DESPLEGAR.
+#
+# ⚠️ **En este repo un `git push` a `main` ES un despliegue**: Cloudflare Pages
+# publica solo, en cerca de un minuto. Entre el push y lo que ve el dueño no hay
+# ningún paso humano. Por eso los tests van acá y no "después".
+#
+# El reparto es por VELOCIDAD, y es deliberado: el `pre-commit` es instantáneo
+# (solo mira secretos) y lo que tarda vive acá. Un push tolera 30-60 s; un commit
+# no. Correr la suite en cada commit es lo que entrena el `--no-verify`.
+#
+# Medido el 2026-10-19: **~37 s**. Es el más lento de los tres repos porque los
+# specs de pantalla montan páginas enteras en jsdom; está dentro del presupuesto
+# de un push y muy fuera del de un commit.
+#
+# ⚠️ Se corre la suite COMPLETA y no solo la de seguridad. La regla general del
+# proyecto dice "solo la de seguridad" porque una suite completa suele tener
+# specs de andamiaje rojos que bloquearían todo; acá **está verde** (shared 831,
+# api 779) y entra en el presupuesto, así que no hay motivo para proteger menos.
+# Si algún día la completa se pone crónicamente roja, lo que hay que arreglar es
+# la suite — recortar el hook es tratar el síntoma.
+#
+# ⚠️ Esta suite estuvo INESTABLE hasta el 2026-10-19 (dos topes de tiempo mal
+# puestos). Si vuelve a fallar al azar, el arreglo es el de
+# `vitest.config.ts` / `setup-dom.ts`, NO bajarle la exigencia a este hook: un
+# hook que se saltea no protege nada.
+
+set -e
+
+# Borrar una rama remota (`git push origin :rama`) no publica código.
+leer_refs() {
+  while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+    return 0
+  done
+  return 1
+}
+leer_refs || exit 0
+
+echo "→ pre-push: corriendo los tests antes de desplegar…"
+
+if ! pnpm --filter @calc3d/web test; then
+  echo ""
+  echo "✖ El panel está en rojo."
+  echo "  Un push a main publica en Cloudflare: arreglalo antes, no lo saltees."
+  exit 1
+fi
+
+echo "✓ Tests en verde. Publicando."
+exit 0
