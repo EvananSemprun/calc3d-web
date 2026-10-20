@@ -12,6 +12,7 @@ import {
   type SuggestedPurchaseLine,
 } from '@calc3d/shared';
 import { AlertTriangle, FileText, PackageCheck, Plus, Trash2, Undo2 } from 'lucide-react';
+import { Combobox } from '@/components/Combobox';
 import {
   Badge,
   Button,
@@ -963,6 +964,17 @@ type Borrador = {
    * nadie afirmó — el `DEFAULT 'BUSINESS'` de `paidBy` otra vez.
    */
   refill: string;
+  /**
+   * MARCA, TIPO Y COLOR de la ficha de filamento que va a nacer.
+   *
+   * ⚠️ **El tipo es OBLIGATORIO** (lo exige el contrato) porque una ficha sin
+   * tipo queda FUERA del precio de cotización: `preciosPorTipo` la saltea y la
+   * calculadora cotiza sin contar lo que costó ese rollo, sin avisar. Marca y
+   * color son opcionales: vacíos no rompen ninguna cuenta.
+   */
+  marca: string;
+  tipoFilamento: string;
+  color: string;
 };
 
 const LINEA_VACIA: Borrador = {
@@ -973,6 +985,9 @@ const LINEA_VACIA: Borrador = {
   quantity: 1,
   unitPrice: 0,
   refill: '',
+  marca: '',
+  tipoFilamento: '',
+  color: '',
 };
 
 /**
@@ -989,8 +1004,12 @@ const borradoresDePropuesta = (lineas: SuggestedPurchaseLine[]): Borrador[] =>
     quantity: l.quantity,
     unitPrice: l.unitPrice,
     // La propuesta la arma el stock, no el proveedor: nadie dijo todavía si
-    // va a venir con carrete.
+    // va a venir con carrete. Y sus líneas son fichas del catálogo, que ya
+    // tienen marca, tipo y color: estos campos no van.
     refill: '',
+    marca: '',
+    tipoFilamento: '',
+    color: '',
   }));
 
 function NuevaFactura({
@@ -1041,7 +1060,11 @@ function NuevaFactura({
     l.quantity > 0 &&
     l.unitPrice != null &&
     l.unitPrice >= 0 &&
-    (l.tipo === 'nuevo' ? !!l.nombre.trim() : !!l.id);
+    (l.tipo === 'nuevo' ? !!l.nombre.trim() : !!l.id) &&
+    // ⚠️ El botón se apaga ANTES de que el servidor rechace: el contrato exige
+    // el tipo para un filamento nuevo, y un 400 después de llenar nueve líneas
+    // es la peor forma de enterarse.
+    (l.tipo === 'nuevo' && l.nuevoTipo === 'MATERIAL' ? !!l.tipoFilamento.trim() : true);
   const sePuede = !!date && lineas.length > 0 && lineas.every(completa);
 
   const guardar = () =>
@@ -1058,6 +1081,16 @@ function NuevaFactura({
           nombreNuevo: l.tipo === 'nuevo' ? l.nombre.trim() : null,
           // ⚠️ El contrato lo EXIGE con `nombreNuevo` y lo PROHÍBE sin él.
           nuevoTipo: l.tipo === 'nuevo' ? l.nuevoTipo : null,
+          // ⚠️ Solo para un FILAMENTO nuevo: el contrato los prohíbe en una
+          // línea del catálogo (contradecirían a la ficha que ya existe) y no
+          // tienen sentido en una impresora ni en un insumo.
+          ...(l.tipo === 'nuevo' && l.nuevoTipo === 'MATERIAL'
+            ? {
+                nuevoTipoFilamento: l.tipoFilamento.trim() || null,
+                nuevaMarca: l.marca.trim() || null,
+                nuevoColor: l.color.trim() || null,
+              }
+            : {}),
           quantity: l.quantity,
           // `sePuede` ya exigió que ninguna esté en blanco.
           unitPrice: l.unitPrice ?? 0,
@@ -1206,8 +1239,45 @@ function NuevaFactura({
                         : 'La ficha del filamento se crea cuando llegue.'
                   }
                 >
-                  <Input value={l.nombre} onChange={(e) => cambiar(i, { nombre: e.target.value })} />
+                  <Input
+                    value={l.nombre}
+                    onChange={(e) => cambiar(i, { nombre: e.target.value })}
+                    aria-label="Nombre"
+                  />
                 </Field>
+              )}
+              {/* ⚠️ Solo para un FILAMENTO nuevo. El TIPO es obligatorio: sin
+                  él la ficha nace muda y queda fuera del precio de cotización
+                  —`preciosPorTipo` la saltea—, así que la calculadora cotizaría
+                  sin contar lo que costó ese rollo, sin avisar. Marca y color
+                  son opcionales. */}
+              {l.tipo === 'nuevo' && l.nuevoTipo === 'MATERIAL' && (
+                <FieldGrid>
+                  <Field label="Tipo" required hint="Sin esto la calculadora no puede cotizarlo.">
+                    <Combobox
+                      kind="MATERIAL_TYPE"
+                      placeholder="Elegir o escribir el tipo…"
+                      value={l.tipoFilamento}
+                      onChange={(v) => cambiar(i, { tipoFilamento: v })}
+                    />
+                  </Field>
+                  <Field label="Marca (opcional)">
+                    <Combobox
+                      kind="MATERIAL_BRAND"
+                      placeholder="Elegir o escribir la marca…"
+                      value={l.marca}
+                      onChange={(v) => cambiar(i, { marca: v })}
+                    />
+                  </Field>
+                  <Field label="Color (opcional)">
+                    <Combobox
+                      kind="MATERIAL_COLOR"
+                      placeholder="Elegir o escribir el color…"
+                      value={l.color}
+                      onChange={(v) => cambiar(i, { color: v })}
+                    />
+                  </Field>
+                </FieldGrid>
               )}
               <FieldGrid>
                 <Field label="Cantidad" required>
@@ -1235,6 +1305,7 @@ function NuevaFactura({
                     inputMode="decimal"
                     min={0}
                     placeholder="0"
+                    aria-label="Precio por unidad (USD)"
                     value={l.unitPrice ?? ''}
                     onChange={(e) => {
                       const t = e.target.value;

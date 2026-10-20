@@ -24,6 +24,14 @@ export interface InvoiceLine {
   componentName: string | null;
   nuevoTipo: NuevoTipo | null;
   /**
+   * MARCA, TIPO y COLOR de la ficha de filamento que nace al recibir.
+   * `nuevoTipoFilamento` NO es `nuevoTipo`: aquel dice qué CLASE de ficha nace,
+   * este es el tipo del material ("PLA Basic").
+   */
+  nuevaMarca: string | null;
+  nuevoTipoFilamento: string | null;
+  nuevoColor: string | null;
+  /**
    * RECARGA (sin carrete) o rollo CON CARRETE, dicho por el proveedor.
    * `null` = no lo dijo. Al recibir, `receive()` lo copia al gasto — y es la
    * ÚNICA oportunidad: ese gasto después no se puede corregir.

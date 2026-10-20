@@ -20,6 +20,9 @@ const linea = (over: Partial<InvoiceLine> = {}): InvoiceLine => ({
   componentName: null,
   nombreNuevo: null,
   nuevoTipo: null,
+  nuevaMarca: null,
+  nuevoTipoFilamento: null,
+  nuevoColor: null,
   /** `null` = el proveedor no dijo si era recarga o si venía con carrete. */
   isRefill: null,
   quantity: 10,
