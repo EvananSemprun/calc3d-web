@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  OPCIONES_DE_RECARGA,
   facturasAtrasadas,
+  recargaDesdeValor,
   saldoAFavorPorProveedor,
   type FacturaAtrasada,
   type NuevoTipo,
@@ -937,7 +939,7 @@ function Recibir({
 }
 
 type Borrador = {
-  tipo: 'material' | 'printer' | 'nuevo';
+  tipo: 'material' | 'printer' | 'component' | 'nuevo';
   id: string;
   nombre: string;
   /** Solo cuenta con `tipo: 'nuevo'`: qué ficha va a nacer al recibir. */
@@ -951,6 +953,16 @@ type Borrador = {
    * cargar la compra como si el rollo fuera gratis.
    */
   unitPrice: number | null;
+  /**
+   * RECARGA o CON CARRETE, como lo dice la factura.
+   *
+   * ⚠️ **Arranca VACÍO, y es la única oportunidad de ponerlo.** El gasto nace
+   * al recibir y después no se puede corregir ni desde Gastos ni desde Compras
+   * de filamento. Aun así no se preselecciona nada: `''` se guarda como `null`
+   * ("el proveedor no lo dijo"), y elegir por el dueño sería afirmar lo que
+   * nadie afirmó — el `DEFAULT 'BUSINESS'` de `paidBy` otra vez.
+   */
+  refill: string;
 };
 
 const LINEA_VACIA: Borrador = {
@@ -960,6 +972,7 @@ const LINEA_VACIA: Borrador = {
   nuevoTipo: 'MATERIAL',
   quantity: 1,
   unitPrice: 0,
+  refill: '',
 };
 
 /**
@@ -975,6 +988,9 @@ const borradoresDePropuesta = (lineas: SuggestedPurchaseLine[]): Borrador[] =>
     nuevoTipo: 'MATERIAL' as const,
     quantity: l.quantity,
     unitPrice: l.unitPrice,
+    // La propuesta la arma el stock, no el proveedor: nadie dijo todavía si
+    // va a venir con carrete.
+    refill: '',
   }));
 
 function NuevaFactura({
@@ -999,6 +1015,10 @@ function NuevaFactura({
   const { data: impresoras = [] } = useQuery({
     queryKey: ['printers'],
     queryFn: async () => (await api.get<{ id: string; name: string }[]>('/printers')).data,
+  });
+  const { data: insumos = [] } = useQuery({
+    queryKey: ['components'],
+    queryFn: async () => (await api.get<{ id: string; name: string }[]>('/components')).data,
   });
 
   const [date, setDate] = useState(hoyIso());
@@ -1034,12 +1054,14 @@ function NuevaFactura({
         lines: lineas.map((l) => ({
           materialId: l.tipo === 'material' ? l.id : null,
           printerId: l.tipo === 'printer' ? l.id : null,
+          componentId: l.tipo === 'component' ? l.id : null,
           nombreNuevo: l.tipo === 'nuevo' ? l.nombre.trim() : null,
           // ⚠️ El contrato lo EXIGE con `nombreNuevo` y lo PROHÍBE sin él.
           nuevoTipo: l.tipo === 'nuevo' ? l.nuevoTipo : null,
           quantity: l.quantity,
           // `sePuede` ya exigió que ninguna esté en blanco.
           unitPrice: l.unitPrice ?? 0,
+          isRefill: recargaDesdeValor(l.refill),
         })),
       },
       {
@@ -1106,6 +1128,7 @@ function NuevaFactura({
               <FieldGrid>
                 <Field label="Qué es">
                   <Select
+                    aria-label="Qué es"
                     value={l.tipo}
                     onChange={(e) =>
                       cambiar(i, {
@@ -1118,6 +1141,7 @@ function NuevaFactura({
                   >
                     <option value="material">Filamento del catálogo</option>
                     <option value="printer">Impresora del catálogo</option>
+                    <option value="component">Insumo del catálogo</option>
                     <option value="nuevo">Algo que todavía no tenés</option>
                   </Select>
                 </Field>
@@ -1125,20 +1149,43 @@ function NuevaFactura({
                   /* ⚠️ La pregunta que faltaba. Sin ella la recepción creaba
                      siempre un filamento, y una impresora nueva —que por
                      definición no está en el catálogo— nacía como rollo. */
-                  <Field label="¿Filamento o impresora?" required>
+                  <Field label="¿Filamento, impresora o insumo?" required>
                     <Select
                       value={l.nuevoTipo}
                       onChange={(e) => cambiar(i, { nuevoTipo: e.target.value as NuevoTipo })}
+                      aria-label="¿Filamento, impresora o insumo?"
                     >
                       <option value="MATERIAL">Un filamento</option>
                       <option value="PRINTER">Una impresora</option>
+                      {/* ⚠️ Entró el 2026-10-20 con una placa de impresión de
+                          $40 en una factura real. Sin esta opción había que
+                          dejarla fuera —y la deuda con el proveedor quedaba $40
+                          corta— o cargarla como filamento, que mete un "rollo"
+                          de $40 en el precio por tipo de la calculadora. */}
+                      <option value="COMPONENT">Un insumo (placa, boquilla, empaque)</option>
                     </Select>
                   </Field>
                 ) : (
-                  <Field label={l.tipo === 'material' ? 'Filamento' : 'Impresora'} required>
-                    <Select value={l.id} onChange={(e) => cambiar(i, { id: e.target.value })}>
+                  <Field
+                    label={
+                      l.tipo === 'material' ? 'Filamento' : l.tipo === 'printer' ? 'Impresora' : 'Insumo'
+                    }
+                    required
+                  >
+                    <Select
+                      value={l.id}
+                      onChange={(e) => cambiar(i, { id: e.target.value })}
+                      aria-label={
+                        l.tipo === 'material' ? 'Filamento' : l.tipo === 'printer' ? 'Impresora' : 'Insumo'
+                      }
+                    >
                       <option value="">Elegir…</option>
-                      {(l.tipo === 'material' ? materiales : impresoras).map((o) => (
+                      {(l.tipo === 'material'
+                        ? materiales
+                        : l.tipo === 'printer'
+                          ? impresoras
+                          : insumos
+                      ).map((o) => (
                         <option key={o.id} value={o.id}>
                           {o.name}
                         </option>
@@ -1154,7 +1201,9 @@ function NuevaFactura({
                   hint={
                     l.nuevoTipo === 'PRINTER'
                       ? 'La impresora se crea cuando llegue, con el precio de la compra.'
-                      : 'La ficha del filamento se crea cuando llegue.'
+                      : l.nuevoTipo === 'COMPONENT'
+                        ? 'El insumo se crea cuando llegue. Queda como gasto por pedido: si de verdad se gasta en cada pieza, cambialo desde su catálogo.'
+                        : 'La ficha del filamento se crea cuando llegue.'
                   }
                 >
                   <Input value={l.nombre} onChange={(e) => cambiar(i, { nombre: e.target.value })} />
@@ -1196,6 +1245,29 @@ function NuevaFactura({
                   />
                 </Field>
               </FieldGrid>
+              {(l.tipo === 'material' || (l.tipo === 'nuevo' && l.nuevoTipo === 'MATERIAL')) && (
+                <Field
+                  label="¿Recarga o con carrete?"
+                  hint="Lo dice la factura. Es la ÚNICA vez que se puede poner: al recibir ya no se corrige."
+                >
+                  <Select
+                    value={l.refill}
+                    onChange={(e) => cambiar(i, { refill: e.target.value })}
+                    aria-label="¿Recarga o con carrete?"
+                  >
+                    {/* ⚠️ "No lo dice" viene puesto y NO es un olvido: se guarda
+                        como `null`. Preseleccionar "Con carrete" porque es lo
+                        más común haría que toda línea que el dueño no mire
+                        afirme algo que el proveedor no dijo. */}
+                    <option value="">No lo dice</option>
+                    {OPCIONES_DE_RECARGA.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
               {lineas.length > 1 && (
                 <div className="flex justify-end">
                   <Button

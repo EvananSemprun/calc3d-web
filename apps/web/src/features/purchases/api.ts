@@ -20,7 +20,15 @@ export interface InvoiceLine {
    * la recepción creaba siempre un filamento, así que encargar una impresora
    * nueva dejaba un rollo llamado "Impresora A2".
    */
+  componentId: string | null;
+  componentName: string | null;
   nuevoTipo: NuevoTipo | null;
+  /**
+   * RECARGA (sin carrete) o rollo CON CARRETE, dicho por el proveedor.
+   * `null` = no lo dijo. Al recibir, `receive()` lo copia al gasto — y es la
+   * ÚNICA oportunidad: ese gasto después no se puede corregir.
+   */
+  isRefill: boolean | null;
   quantity: number;
   /** Lo que PEDISTE por unidad. No se reescribe nunca: es el pedido. */
   unitPrice: number;
@@ -201,6 +209,7 @@ export const ETIQUETA_PAGO = {
 export const ETIQUETA_NUEVO: Record<NuevoTipo, string> = {
   MATERIAL: 'filamento nuevo',
   PRINTER: 'impresora nueva',
+  COMPONENT: 'insumo nuevo',
 };
 
 export const ETIQUETA_MERCADERIA = {

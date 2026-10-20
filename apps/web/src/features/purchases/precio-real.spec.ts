@@ -16,8 +16,12 @@ const linea = (over: Partial<InvoiceLine> = {}): InvoiceLine => ({
   materialName: 'PLA Negro',
   printerId: null,
   printerName: null,
+  componentId: null,
+  componentName: null,
   nombreNuevo: null,
   nuevoTipo: null,
+  /** `null` = el proveedor no dijo si era recarga o si venía con carrete. */
+  isRefill: null,
   quantity: 10,
   unitPrice: 7,
   received: 0,
