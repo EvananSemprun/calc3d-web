@@ -19,6 +19,7 @@ import { useCampaigns } from '@/features/campaigns/api';
 import { useCounterparties } from '@/features/cash/api';
 import { useContacts } from '@/features/contacts/api';
 import { useExchangeRates } from '@/features/settings/useExchangeRates';
+import { OPCIONES_DE_RECARGA, recargaDesdeValor } from '@calc3d/shared';
 
 /**
  * EL FORMULARIO DE UNA COMPRA O UN GASTO, en un solo lugar.
@@ -112,6 +113,20 @@ export function ExpenseModal({
   const usdFromBs = selectedBsRate && selectedBsRate.rate > 0 ? bsAmount / selectedBsRate.rate : 0;
   const [amount, setAmount] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  /**
+   * RECARGA (sin carrete) o rollo CON CARRETE.
+   *
+   * ⚠️ **Arranca VACÍO a propósito, y eso NO es un olvido.** `''` se guarda como
+   * `null`, o sea "no se registró". Preseleccionar "Con carrete" porque es lo
+   * más común haría que toda compra que el dueño no mire afirme algo que nadie
+   * decidió — exactamente lo que pasó el 2026-10-19 con `paidBy DEFAULT
+   * 'BUSINESS'`, que dejó 71 gastos diciendo que los pagó el negocio.
+   *
+   * ⚠️ Y vive en la COMPRA y no en la ficha: la ficha `PLA Basic Bambu Lab
+   * Blanco` tiene dos compras, una normal y una recarga. En la ficha el campo
+   * tendría que mentir sobre una de las dos.
+   */
+  const [refill, setRefill] = useState('');
   const [description, setDescription] = useState('');
   const [selectedId, setSelectedId] = useState('');
   // El proveedor es un contacto del directorio. `OTRO` abre el campo de texto
@@ -187,6 +202,8 @@ export function ExpenseModal({
             description: description || name,
             isInvestment: !!type.investment,
             quantity: type.perUnit ? quantity : null,
+            // Solo tiene sentido comprando filamento; en otro gasto se ignora.
+            isRefill: type.key === 'filament' ? recargaDesdeValor(refill) : null,
             ...proveedorParaGuardar,
             counterpartyId: counterpartyId || null,
           },
@@ -218,6 +235,7 @@ export function ExpenseModal({
           category: type.category,
           isInvestment: !!type.investment,
           quantity: type.perUnit ? quantity : null,
+          isRefill: type.key === 'filament' ? recargaDesdeValor(refill) : null,
           counterpartyId: counterpartyId || null,
         };
         const payload: Record<string, unknown> = { ...base, description, endDate: endDate || null, ...proveedorParaGuardar };
@@ -366,6 +384,25 @@ export function ExpenseModal({
               <NumberInput value={quantity} onChange={(n) => setQuantity(Math.max(1, Math.floor(n)))} />
             </Field>
           )}
+          {type.key === 'filament' && (
+            <Field label="¿Recarga o con carrete?">
+              <Select
+                value={refill}
+                onChange={(e) => setRefill(e.target.value)}
+                aria-label="¿Recarga o con carrete?"
+              >
+                {/* ⚠️ "No lo anoté" es una opción REAL y es la que viene puesta:
+                    sin ella, guardar sin mirar afirmaría un carrete que nadie
+                    vio. Explica diferencias de precio del mismo color. */}
+                <option value="">No lo anoté</option>
+                {OPCIONES_DE_RECARGA.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           {type.key === 'filament' ? (
             <PrecioDelRollo amount={amount} quantity={quantity} />
           ) : (
@@ -418,6 +455,25 @@ export function ExpenseModal({
           {type.perUnit && (
             <Field label="Cantidad comprada">
               <NumberInput value={quantity} onChange={(n) => setQuantity(Math.max(1, Math.floor(n)))} />
+            </Field>
+          )}
+          {type.key === 'filament' && (
+            <Field label="¿Recarga o con carrete?">
+              <Select
+                value={refill}
+                onChange={(e) => setRefill(e.target.value)}
+                aria-label="¿Recarga o con carrete?"
+              >
+                {/* ⚠️ "No lo anoté" es una opción REAL y es la que viene puesta:
+                    sin ella, guardar sin mirar afirmaría un carrete que nadie
+                    vio. Explica diferencias de precio del mismo color. */}
+                <option value="">No lo anoté</option>
+                {OPCIONES_DE_RECARGA.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
             </Field>
           )}
           {type.key === 'filament' && <PrecioDelRollo amount={amount} quantity={quantity} />}

@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FilamentPurchase } from '@calc3d/shared';
+import {
+  OPCIONES_DE_RECARGA,
+  recargaDesdeValor,
+  valorDeRecarga,
+  type FilamentPurchase,
+} from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
 import { Button, Field, FieldGrid, Input, NumberInput, Select } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
@@ -47,6 +52,14 @@ export function EditarCompra({
   const [amount, setAmount] = useState(compra.amount);
   const [providerId, setProviderId] = useState(compra.providerId ?? '');
   const [counterpartyId, setCounterpartyId] = useState(compra.counterpartyId ?? '');
+  /**
+   * ⚠️ Con `valorDeRecarga` y no con un `?:` a mano: `null` tiene que caer en
+   * `''` ("no lo anoté") y NO en "con carrete". Y el camino de vuelta
+   * (`recargaDesdeValor`) permite **borrar** el dato eligiendo "No lo anoté":
+   * una marca equivocada que no se pudiera desandar obligaría al dueño a
+   * sostener algo que ya sabe falso.
+   */
+  const [refill, setRefill] = useState(valorDeRecarga(compra.isRefill));
   const [note, setNote] = useState(compra.note ?? '');
 
   const invalidar = () => {
@@ -67,6 +80,7 @@ export function EditarCompra({
         providerId: providerId || null,
         counterpartyId: counterpartyId || null,
         description: note.trim(),
+        isRefill: recargaDesdeValor(refill),
       }),
     onSuccess: () => {
       invalidar();
@@ -189,6 +203,24 @@ export function EditarCompra({
             {contrapartes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.kind === 'EXTERNAL_LENDER' ? c.name : `${c.name}, de su bolsillo`}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field
+          label="¿Recarga o con carrete?"
+          hint="Explica por qué el mismo color pudo costar distinto."
+        >
+          <Select
+            value={refill}
+            onChange={(e) => setRefill(e.target.value)}
+            aria-label="¿Recarga o con carrete?"
+          >
+            <option value="">No lo anoté</option>
+            {OPCIONES_DE_RECARGA.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </Select>

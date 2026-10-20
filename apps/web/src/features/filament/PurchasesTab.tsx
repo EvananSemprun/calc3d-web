@@ -5,7 +5,7 @@ import { Badge, Button, Card, CardContent, EmptyState, FilterBar, Select, Stat, 
 import { ExpenseModal } from '@/features/finance/ExpenseModal';
 import { EditarCompra } from '@/features/filament/EditarCompra';
 import { Tooltip } from '@/components/overlays';
-import { notaDePagador, type FilamentPurchase } from '@calc3d/shared';
+import { etiquetaDeRecarga, notaDePagador, type FilamentPurchase } from '@calc3d/shared';
 import { useMoney } from '@/features/settings/useSettings';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { usePersistentState } from '@/lib/usePersistentState';
@@ -140,6 +140,15 @@ export function PurchasesTab() {
                         <td className="p-3 tabular-nums text-muted-foreground">{fecha(c.date)}</td>
                         <td className="p-3">
                           <div className="font-medium">{c.materialName ?? '—'}</div>
+                          {/* RECARGA O CON CARRETE. Solo si se registró: con
+                              `null` no hay etiqueta, porque etiquetar las 95
+                              compras viejas sería afirmar lo que nadie dijo.
+                              Explica por qué el mismo color costó distinto. */}
+                          {etiquetaDeRecarga(c.isRefill) && (
+                            <div className="text-xs text-muted-foreground">
+                              {etiquetaDeRecarga(c.isRefill)}
+                            </div>
+                          )}
                           {c.note && <div className="text-xs text-muted-foreground">{c.note}</div>}
                         </td>
                         <td className="p-3 text-right tabular-nums">{c.quantity}</td>
@@ -213,6 +222,8 @@ export function PurchasesTab() {
                       <span>{c.quantity} rollo(s)</span>
                       <span>{money(c.costPerRoll)}/rollo</span>
                       <span>{porGramo(c.costPerGram)}/g</span>
+                      {/* Misma regla que en la tabla: sin dato, no se dice. */}
+                      {etiquetaDeRecarga(c.isRefill) && <span>{etiquetaDeRecarga(c.isRefill)}</span>}
                     </div>
                     {c.providerName && (
                       <div className="text-xs text-muted-foreground">{c.providerName}</div>

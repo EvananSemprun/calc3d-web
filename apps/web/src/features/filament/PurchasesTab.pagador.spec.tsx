@@ -48,6 +48,8 @@ const compra = (over: Partial<FilamentPurchase> & { id: string }): FilamentPurch
   counterpartyKind: null,
   rate: null,
   currencyCode: null,
+  // `null` = no se registro si era recarga o venia con carrete.
+  isRefill: null,
   invoice: null,
   ...over,
 });
