@@ -86,8 +86,11 @@ export interface InvoicePayment {
 /** Una factura con sus cuentas ya DERIVADAS por el servidor. */
 export interface PurchaseInvoice {
   id: string;
+  /** CÓDIGO PROPIO, correlativo por organización. Se muestra con `codigoDeCompra`. */
+  code: number;
   date: string;
   expectedAt: string | null;
+  /** El número que le puso EL PROVEEDOR. Puede faltar; la identidad es `code`. */
   reference: string | null;
   notes: string | null;
   supplier: { id: string; name: string } | null;

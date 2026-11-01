@@ -65,6 +65,7 @@ const linea = (id: string, cantidad: number, precio: number) => ({
  */
 const F_ORIGEN: PurchaseInvoice = {
   id: 'f1',
+  code: 1,
   date: '2026-10-05T00:00:00.000Z',
   expectedAt: null,
   reference: 'FAC-0001',
@@ -102,6 +103,7 @@ const F_ORIGEN: PurchaseInvoice = {
 /** LA FACTURA CHICA: se deben $5. Es la que se abona con el saldo de arriba. */
 const F_DESTINO: PurchaseInvoice = {
   id: 'f2',
+  code: 2,
   date: '2026-10-08T00:00:00.000Z',
   expectedAt: null,
   reference: 'FAC-0002',
@@ -131,6 +133,7 @@ const F_DESTINO: PurchaseInvoice = {
  */
 const F_PAGA: PurchaseInvoice = {
   id: 'f3',
+  code: 3,
   date: '2026-10-09T00:00:00.000Z',
   expectedAt: null,
   reference: 'FAC-0003',

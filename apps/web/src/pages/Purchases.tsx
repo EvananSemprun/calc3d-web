@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   OPCIONES_DE_RECARGA,
+  codigoDeCompra,
   facturasAtrasadas,
   recargaDesdeValor,
   saldoAFavorPorProveedor,
@@ -310,14 +311,18 @@ function FacturaCard({
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
+              {/* ⚠️ El CÓDIGO PROPIO primero: es la identidad de la compra acá
+                  adentro. El número del proveedor va abajo y DICE que es suyo:
+                  antes era lo único que había y una compra sin papel quedaba
+                  sin nombre. */}
               <p className="font-semibold">
+                <span className="font-mono">{codigoDeCompra(f.code)}</span>
+                {' · '}
                 {f.supplier?.name ?? 'Sin proveedor'}
-                {f.reference && (
-                  <span className="text-muted-foreground"> · {f.reference}</span>
-                )}
               </p>
               <p className="text-xs text-muted-foreground">
                 {fecha(f.date)}
+                {f.reference && ` · N.º del proveedor: ${f.reference}`}
                 {/* Con la factura atrasada el día lo dice el renglón de abajo, que
                     además dice hace cuánto: repetirlo acá como "llega" es la misma
                     fecha dos veces y en el tiempo verbal equivocado. */}
@@ -1149,8 +1154,15 @@ function NuevaFactura({
               ))}
             </Select>
           </Field>
-          <Field label="Nº de factura (opcional)">
-            <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Opcional" />
+          {/* ⚠️ `Field` NO asocia su <label> con el control: sin `aria-label`
+              explícito el campo no tiene nombre accesible y el test no lo halla. */}
+          <Field label="N.º del proveedor (opcional)">
+            <Input
+              aria-label="N.º del proveedor"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="El de su factura o recibo: A-001, 0014…"
+            />
           </Field>
         </FieldGrid>
 

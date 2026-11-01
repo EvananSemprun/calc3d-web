@@ -2227,6 +2227,24 @@ reparto por canal, los totales de Gastos).
   estaba creyendo proteger la propiedad equivocada; hoy hay un test que lee el
   texto del `Select` y el comentario dice lo que de verdad pasa.
 
+## Valor del filamento en Stock del mes (2026-11-01, shared 0.62.0)
+
+`ValorCard` en `StockTab.tsx` muestra cuánto vale en dinero el filamento que
+queda. **La decisión y los límites están en el `CLAUDE.md` de `calc3d-api`**
+("Cuánto vale el filamento que queda"); acá solo lo que afecta a la pantalla:
+
+- Va **dentro** del bloque `resumen?.complete`: con el mes abierto no se muestra
+  plata, porque el conteo está a medio hacer. Hay test que lo fija.
+- Muestra siempre **el desglose y el rango**, no un número pelado: es una
+  estimación (el conteo no sabe gramos) y tiene que leerse como tal.
+- ⚠️ El texto de cada `<p>` va como **hijo directo**, sin `<span>` en medio:
+  `getByText` solo mira los nodos de texto directos, y partirlo con un `<span>`
+  deja el test sin poder encontrarlo.
+- ⚠️ En `StockTab.valor.spec.tsx` la carga se espera con `findByText` de algo
+  que solo existe con los datos ya cargados. Con dos `act` sueltos era una
+  carrera: el primer test veía el esqueleto y los `queryByText(...).not`
+  **pasaban sin que se renderizara nada** — verde falso de manual.
+
 ## A qué API le habla el panel
 
 `VITE_API_URL` decide contra qué backend corre el panel.
