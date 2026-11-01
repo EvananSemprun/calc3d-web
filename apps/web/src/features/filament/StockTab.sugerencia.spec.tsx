@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StockCountRow } from '@calc3d/shared';
 import { TooltipProvider } from '@/components/overlays';
 
@@ -118,9 +118,21 @@ function montar(filas = FILAS, cerrado = false) {
 /** La tarjeta de una ficha, por su `aria-label`. */
 const tarjeta = (ficha: string) => screen.getByLabelText(ficha);
 
+/**
+ * ⚠️ LA FECHA SE FIJA. El mes del conteo sale de `currentMonthKey()`, o sea
+ * del reloj de la máquina: sin fijarlo, este test se puso rojo solo al pasar
+ * de octubre a noviembre (2026-11-01) porque esperaba la palabra "octubre".
+ * Un test que se rompe por el calendario no dice nada del código.
+ */
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date('2026-10-15T12:00:00'));
   mocks.get.mockReset();
   localStorage.clear();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('El conteo ofrece lo que entró en el mes', () => {

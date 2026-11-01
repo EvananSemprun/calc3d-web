@@ -6,6 +6,7 @@ import type {
   StockCountRow,
   StockMonthCloseDto,
   StockMonthStatus,
+  ValorDelInventario,
 } from '@calc3d/shared';
 import { api } from '@/lib/api';
 import type { DateRange } from '@/features/finance/DateRange';
@@ -26,6 +27,8 @@ export interface FilamentSummary {
   totalColors: number;
   /** rollos comprados por color, en promedio: el umbral de "los que más se compran" */
   averagePurchased: number;
+  /** cuánto vale en dinero el filamento que queda; todo en 0 si el mes está abierto */
+  valor: ValorDelInventario;
   /** true si el mes está CERRADO: solo entonces los números son finales */
   complete: boolean;
 }

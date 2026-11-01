@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ChevronLeft,
+  Coins,
   ChevronRight,
   HelpCircle,
   Lock,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import {
   BUSINESS_TIME_ZONE,
+  FRACCIONES_DE_ROLLO,
   monthKey,
   monthStart,
   previousMonth,
@@ -21,6 +23,7 @@ import {
   suggestRestockLines,
   type RestockGroup,
   type StockCountRow,
+  type ValorDelInventario,
   type SuggestedPurchaseLine,
 } from '@calc3d/shared';
 import {
@@ -34,6 +37,7 @@ import {
   TableSkeleton,
 } from '@/components/ui';
 import { useConfirm } from '@/components/overlays';
+import { useMoney } from '@/features/settings/useSettings';
 import { notify } from '@/components/toast';
 import { apiErrorMessage } from '@/lib/api';
 import { currentMonthKey } from '@/lib/today';
@@ -404,6 +408,7 @@ export function StockTab() {
                 tone={urgentes > 0 ? 'warn' : undefined}
               />
             </div>
+            <ValorCard valor={resumen.valor} />
             {resumen.restock.length > 0 && (
               <RestockCard
                 grupos={resumen.restock}
@@ -942,6 +947,56 @@ function Muestra({ color }: { color: string | null }) {
       )}
       style={fondo ? { background: fondo } : undefined}
     />
+  );
+}
+
+/**
+ * CUÁNTO VALE EL FILAMENTO QUE QUEDA.
+ *
+ * ⚠️ Es una ESTIMACIÓN y la tarjeta tiene que decirlo: el conteo distingue
+ * sellado / en uso / por acabarse, pero NO sabe gramos. Por eso se muestran
+ * las tres partes con su porcentaje y el rango (piso–techo): un número solo,
+ * sin de dónde sale, se lee como si estuviera medido.
+ *
+ * ⚠️ El texto va como hijo DIRECTO de cada <p>, sin <span> en medio: los
+ * tests lo buscan con `getByText`, que solo ve los nodos de texto directos.
+ */
+function ValorCard({ valor }: { valor: ValorDelInventario }) {
+  const { money } = useMoney();
+  const pct = (f: number) => `${f * 100} %`;
+  return (
+    <Card>
+      <CardContent className="pt-5">
+        <div className="flex items-start gap-3">
+          <Coins className="mt-1 h-5 w-5 shrink-0 text-brand-yellow-ink" />
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Valor del filamento que queda
+            </div>
+            <div className="font-display text-2xl font-bold tabular-nums">{money(valor.total)}</div>
+            <p className="text-xs text-muted-foreground">
+              Estimado: entre {money(valor.piso)} y {money(valor.techo)}
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          Sellados {money(valor.sellados)} ({pct(FRACCIONES_DE_ROLLO.sealed)}) · En uso{' '}
+          {money(valor.enUso)} ({pct(FRACCIONES_DE_ROLLO.inUse)}) · Por acabarse{' '}
+          {money(valor.porAcabarse)} ({pct(FRACCIONES_DE_ROLLO.running)})
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Al precio de tu última compra de cada filamento: es lo que costaría reponerlo, no lo que
+          pagaste. Un rollo abierto no se puede pesar, así que vale una parte del entero.
+        </p>
+        {valor.sinPrecio > 0 && (
+          <p className="mt-2 text-xs text-brand-yellow-ink">
+            {valor.sinPrecio} rollo(s) sin precio: su ficha nunca se compró, así que no entran en el
+            total.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
