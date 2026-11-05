@@ -2277,8 +2277,9 @@ equivocado.
 
 El panel vive en **`https://calc3d-web.pages.dev`** (proyecto `calc3d-web` en
 Workers y Pages, conectado a este repo, despliega solo en cada push a `main`) y
-le habla a la API en **Render**: `https://calc3d-api.onrender.com/api` (la base
-está en Railway; detalle en el `CLAUDE.md` de `calc3d-api`).
+le habla a la API en **Railway**: `https://calc3d-api-production.up.railway.app/api`
+(la API y la base viven en el mismo proyecto de Railway desde el 2026-11-05, antes
+la API estaba en Render; detalle en el `CLAUDE.md` de `calc3d-api`).
 
 | Configuración de compilación | Valor |
 |---|---|
@@ -2289,7 +2290,7 @@ está en Railway; detalle en el `CLAUDE.md` de `calc3d-api`).
 
 | Variable (tipo **Texto**) | Valor |
 |---|---|
-| `VITE_API_URL` | `https://calc3d-api.onrender.com/api` |
+| `VITE_API_URL` | `https://calc3d-api-production.up.railway.app/api` |
 | `NODE_VERSION` | `22.18.0` |
 | `PNPM_VERSION` | `11.6.0` |
 
@@ -2300,6 +2301,17 @@ está en Railway; detalle en el `CLAUDE.md` de `calc3d-api`).
 - `VITE_API_URL` va como **Texto**, no Secreto: se escribe DENTRO del bundle que
   baja cualquier visitante (no es secreta), y un secreto puede no estar en el
   build — el panel quedaría apuntando al fallback `localhost:3001`.
+- ⚠️ **TIENE QUE TERMINAR EN `/api`.** La API monta todo bajo
+  `setGlobalPrefix('api')`, así que sin ese sufijo el panel pide `/auth/login` y
+  recibe **404 `Cannot POST /auth/login`**. Pasó en la mudanza a Railway
+  (2026-11-05). El síntoma engaña: parece un problema de CORS o de que la API no
+  anda, pero en la pestaña de red se ve que la respuesta SÍ llegó del servidor
+  correcto, con su `Access-Control-Allow-Origin` bien puesto. **Un 404 ahí es la
+  ruta, no el CORS.**
+- ⚠️ **Cambiar la variable NO alcanza: hay que redesplegar.** Se escribe dentro
+  del bundle en tiempo de build. Y para comprobar contra qué API quedó el panel,
+  **leer el bundle publicado** y buscar la URL adentro — no mirar la variable en
+  el panel de Cloudflare, que puede estar guardada sin haberse compilado.
 - `NODE_VERSION`/`PNPM_VERSION`: pnpm 11 exige Node ≥ 22.13 (lo mismo que rompió
   el `Dockerfile` de la API en Render).
 - `apps/web/public/_redirects` (`/* /index.html 200`) es el fallback SPA: sin él,
