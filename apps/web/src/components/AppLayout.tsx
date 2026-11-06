@@ -55,39 +55,58 @@ const navGroups: {
 }[] = [
   { items: [{ to: '/', label: 'Calculadora', icon: Calculator, end: true }] },
   /**
-   * Finanzas = solo plata (2026-10-02). Tenía 11 de los 23 ítems, con tres que
-   * no son dinero: Calendario y Por cobrar son VISTAS de Encargos (las tres
-   * leen `useOrders`) y pasaron a ser pestañas suyas; Producción mide máquinas
-   * y Publicidad es marketing, y cada una tiene ahora su categoría.
+   * Finanzas = la PLATA; Operaciones = el TRABAJO (2026-11-06).
+   *
+   * El 2026-10-02 Finanzas se limpió de lo que no era dinero y quedó con 9 de
+   * los 23 ítems, contra 1 de Operaciones: el menú estaba volcado de un lado.
+   * El dueño movió Mostrador, Encargos y Compras, que son cosas que HACE todos
+   * los días, no cifras que consulta. Quedan 6 y 4.
+   *
+   * ⚠️ **"Por cobrar" se queda en Finanzas a propósito, aunque sea una pestaña
+   * de Encargos** (`/orders/por-cobrar`, misma pantalla). Es lo que te deben, y
+   * se mira al lado de Caja y Deuda: la pregunta "¿quién me debe?" es
+   * financiera, no operativa. Que por dentro sea Encargos es del código, no de
+   * cómo se usa — así que el menú sigue el uso.
+   *
+   * ⚠️ **Compras se fue, pero Deuda se quedó**, y las dos hablan del mismo
+   * dinero: la deuda con proveedores sale de las facturas de Compras. Se avisó
+   * y el dueño lo eligió igual: comprar es aprovisionar, y el total
+   * consolidado lo sigue dando Deuda. Si alguna vez cuesta encontrar a quién se
+   * le debe, el arreglo es un acceso desde Deuda, no devolver Compras acá.
    */
   {
     heading: 'Finanzas',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/sales', label: 'Mostrador', icon: TrendingUp },
       { to: '/expenses', label: 'Gastos', icon: Receipt },
-      {
-        to: '/orders',
-        label: 'Encargos',
-        icon: Package,
-        // `/orders/por-cobrar` empieza con `/orders`, así que sin esto se
-        // resaltaban DOS ítems del menú a la vez. El detalle de un encargo
-        // (`/orders/:id`) sí tiene que resaltar Encargos.
-        activeWhen: (p) => p.startsWith('/orders') && p !== '/orders/calendario' && p !== '/orders/por-cobrar',
-      },
       // Acceso directo a una PESTAÑA de Encargos: es consulta frecuente y el
       // dueño no quiso perder el click directo.
       { to: '/orders/por-cobrar', label: 'Por cobrar', icon: HandCoins },
-      // El espejo de "Por cobrar": lo que VOS debés por lo que encargaste.
-      { to: '/compras', label: 'Compras', icon: FileText },
       { to: '/cash', label: 'Caja', icon: Wallet },
       { to: '/loans', label: 'Deuda', icon: Landmark },
       { to: '/goals', label: 'Metas', icon: Target },
     ],
   },
   {
+    // En el orden del trabajo real: se vende en el mostrador, se toma el
+    // encargo, se imprime y se repone el material.
     heading: 'Operaciones',
-    items: [{ to: '/production', label: 'Producción', icon: Activity }],
+    items: [
+      { to: '/sales', label: 'Mostrador', icon: TrendingUp },
+      {
+        to: '/orders',
+        label: 'Encargos',
+        icon: Package,
+        // `/orders/por-cobrar` empieza con `/orders`, así que sin esto se
+        // resaltaban DOS ítems del menú a la vez — y siguen en categorías
+        // distintas, con lo cual se verían resaltadas las dos secciones. El
+        // detalle de un encargo (`/orders/:id`) sí tiene que resaltar Encargos.
+        activeWhen: (p) => p.startsWith('/orders') && p !== '/orders/calendario' && p !== '/orders/por-cobrar',
+      },
+      { to: '/production', label: 'Producción', icon: Activity },
+      // El espejo de "Por cobrar": lo que VOS debés por lo que encargaste.
+      { to: '/compras', label: 'Compras', icon: FileText },
+    ],
   },
   {
     heading: 'Marketing',
