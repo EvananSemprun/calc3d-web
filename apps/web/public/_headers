@@ -8,11 +8,8 @@
 # cuenta (`referrer-policy` y `x-content-type-options`). Con un subdominio de
 # pages.dev el riesgo era bajo; con un dominio propio deja de serlo.
 #
-# ⚠️ **No hay Content-Security-Policy acá, y es a propósito.** Un CSP para esta
-# app tiene que listar sus fuentes de Google, la API de Railway en `connect-src`
-# y lo que inyecte Vite en el build; mal puesto no avisa, solo deja la pantalla
-# en blanco. Merece su propio trabajo, con la app abierta y la consola al lado.
-# Estas cinco son las que no pueden romper nada.
+# El CSP se agregó después, en modo Report-Only: su explicación está al final
+# del archivo. Las cinco de abajo son las que no pueden romper nada.
 
 /*
   # Obliga HTTPS en las próximas visitas. Solo tiene efecto sobre HTTPS, así que
@@ -26,3 +23,30 @@
   Referrer-Policy: strict-origin-when-cross-origin
   # El panel no usa cámara, micrófono ni ubicación: se apagan de entrada.
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'sha256-g1CW41wmAtryLmAxO1o1JL7F+/kyuDFeE72QpDK2X5I='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://calc3d-api-production.up.railway.app https://*.r2.cloudflarestorage.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+
+# ---------------------------------------------------------------------------
+# Content-Security-Policy, en modo REPORT-ONLY (auditoría del 2026-11-05).
+#
+# ⚠️ **Report-Only NO BLOQUEA NADA**: el navegador solo escribe las violaciones
+# en la consola. Es el paso previo obligatorio — un CSP activo mal armado deja
+# la pantalla en blanco, y este panel se usa todos los días.
+#
+# Para pasarlo a activo: navegar el panel entero con la consola abierta
+# (dashboard, calculadora, compras, tienda, contactos con su mapa), comprobar
+# que no aparece ni una violación, y recién ahí renombrar la cabecera a
+# `Content-Security-Policy`. Si aparece alguna, lo que falta es un origen.
+#
+# Lo que hay detrás de cada directiva:
+# - `script-src` lleva el HASH del único script inline (el que aplica el tema
+#   antes del primer render). Es lo que hace que este CSP SIRVA: con
+#   'unsafe-inline' no protegería de un XSS, que es el 90 % de su valor.
+#   ⚠️ Si se toca ese script, el hash cambia y el tema deja de aplicarse.
+#   Lo vigila `src/test/csp-hash.spec.ts`, que falla si dejan de coincidir.
+# - `style-src` sí lleva 'unsafe-inline': Radix y la capa de motion inyectan
+#   estilos en línea, y no hay forma de hashearlos.
+# - `img-src` admite cualquier https a propósito: las fotos de los productos
+#   salen de R2 y su dominio es una variable (`R2_PUBLIC_URL`) que este repo no
+#   conoce. Restringirlo acá rompería las fotos el día que se configure R2.
+# - `connect-src` sí es estricto, que es lo que importa: la API y el endpoint
+#   de subida de R2. Es la directiva que impide mandar tus datos a otro lado.

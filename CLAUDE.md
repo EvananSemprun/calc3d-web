@@ -2262,6 +2262,38 @@ Medido con `curl -I` contra el sitio publicado, no supuesto.
 - La tienda tiene el suyo en `calc3d-landing/public/_headers`, que **ya
   existía** y solo ganó HSTS.
 
+### El CSP va en REPORT-ONLY hasta verificarlo (2026-11-05)
+
+El archivo declara `Content-Security-Policy-Report-Only`, no el activo.
+**Report-Only no bloquea nada**: el navegador solo escribe las violaciones en
+la consola. Un CSP activo mal armado deja la pantalla en blanco, y este panel
+se usa todos los días — así que primero se mira y después se aprieta.
+
+**Para pasarlo a activo**: navegar el panel entero con la consola abierta
+(dashboard, calculadora, compras, tienda, contactos con su mapa), comprobar que
+no aparece ni una violación, y renombrar la cabecera a `Content-Security-Policy`.
+
+- ⚠️ **`script-src` lleva el HASH del único script inline** (el que aplica el
+  tema antes del primer render), no `'unsafe-inline'`. Con `unsafe-inline` el
+  CSP no protege de un XSS, que es el 90 % de su valor: sería teatro.
+  - Verificado que **Vite copia ese script tal cual** (el hash del fuente y el
+    del `dist` coinciden), que es lo que permite medirlo sin build.
+  - ⚠️ **El hash se queda viejo sin avisar**: tocar una palabra de ese script
+    hace que el navegador lo bloquee y el tema vuelva a parpadear, sin que
+    falle el build ni ningún otro test. Lo vigila
+    **`src/test/csp-hash.spec.ts`**; la mutación de cambiar un comentario del
+    script tumba 1.
+- ⚠️ **`img-src` admite cualquier `https:` a propósito**: las fotos salen de
+  R2 y su dominio es `R2_PUBLIC_URL`, una variable que este repo no conoce.
+  Restringirlo rompe las fotos el día que se configure R2. El estricto es
+  **`connect-src`**, que es el que impide mandar datos a otro lado.
+- ⚠️ **No se pudo probar localmente contra la API**: el preview del `dist`
+  corre en otro puerto y la API solo acepta `localhost:5180` por CORS, así que
+  el flujo autenticado no se podía recorrer. Por eso Report-Only y no una
+  verificación a medias.
+- ⚠️ El test también exige que **las otras cinco cabeceras sigan estando**:
+  al reescribir este archivo en la tienda ya se borró un bloque sin querer.
+
 ## A qué API le habla el panel
 
 `VITE_API_URL` decide contra qué backend corre el panel.
