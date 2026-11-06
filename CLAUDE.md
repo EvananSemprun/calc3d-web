@@ -2245,6 +2245,23 @@ queda. **La decisión y los límites están en el `CLAUDE.md` de `calc3d-api`**
   carrera: el primer test veía el esqueleto y los `queryByText(...).not`
   **pasaban sin que se renderizara nada** — verde falso de manual.
 
+## Cabeceras de seguridad: `apps/web/public/_headers` (2026-11-05)
+
+Hasta la auditoría del 2026-11-05 el panel mandaba **solo las dos que pone
+Cloudflare por su cuenta** (`referrer-policy` y `x-content-type-options`).
+Medido con `curl -I` contra el sitio publicado, no supuesto.
+
+- Va en **`apps/web/public/`** y no en la raíz del repo: Pages lo lee desde la
+  raíz de lo PUBLICADO, y Vite copia `public/` tal cual a `dist/`.
+- Agrega HSTS, `X-Frame-Options: DENY` (que nadie ponga el panel en un iframe
+  suyo y le robe los clics) y `Permissions-Policy`.
+- ⚠️ **No lleva Content-Security-Policy, a propósito.** Un CSP para esta app
+  tiene que listar las fuentes de Google, la API de Railway en `connect-src` y
+  lo que inyecte Vite en el build; mal puesto **no avisa**, deja la pantalla en
+  blanco. Merece su propio trabajo, con la app abierta y la consola al lado.
+- La tienda tiene el suyo en `calc3d-landing/public/_headers`, que **ya
+  existía** y solo ganó HSTS.
+
 ## A qué API le habla el panel
 
 `VITE_API_URL` decide contra qué backend corre el panel.

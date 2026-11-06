@@ -1,0 +1,28 @@
+# Cabeceras de seguridad del panel (auditoría del 2026-11-05).
+#
+# Cloudflare Pages lee este archivo desde la RAÍZ del directorio publicado, y
+# Vite copia `public/` tal cual a `dist/`: por eso vive acá y no en la raíz del
+# repo, donde no se publicaría.
+#
+# Hasta esta fecha el panel solo mandaba las dos que pone Cloudflare por su
+# cuenta (`referrer-policy` y `x-content-type-options`). Con un subdominio de
+# pages.dev el riesgo era bajo; con un dominio propio deja de serlo.
+#
+# ⚠️ **No hay Content-Security-Policy acá, y es a propósito.** Un CSP para esta
+# app tiene que listar sus fuentes de Google, la API de Railway en `connect-src`
+# y lo que inyecte Vite en el build; mal puesto no avisa, solo deja la pantalla
+# en blanco. Merece su propio trabajo, con la app abierta y la consola al lado.
+# Estas cinco son las que no pueden romper nada.
+
+/*
+  # Obliga HTTPS en las próximas visitas. Solo tiene efecto sobre HTTPS, así que
+  # no afecta al desarrollo local.
+  Strict-Transport-Security: max-age=15552000; includeSubDomains
+  # Que nadie ponga el panel dentro de un iframe suyo y le robe los clics.
+  X-Frame-Options: DENY
+  # Un archivo servido con un tipo no se interpreta como otro.
+  X-Content-Type-Options: nosniff
+  # No filtrar la ruta interna que estaba abierta al salir a otro sitio.
+  Referrer-Policy: strict-origin-when-cross-origin
+  # El panel no usa cámara, micrófono ni ubicación: se apagan de entrada.
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
