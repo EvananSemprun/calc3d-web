@@ -19,9 +19,12 @@ const PRODUCTO = {
   createdAt: '2026-01-01', updatedAt: '2026-01-01',
 };
 
+let categoriasMock: unknown[] = [];
+
 function respuesta(url: string) {
   if (url === '/store/products/p1') return { data: PRODUCTO };
-  if (url === '/store/categories') return { data: [] };
+  if (url === '/store/categories') return { data: categoriasMock };
+  if (url === '/store/products') return { data: [] };
   if (url === '/store/status') return { data: { storageReady: true } };
   if (url === '/settings') return { data: { currency: 'USD', locale: 'es-VE' } };
   return { data: null };
@@ -53,6 +56,7 @@ describe('StoreProductDetail — precios por cantidad', () => {
     mocks.patch.mockReset();
     mocks.post.mockReset();
     mocks.del.mockReset();
+    categoriasMock = [];
   });
 
   it('agrega un tramo y lo guarda como fracción', async () => {
@@ -68,5 +72,22 @@ describe('StoreProductDetail — precios por cantidad', () => {
         expect.objectContaining({ priceTiers: [{ minQty: 10, discountPct: 0.1 }] }),
       ),
     );
+  });
+
+  it('el selector de categoría lista las hijas sangradas bajo su madre', async () => {
+    const cat = (id: string, name: string, position: number, parentId: string | null) => ({
+      id, name, slug: id, position, parentId,
+    });
+    // Desordenadas a propósito: el orden lo tiene que dar el árbol, no la entrada.
+    categoriasMock = [
+      cat('autos', 'Autos', 0, 'juguetes'),
+      cat('hogar', 'Hogar', 1, null),
+      cat('juguetes', 'Juguetes', 0, null),
+    ];
+    await montar();
+    await screen.findByDisplayValue('Llavero');
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Categoría' }));
+    const textos = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(textos).toEqual(['Sin categoría', 'Juguetes', '\u00A0\u00A0Autos', 'Hogar']);
   });
 });

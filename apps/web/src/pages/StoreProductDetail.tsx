@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Download, ArrowLeft, ImagePlus, Plus, Tags, Trash2, X } from 'lucide-react';
 import {
+  arbolDeCategorias,
   STORE_IMAGE_MAX_BYTES,
   STORE_IMAGE_MAX_COUNT,
   STORE_IMAGE_MIME_TYPES,
@@ -439,15 +440,23 @@ export function StoreProductDetailPage() {
                 <div className="flex items-center gap-2">
                   <Select
                     className="flex-1"
+                    aria-label="Categoría"
                     value={form.categoryId}
                     onChange={(e) => set('categoryId', e.target.value)}
                   >
                     <option value="">Sin categoría</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
+                    {/* El Select de la casa ignora <optgroup>: la jerarquía va en el TEXTO,
+                        con sangría (espacios duros, que el HTML no colapsa). */}
+                    {arbolDeCategorias(categories).flatMap(({ categoria, hijas }) => [
+                      <option key={categoria.id} value={categoria.id}>
+                        {categoria.name}
+                      </option>,
+                      ...hijas.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {'\u00A0\u00A0' + h.name}
+                        </option>
+                      )),
+                    ])}
                   </Select>
                   <Button variant="outline" onClick={() => setCategorias(true)}>
                     <Tags className="h-4 w-4" /> Gestionar
