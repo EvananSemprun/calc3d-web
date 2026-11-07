@@ -90,4 +90,37 @@ describe('StoreProductDetail — precios por cantidad', () => {
     const textos = (await screen.findAllByRole('option')).map((o) => o.textContent);
     expect(textos).toEqual(['Sin categoría', 'Juguetes', '\u00A0\u00A0Autos', 'Hogar']);
   });
+
+  it('con 8 o más categorías (variante con buscador) la hija conserva la sangría, también al filtrar', async () => {
+    const cat = (id: string, name: string, position: number, parentId: string | null) => ({
+      id, name, slug: id, position, parentId,
+    });
+    categoriasMock = [
+      cat('juguetes', 'Juguetes', 0, null),
+      cat('autos', 'Autos', 0, 'juguetes'),
+      cat('munecas', 'Muñecas', 1, 'juguetes'),
+      cat('hogar', 'Hogar', 1, null),
+      cat('cocina', 'Cocina', 0, 'hogar'),
+      cat('oficina', 'Oficina', 2, null),
+      cat('jardin', 'Jardín', 3, null),
+      cat('mascotas', 'Mascotas', 4, null),
+    ]; // 8 categorías + "Sin categoría" = 9 opciones, sobre el mínimo para buscar
+    await montar();
+    await screen.findByDisplayValue('Llavero');
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Categoría' }));
+
+    const textos = async () => (await screen.findAllByRole('option')).map((o) => o.textContent);
+    const todas = await textos();
+    expect(todas.slice(0, 5)).toEqual([
+      'Sin categoría', 'Juguetes', '\u00A0\u00A0Autos', '\u00A0\u00A0Muñecas', 'Hogar',
+    ]);
+    expect(todas.indexOf('\u00A0\u00A0Cocina')).toBe(todas.indexOf('Hogar') + 1);
+
+    // Mayúsculas: ejerce el normalizado del buscador sin tocar la sangría.
+    fireEvent.change(screen.getByLabelText('Buscar en la lista'), { target: { value: 'AUTOS' } });
+    await waitFor(async () => expect(await textos()).toEqual(['\u00A0\u00A0Autos']));
+    // Con acento: "muñecas" se encuentra escribiendo "munecas".
+    fireEvent.change(screen.getByLabelText('Buscar en la lista'), { target: { value: 'munecas' } });
+    await waitFor(async () => expect(await textos()).toEqual(['\u00A0\u00A0Muñecas']));
+  });
 });
