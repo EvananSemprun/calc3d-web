@@ -49,6 +49,8 @@ export interface StoreCategory {
   name: string;
   slug: string;
   position: number;
+  /** Categoría madre (null = de primer nivel). Máximo dos niveles. */
+  parentId: string | null;
 }
 
 export interface StoreProduct {
@@ -121,7 +123,7 @@ export function useStoreCategories() {
 export function useCreateStoreCategory() {
   const invalidate = useStoreInvalidate();
   return useMutation({
-    mutationFn: async (dto: { name: string }) =>
+    mutationFn: async (dto: { name: string; parentId?: string | null }) =>
       (await api.post<StoreCategory>('/store/categories', dto)).data,
     onSuccess: invalidate,
   });
@@ -130,8 +132,10 @@ export function useCreateStoreCategory() {
 export function useUpdateStoreCategory() {
   const invalidate = useStoreInvalidate();
   return useMutation({
-    mutationFn: async ({ id, name }: { id: string; name: string }) =>
-      (await api.patch<StoreCategory>(`/store/categories/${id}`, { name })).data,
+    // ⚠️ El cuerpo lleva `parentId` explícito: desestructurar solo { id, name } perdía
+    // cualquier campo nuevo en silencio (sin error, los tipos compilaban).
+    mutationFn: async ({ id, name, parentId }: { id: string; name: string; parentId?: string | null }) =>
+      (await api.patch<StoreCategory>(`/store/categories/${id}`, { name, parentId })).data,
     onSuccess: invalidate,
   });
 }
