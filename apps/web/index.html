@@ -4,6 +4,37 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Calc3D — Calculadora de Precios 3D</title>
+    <!--
+      Icono de la pestaña (el isotipo de Banano Lab). Viven en `public/`, que Vite
+      copia tal cual a `dist/`, así que las rutas son absolutas desde la raíz.
+      Hasta el 2026-11-07 no había ninguno y el navegador mostraba el suyo genérico.
+
+      ⚠️ SON DOS A PROPÓSITO, y no es decoración: el isotipo negro es NEGRO PURO
+      (luminancia medida: 0.0/255). Contra el fondo de una pestaña en tema oscuro
+      (#202124) da 1.30:1 de contraste — o sea, no se ve. Medido con contraste
+      WCAG el 2026-11-07, junto con las otras variantes de la marca:
+
+          NEGRO    21.00:1 en claro · 1.30:1 en oscuro
+          AMARILLO  1.40:1 en claro · 11.52:1 en oscuro
+          BLANCO    1.13:1 en claro · 14.25:1 en oscuro
+
+      NINGUNO sirve para los dos temas, así que el navegador elige por media
+      query. Se eligió el amarillo (#FFC300) y no el blanco porque es el color de
+      marca y 11.52:1 sobra de legible.
+
+      El orden importa: el negro va PRIMERO y sin `media` para que sea el
+      respaldo en navegadores que ignoran `media` en `rel="icon"`.
+    -->
+    <link rel="icon" type="image/png" href="/icono.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="/icono-oscuro.png"
+      media="(prefers-color-scheme: dark)"
+    />
+    <!-- iOS no mira `media` ni respeta la transparencia: va el amarillo, que se
+         lee sobre el fondo que el sistema le ponga detrás. -->
+    <link rel="apple-touch-icon" href="/icono-oscuro.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
