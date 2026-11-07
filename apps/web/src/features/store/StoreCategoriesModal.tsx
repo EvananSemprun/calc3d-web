@@ -58,12 +58,10 @@ export function StoreCategoriesModal({
   };
 
   const guardarNombre = async (id: string) => {
-    // Renombrar no mueve de madre: se reenvía la que ya tiene.
-    const parentId = categories.find((c) => c.id === id)?.parentId;
     const name = borrador.trim();
     if (!name) return;
     try {
-      await update.mutateAsync({ id, name, parentId });
+      await update.mutateAsync({ id, name });
       setEditando(null);
       notify.success('Categoría renombrada');
     } catch (e) {

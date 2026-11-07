@@ -129,13 +129,28 @@ export function useCreateStoreCategory() {
   });
 }
 
+/**
+ * `parentId` viaja SOLO si se quiere mover de madre (acción explícita). Renombrar manda
+ * solo `name`: el servidor escribe la madre únicamente si el campo viene, y `null` es una
+ * orden de mover a la raíz, no un no-op. La clave se omite del cuerpo a propósito, sin
+ * depender de que el serializador descarte `undefined`.
+ */
 export function useUpdateStoreCategory() {
   const invalidate = useStoreInvalidate();
   return useMutation({
-    // ⚠️ El cuerpo lleva `parentId` explícito: desestructurar solo { id, name } perdía
-    // cualquier campo nuevo en silencio (sin error, los tipos compilaban).
-    mutationFn: async ({ id, name, parentId }: { id: string; name: string; parentId?: string | null }) =>
-      (await api.patch<StoreCategory>(`/store/categories/${id}`, { name, parentId })).data,
+    mutationFn: async ({
+      id,
+      name,
+      parentId,
+    }: {
+      id: string;
+      name: string;
+      parentId?: string | null;
+    }) => {
+      const cuerpo: { name: string; parentId?: string | null } = { name };
+      if (parentId !== undefined) cuerpo.parentId = parentId;
+      return (await api.patch<StoreCategory>(`/store/categories/${id}`, cuerpo)).data;
+    },
     onSuccess: invalidate,
   });
 }

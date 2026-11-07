@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, renderHook, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { useCreateStoreCategory, useUpdateStoreCategory } from './api';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConfirmProvider, TooltipProvider } from '@/components/overlays';
 
@@ -42,22 +44,64 @@ async function montar() {
   );
 }
 
+function envoltura() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+}
+
+/** Cuerpo real de la última llamada (toHaveBeenCalledWith no distingue clave ausente de undefined). */
+const cuerpoPatch = () => mocks.patch.mock.calls.at(-1)![1] as Record<string, unknown>;
+
+describe('hooks de categoría', () => {
+  beforeEach(() => {
+    Object.values(mocks).forEach((m) => m.mockReset());
+    mocks.patch.mockResolvedValue({ data: CATEGORIAS[1] });
+    mocks.post.mockResolvedValue({ data: CATEGORIAS[1] });
+  });
+
+  it('renombrar NO manda parentId: el cuerpo del PATCH no trae la clave', async () => {
+    const { result } = renderHook(() => useUpdateStoreCategory(), { wrapper: envoltura() });
+    await result.current.mutateAsync({ id: 'hija', name: 'Animé' });
+    expect(mocks.patch.mock.calls.at(-1)![0]).toBe('/store/categories/hija');
+    expect('parentId' in cuerpoPatch()).toBe(false);
+    expect(cuerpoPatch()).toEqual({ name: 'Animé' });
+  });
+
+  it('mover manda parentId con su valor', async () => {
+    const { result } = renderHook(() => useUpdateStoreCategory(), { wrapper: envoltura() });
+    await result.current.mutateAsync({ id: 'hija', name: 'Anime', parentId: 'otra' });
+    expect(cuerpoPatch()).toEqual({ name: 'Anime', parentId: 'otra' });
+  });
+
+  it('mover a la raíz manda parentId: null', async () => {
+    const { result } = renderHook(() => useUpdateStoreCategory(), { wrapper: envoltura() });
+    await result.current.mutateAsync({ id: 'hija', name: 'Anime', parentId: null });
+    expect(cuerpoPatch()).toEqual({ name: 'Anime', parentId: null });
+  });
+
+  it('crear con madre manda parentId en el POST', async () => {
+    const { result } = renderHook(() => useCreateStoreCategory(), { wrapper: envoltura() });
+    await result.current.mutateAsync({ name: 'Anime', parentId: 'madre' });
+    expect(mocks.post).toHaveBeenCalledWith('/store/categories', { name: 'Anime', parentId: 'madre' });
+  });
+});
+
 describe('StoreCategoriesModal', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((m) => m.mockReset());
   });
 
-  it('⚠️ al renombrar, el PATCH incluye el parentId: antes el hook mandaba solo { name }', async () => {
+  it('renombrar una hija NO manda parentId', async () => {
     await montar();
     fireEvent.click(await screen.findByRole('button', { name: 'Renombrar Anime' }));
-    const campo = await screen.findByLabelText('Nuevo nombre de Anime');
-    fireEvent.change(campo, { target: { value: 'Animé' } });
+    fireEvent.change(await screen.findByLabelText('Nuevo nombre de Anime'), {
+      target: { value: 'Animé' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /guardar nombre/i }));
-    await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith('/store/categories/hija', {
-        name: 'Animé',
-        parentId: 'madre',
-      }),
-    );
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalled());
+    expect(cuerpoPatch()).toEqual({ name: 'Animé' });
+    expect('parentId' in cuerpoPatch()).toBe(false);
   });
 });
