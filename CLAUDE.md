@@ -2365,16 +2365,18 @@ la API estaba en Render; detalle en el `CLAUDE.md` de `calc3d-api`).
   el `Dockerfile` de la API en Render).
 - `apps/web/public/_redirects` (`/* /index.html 200`) es el fallback SPA: sin él,
   recargar en `/filament/stock` daría 404.
-- Del lado de la API, `WEB_ORIGIN` en Render tiene que ser
+- Del lado de la API, `WEB_ORIGIN` **en Railway** tiene que ser
   `https://calc3d-web.pages.dev` exacto (sin barra final) o el login muere en CORS.
 - Un cambio de configuración en Pages NO se aplica a lo ya publicado: hay que
   "Reintentar implementación".
-- La API del plan free de Render se duerme a los 15 min y despertarla tardó
-  más de 2 minutos (2026-10-02). `Login.tsx` la despierta apenas se abre la
-  página (`GET /health`, no toca la base) y, si el login pasa de 6 s, explica la
-  espera en vez de un "Entrando…" mudo. La solución de fondo es un ping cada
-  10 min a `/api/health` (cron-job.org): 744 h/mes entran en las 750 gratis con
-  UN solo servicio en Render.
+- ✅ **El arranque en frío ya no aplica**: era del plan free de **Render**, que
+  dormía la API a los 15 min (despertarla tardó más de 2 minutos el 2026-10-02).
+  Desde la mudanza a **Railway** (2026-11-05) el servicio no se duerme. Lo que
+  se hizo para aquello sigue puesto y **no estorba**: `Login.tsx` llama a
+  `GET /health` al abrir la página (no toca la base) y, si el login pasa de 6 s,
+  explica la espera en vez de un "Entrando…" mudo — sigue siendo mejor UI si
+  alguna vez la API tarda. El ping externo cada 10 min (cron-job.org) que se
+  había pensado **ya no hace falta**.
 
 ## Entorno
 - Windows / PowerShell: usar su sintaxis (`$env:VAR` no `$VAR`, `$null` no
