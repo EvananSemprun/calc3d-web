@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ImageOff, Plus, Store as StoreIcon, Tags, Zap } from 'lucide-react';
-import { productMarkup } from '@calc3d/shared';
+import { arbolDeCategorias, descendientesDe, productMarkup } from '@calc3d/shared';
 import { useMoney } from '@/features/settings/useSettings';
 import { apiErrorMessage } from '@/lib/api';
-import { uniqueSorted } from '@/lib/utils';
 import { notify } from '@/components/toast';
 import {
   moveItem,
   useCreateStoreProduct,
   useReorderStoreProducts,
+  useStoreCategories,
   useStoreProducts,
   useStoreStatus,
   type StoreProduct,
@@ -23,6 +23,7 @@ import {
   Card,
   CardContent,
   EmptyState,
+  FilterBar,
   Select,
   Stat,
   TableSkeleton,
@@ -47,11 +48,19 @@ export function StorePage() {
   const [categorias, setCategorias] = useState(false);
   const [flash, setFlash] = useState(false);
 
-  const nombresCategoria = uniqueSorted(products.map((p) => p.category?.name));
-  // Una categoría que se borró o renombró dejaría el select en blanco y la vitrina vacía.
-  const categoriaSegura = nombresCategoria.includes(categoriaF) ? categoriaF : '';
+  // Las opciones salen de las CATEGORÍAS y no de los productos: una madre cuyos productos
+  // están todos en sus hijas no aparecería nunca. Y se filtra por ID: dos subcategorías
+  // homónimas bajo madres distintas («Autos») son dos opciones, no una.
+  const { data: listaCategorias = [] } = useStoreCategories();
+  const arbolCategorias = arbolDeCategorias(listaCategorias);
+  // Una categoría que se borró dejaría el select en blanco y la vitrina vacía.
+  const categoriaSegura = listaCategorias.some((c) => c.id === categoriaF) ? categoriaF : '';
+  // Filtrar por una madre incluye a sus hijas.
+  const idsDelFiltro = categoriaSegura
+    ? new Set([categoriaSegura, ...descendientesDe(listaCategorias, categoriaSegura).map((c) => c.id)])
+    : null;
   const visible = products.filter((p) => {
-    if (categoriaSegura && p.category?.name !== categoriaSegura) return false;
+    if (idsDelFiltro && !(p.categoryId && idsDelFiltro.has(p.categoryId))) return false;
     if (filtro === 'publicados') return p.visible;
     if (filtro === 'borradores') return !p.visible;
     return true;
@@ -149,19 +158,27 @@ export function StorePage() {
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {nombresCategoria.length > 0 && (
+      <FilterBar>
+        {listaCategorias.length > 0 && (
           <Select
-            className="w-full sm:w-48"
+            className="w-full sm:w-52"
+            aria-label="Categoría"
             value={categoriaSegura}
             onChange={(e) => setCategoriaF(e.target.value)}
           >
             <option value="">Categoría: todas</option>
-            {nombresCategoria.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
+            {/* El Select de la casa ignora <optgroup>: la jerarquía va en el TEXTO, con
+                sangría (espacios duros, que el HTML no colapsa). */}
+            {arbolCategorias.flatMap(({ categoria, hijas }) => [
+              <option key={categoria.id} value={categoria.id}>
+                {categoria.name}
+              </option>,
+              ...hijas.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {'  ' + h.name}
+                </option>
+              )),
+            ])}
           </Select>
         )}
         <Select
@@ -173,7 +190,7 @@ export function StorePage() {
           <option value="publicados">Publicados</option>
           <option value="borradores">Borradores</option>
         </Select>
-      </div>
+      </FilterBar>
 
       {isLoading ? (
         <TableSkeleton rows={4} />
