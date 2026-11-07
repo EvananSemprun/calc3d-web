@@ -125,7 +125,13 @@ export function CampaignDetailPage() {
 
       {/* KPIs principales */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Invertido" value={money(s.invested)} accent="yellow" sub={c.budget != null ? `de ${money(c.budget)} presup.` : undefined} />
+        {/*
+          El PRESUPUESTO ESTIMADO salió de la app (2026-11-07): el dueño anota lo
+          que pagó, no lo que pensaba gastar, y el estimado no entraba en ninguna
+          cuenta —el ROI siempre usó `invested`, que son los gastos reales—. La
+          columna sigue en la base con lo ya cargado; nada más la lee.
+        */}
+        <Stat label="Invertido" value={money(s.invested)} accent="yellow" />
         <Stat label="Vendido (atribuido)" value={money(s.revenue)} accent="success" sub={`${s.orders} encargo${s.orders === 1 ? '' : 's'} · ${s.sales} venta${s.sales === 1 ? '' : 's'}`} />
         <Stat label="ROAS" value={fmtRoas(roas(s.revenue, s.invested))} sub="ingresos ÷ inversión" />
         <Stat

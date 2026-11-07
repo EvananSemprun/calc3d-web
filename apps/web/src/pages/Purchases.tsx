@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  DIAS_PARA_ANULAR_SIN_CONFIRMAR,
   OPCIONES_DE_RECARGA,
+  anulacionNecesitaConfirmacion,
   codigoDeCompra,
   facturasAtrasadas,
   recargaDesdeValor,
@@ -254,16 +256,31 @@ function FacturaCard({
   const anulada = f.voidedAt != null;
   const sinHistorial = f.payments.length === 0 && f.recibido === 0;
 
+  /**
+   * ⚠️ PASADOS 3 DÍAS DESDE QUE SE CARGÓ, el texto cambia y hay que escribir
+   * el motivo (2026-11-07). No lo impide —el error que se descubre al cuarto
+   * día es real— pero deja de ser un click más, y el motivo queda guardado en
+   * `voidReason` para poder reconstruir qué pasó.
+   *
+   * La regla la decide `anulacionNecesitaConfirmacion` de shared, la MISMA
+   * que aplica el servidor: escrita acá, el botón y el backend se separarían
+   * el día que el plazo cambie. Y el servidor igual rechaza sin la marca, así
+   * que esto es la explicación, no el candado.
+   */
+  const fueraDePlazo = anulacionNecesitaConfirmacion(f.createdAt ?? '', new Date());
+
   const pedirAnular = async () => {
     const ok = await confirm({
       title: '¿Anular esta factura?',
-      description: 'Queda en la lista marcada como anulada y sus abonos salen de la Caja.',
-      confirmLabel: 'Anular',
+      description: fueraDePlazo
+        ? `Esta compra se cargó hace más de ${DIAS_PARA_ANULAR_SIN_CONFIRMAR} días: anularla ahora cambia números que ya diste por buenos. Queda marcada como anulada y sus abonos salen de la Caja.`
+        : 'Queda en la lista marcada como anulada y sus abonos salen de la Caja.',
+      confirmLabel: fueraDePlazo ? 'Anular igual' : 'Anular',
       tone: 'destructive',
     });
     if (!ok) return;
     anular.mutate(
-      { id: f.id, reason: 'Anulada desde la pantalla' },
+      { id: f.id, reason: 'Anulada desde la pantalla', confirmoFueraDePlazo: fueraDePlazo },
       { onSuccess: () => notify.success('Factura anulada'), onError: (e) => notify.error(apiErrorMessage(e)) },
     );
   };
@@ -525,16 +542,25 @@ function Abonos({ factura: f }: { factura: PurchaseInvoice }) {
   const confirm = useConfirm();
   const anular = useVoidInvoicePayment();
 
-  const pedirAnular = async (id: string, monto: number) => {
+  /** Mismo plazo que la factura, contado desde que se cargó ESTE abono. */
+  const pedirAnular = async (id: string, monto: number, cargadoEl: string | null) => {
+    const fueraDePlazo = anulacionNecesitaConfirmacion(cargadoEl ?? '', new Date());
     const ok = await confirm({
       title: `¿Anular el abono de ${money(monto)}?`,
-      description: 'Queda tachado en el historial y la plata vuelve a la Caja. No se borra.',
-      confirmLabel: 'Anular',
+      description: fueraDePlazo
+        ? `Este abono se cargó hace más de ${DIAS_PARA_ANULAR_SIN_CONFIRMAR} días: anularlo ahora mueve la Caja de un período que ya diste por cerrado. Queda tachado en el historial, no se borra.`
+        : 'Queda tachado en el historial y la plata vuelve a la Caja. No se borra.',
+      confirmLabel: fueraDePlazo ? 'Anular igual' : 'Anular',
       tone: 'destructive',
     });
     if (ok) {
       anular.mutate(
-        { id: f.id, paymentId: id, reason: 'Anulado desde la pantalla' },
+        {
+          id: f.id,
+          paymentId: id,
+          reason: 'Anulado desde la pantalla',
+          confirmoFueraDePlazo: fueraDePlazo,
+        },
         { onError: (e) => notify.error(apiErrorMessage(e)) },
       );
     }
@@ -560,7 +586,7 @@ function Abonos({ factura: f }: { factura: PurchaseInvoice }) {
             <button
               type="button"
               className="text-destructive underline-offset-2 hover:underline"
-              onClick={() => pedirAnular(p.id, p.amount)}
+              onClick={() => pedirAnular(p.id, p.amount, p.createdAt)}
             >
               anular
             </button>

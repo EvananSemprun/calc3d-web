@@ -1959,16 +1959,62 @@ periodo en el panel. Tests en `rango-de-mes.spec.ts`.
     Busca **sin acentos y sin mayúsculas** (`senora nandu` encuentra `Señora
     Ñandú`) y aplana el `label`, que es un `ReactNode`: sin aplanarlo, una
     opción con formato no coincidiría NUNCA y el buscador la escondería.
-  - ⚠️ **Tres cosas que Radix hace y hay que contrarrestar**, todas verificadas
-    en pantalla:
-    1. **Se lleva el foco** a la opción marcada DESPUÉS de montar el contenido,
-       así que `autoFocus` no alcanza: el input se enfoca en el tick siguiente.
-    2. **`Select.Value` sin hijos lee la etiqueta del `Select.Item` montado.**
-       Al filtrar, el elegido deja de estarlo y **el select se quedaba en
-       blanco mientras escribías**. Por eso la etiqueta se le pasa a mano.
-    3. Su **"escribí para saltar"** se come las teclas: el contenedor del input
-       frena la propagación de todo salvo flechas, Enter, Escape y Tab — esas
-       tienen que llegar a la lista para poder navegarla sin soltar el teclado.
+  - ⚠️ **LA VARIANTE CON BUSCADOR YA NO ES UN RADIX SELECT** (2026-11-07,
+    `SelectBuscable` en `components/ui.tsx`). Radix Select **no es un
+    combobox**: maneja el foco él y lo devuelve a la lista cada vez que cambia
+    el conjunto de opciones MONTADAS. Al escribir una letra la lista se filtra,
+    la opción resaltada se desmonta y Radix se lleva el foco del buscador — en
+    un teléfono eso es **el teclado virtual cerrándose**, y había que volver a
+    tocar el campo letra por letra.
+    - **Medido a 390×844 antes de tocar nada**: antes de escribir, el foco
+      estaba en `INPUT | Buscar en la lista`; después de UNA tecla, en el
+      `div` del contenido de Radix. Después del cambio, el foco sigue en el
+      input tras 4 teclas seguidas y la lista no se mueve (`top` clavado en 466
+      en 6 mediciones mientras filtraba de 13 a 2 opciones).
+    - Los dos parches que había —enfocar en el siguiente tick al montar e
+      ignorar 600 ms de cierres espurios por `resize`— tapaban la APERTURA, no
+      el re-render de cada tecla, que es donde estaba el bug. Los dos se
+      fueron, y con ellos `esTactil()`.
+    - ⚠️ **DÓNDE SE DIBUJA LA LISTA SON DOS REGLAS OPUESTAS, y elegir una sola
+      para toda la app es cómo este bug vuelve.** En una PÁGINA cuelga de
+      `body` (las `Card` traen `overflow` y la recortarían); dentro de un
+      MODAL cuelga **del modal** (`closest('[role="dialog"]')`). Lo segundo
+      está medido: con el diálogo abierto, un `focus()` sobre un input colgado
+      de `body` produce un `focusin` en el BOTÓN del select — el focus trap de
+      Radix Dialog devuelve el foco a su ámbito, que es el mismo bug por la
+      otra puerta. El cuerpo del modal scrollea pero su contenedor no recorta,
+      así que ahí se ve entera igual.
+    - ⚠️ El contenido del diálogo tiene `transform`, y eso hace que `fixed` se
+      mida contra ÉL: por eso dentro de un modal se posiciona en `absolute` con
+      las coordenadas pasadas a su sistema.
+    - ⚠️ `abrir()` **MIDE ANTES de abrir**: el portal solo se monta cuando ya
+      hay medidas, así que abriendo primero el efecto que enfoca corría con el
+      input todavía sin existir. Medido: el buscador existía en el DOM y no
+      recibía las teclas.
+    - ⚠️ La opción se elige en **`onMouseDown`**, no en `onClick`: el click
+      llega DESPUÉS del blur y para entonces el cierre por «clic afuera» ya se
+      comió la elección.
+    - ⚠️ El **Escape frena la propagación**: sin eso sube al `Dialog` y cierra
+      el modal entero — querías cerrar una lista y perdías el formulario.
+    - **La rama de Radix se queda para las listas cortas** (< 8 opciones), que
+      es lo que Radix hace bien: una lista sin campo de texto.
+    - Tests: `components/Select.spec.tsx` (7). jsdom **no reproduce** el robo
+      de foco —por eso el test viejo daba verde con el bug puesto—, así que lo
+      que amarran es la ESTRUCTURA que lo hace imposible: que no haya un
+      `[data-radix-popper-content-wrapper]`, y las dos reglas de dónde cuelga
+      la lista. Por mutación: colgarla siempre de `body` tumba 1 y pasar la
+      elección a `onClick` tumba 1.
+  - ⚠️ **`bg-popover` NO EXISTÍA como utilidad de Tailwind** (arreglado el
+    2026-11-07). Las variables `--popover`/`--popover-foreground` están en
+    `index.css` desde siempre y **nadie las mapeó en `tailwind.config.js`**:
+    la clase no generaba ninguna regla y el desplegable tenía el fondo
+    **transparente** (`rgba(0,0,0,0)`, medido). Sobre la página oscura el
+    `backdrop-blur` lo disimulaba; dentro de un modal se leía el formulario a
+    través de la lista. Es la misma familia que el `warning` que no estaba
+    registrado y dejaba el aviso de Metas sin color: **si agregás una clase de
+    color, verificá que salga en el CSS compilado**, no que compile.
+    ⚠️ Y el cambio de `tailwind.config.js` **necesita reiniciar el dev server**:
+    con HMR el CSS seguía sin la regla y parecía que el arreglo no servía.
   - ⚠️ **La lista se salía de la pantalla en el teléfono**: tenía `min-w` del
     trigger pero ningún `max-w`, así que crecía con la opción más larga (medido:
     431 px de lista en 375 de ancho). Ahora se acota al ancho disponible que
@@ -2377,6 +2423,158 @@ la API estaba en Render; detalle en el `CLAUDE.md` de `calc3d-api`).
   explica la espera en vez de un "Entrando…" mudo — sigue siendo mejor UI si
   alguna vez la API tarda. El ping externo cada 10 min (cron-job.org) que se
   había pensado **ya no hace falta**.
+
+
+## La tanda del 2026-11-07 (diez cambios pedidos por el dueño)
+
+Nueve cambios del panel y uno de contrato, hechos juntos. El del `Select` con
+buscador tiene su propia entrada arriba, en «Primitivas y patrones UX».
+
+### El KPI «Dinero entrado por venta» (Dashboard)
+
+- «VENTAS» pasó a **«Ventas de mostrador»**: esa tarjeta nunca contó otra cosa,
+  y el rótulo corto invitaba a leerla como el total del negocio.
+- La tarjeta nueva **no es una cuenta nueva**: muestra `agg.ingresos`
+  (`ventas + abonos`), que es **la misma** que ya alimentaba «Resultado de la
+  operación» desde siempre. No hay doble conteo porque un abono no genera un
+  `Sale` — la regla de shared 0.16.0.
+- ⚠️ **Su pie dice que NO es la caja.** En octubre el dueño ya leyó «Resultado
+  de la operación» como un saldo y se creyó en rojo; un rótulo que empieza con
+  «Dinero entrado» invita al mismo error y el saldo de verdad está en la fila
+  de abajo.
+- La fila se partió en **3 + 2** (lo que entra / lo que sale y el resultado).
+  En el teléfono la fila va de a dos, así que el total lleva
+  `col-span-2 lg:col-span-1` y ocupa el ancho entero en vez de dejar un hueco.
+- ⚠️ Al renombrar hubo que tocar **dos textos que nombraban la tarjeta vieja**
+  (el pie de la comparación por canal y un comentario). Un rótulo que se
+  renombra deja atrás todo lo que lo citaba, y eso no lo marca ningún test.
+- ⚠️ **Para medir estos KPI en el navegador hay que traer el panel al frente**:
+  con el pane oculto el `NumberTicker` se congela y los cuatro salen en `$0.00`.
+  Ya hizo creer tres veces que había una regresión.
+
+### La paleta de búsqueda estaba descuadrada
+
+`CommandPalette` se centraba con la clase `-translate-x-1/2`, pero es un
+`motion.div` y **Framer Motion escribe `transform` INLINE** para animar
+`y`/`scale`: la clase quedaba pisada y la tarjeta tenía su borde izquierdo
+clavado en el 50 % de la pantalla.
+
+- En escritorio solo se veía corrida; en un teléfono se salía por la derecha.
+- El arreglo **no es pasarle la `x` a la animación**: centra un contenedor que
+  NO se anima y la animación vive adentro, así ninguna animación futura lo
+  vuelve a romper.
+- Medido a 390×844 después: `izq 20 · der 370` de 390, centrada y entera.
+
+### Guardar un producto se lleva los tramos de mayoreo
+
+Los tramos viajaban dentro del `input` (se guardaban) pero `priceTiers` —el
+campo que la TIENDA usa para cobrar— nacía vacío: el mismo dato había que
+escribirlo dos veces y, si te olvidabas, la vitrina cobraba precio de lista
+para siempre.
+
+- ⚠️ **No es un cast**: la ficha pide cosas que la calculadora no (desde 2
+  unidades, cantidades estrictamente crecientes, máximo 8), y mandar la lista
+  cruda **hacía rebotar el guardado entero**. Lo traduce
+  `tramosParaLaTienda` (shared), con su test de que lo que devuelve SIEMPRE
+  pasa `StoreProductCreateSchema`.
+- El precio base sigue siendo el **de lista**: el descuento lo aplica la tienda
+  por cantidad. Guardar el precio ya descontado y además los tramos
+  descontaría dos veces.
+- El modal **dice cuántos tramos se lleva**: un dato que viaja en silencio no
+  se revisa.
+
+### Venta de mostrador: formulario de tres campos
+
+Cliente, «¿cómo llegó?» y campaña se **plegaron** en un `<details>`; no se
+eliminaron. Sin ellos, el ROI por campaña mediría solo lo que entró por
+encargo y una campaña que llena el local parecería no rendir.
+
+### Corregir una venta de mostrador
+
+⚠️ **`PATCH /sales/:id` existía desde siempre y el panel no lo usaba.** Lo que
+faltaba era la pantalla, no el backend (buscar solo en `apps/web` hizo pensar
+lo contrario durante media hora).
+
+- Es **el mismo modal** que registrar, con la venta cargada: con dos, el día
+  que se agregue un campo se agrega en uno y se olvida en el otro, y el que
+  quede corto sería justo el de corregir.
+- ⚠️ **Corregir NO manda `kind`.** Las 25 ventas `ENCARGO` son el histórico
+  semanal del Excel; mandarles `'COUNTER'` las convertiría en mostrador y el
+  reparto por canal del Dashboard empezaría a contar como mostrador plata que
+  entró por encargos. Tiene test, y su hermano alcanzable (crear SÍ lo manda).
+- ⚠️ El lápiz de la tabla necesitó **`aria-label` propio**: el `Tooltip` no le
+  da nombre accesible, así que sin él no lo encuentra ni un lector de pantalla
+  ni un test. En jsdom la tabla y las tarjetas se dibujan las dos, así que el
+  test exige **dos** botones: si una presentación pierde el suyo, se cae.
+
+### Abonar en la moneda en que se cobró
+
+El campo «Monto» pide lo que entregó el cliente —dólares o bolívares— y la app
+hace la cuenta. Ver el CLAUDE.md de la API para el contrato y el servidor.
+
+- ⚠️ **El USD no se manda**: lo deriva el servidor. El panel calcula el mismo
+  número solo para mostrarlo, con la **misma función pura** del motor
+  (`usdDesdeMoneda`) y no con una división escrita a mano — si no, lo que se ve
+  y lo que se guarda podrían no coincidir.
+- La **tasa se precarga con la vigente y se puede pisar**: es el punto del
+  cambio. Antes el servidor le pegaba al abono la tasa vigente al guardar, así
+  que un cobro a otra tasa quedaba registrado con una que nunca se usó.
+- Cambiar de moneda **repone el campo** (tasa vigente y monto convertido):
+  dejar los bolívares al volver a USD cargaría miles de dólares con un toque.
+- **Pasarse del saldo avisa en ÁMBAR y deja guardar**: con diferencia cambiaria
+  es el caso normal, y es justo lo que el cambio vino a permitir.
+- ⚠️ Los dos campos llevan **`aria-label`**: `Field` no asocia su `<label>` con
+  el control. Misma carencia del primitivo que ya obligó a ponerlos a mano en
+  el diálogo de abonar una compra.
+- Tests: `pages/OrderDetail.abono.spec.tsx` (8, el CABLEADO). Por mutación,
+  mandar el `amount` junto con la moneda tumba 1 — y en producción sería un 400
+  del schema, o sea el abono no se registra, con las funciones puras en verde.
+
+### Compras: el candado blando para anular
+
+Pasados **3 días desde que se CARGÓ**, anular una factura o un abono pide un
+segundo sí y cambia el texto de la confirmación.
+
+- ⚠️ **Desde la carga (`createdAt`), no desde la fecha del documento.** En los
+  datos reales hay una compra del 05/10 con un abono fechado el 02/11: contando
+  por el documento, un abono cargado hoy con fecha vieja **nacería fuera de
+  plazo** y el plazo no existiría para él. Por eso `serializar()` expone ahora
+  `createdAt` en la factura y en cada abono — ese método arma la respuesta
+  CAMPO POR CAMPO, así que lo que no se agregue ahí nunca llega al cliente.
+- **Es blando a propósito**: el error que se descubre al cuarto día es un caso
+  real, y un candado duro en un negocio de una sola persona significa «hay que
+  tocar la base a mano».
+- ⚠️ La regla la decide `anulacionNecesitaConfirmacion` de **shared**, la misma
+  que aplica el servidor: escrita en el panel, el botón y el backend se
+  separarían el día que el plazo cambie. Y el servidor rechaza igual sin la
+  marca, así que lo del panel es la explicación, no el candado.
+- **Abonar con la factura ya paga NO se bloqueó**: pagar de más es como se
+  genera el saldo a favor del proveedor, una función que la app soporta a
+  propósito. Ya avisaba (`PAGA_DE_MAS` de `avisoDeAbono`) y se dejó así.
+
+### Las tres cartas del encargo
+
+Columna derecha de `/orders/:id`: **Abonos → ¿De dónde vino? → Qué pasó al
+imprimirlo**. La última va al final porque casi no se usa (decisión del dueño).
+En el teléfono se apilan en ese mismo orden debajo de «Artículos».
+
+### El presupuesto estimado de campaña salió de la app
+
+Se fue del formulario (que es el mismo para crear y editar), del pie
+«de $X presup.» del detalle, de la columna del Excel y del renglón del PDF.
+**No entraba en ninguna cuenta**: el ROI siempre usó `invested`, que son los
+gastos reales. La columna sigue en la base con lo ya cargado; nadie la lee.
+
+### Dos arreglos del entorno de tests que salieron de esta tanda
+
+- **`scrollIntoView` no existe en jsdom** y Radix lo llama al abrir un
+  desplegable: sin el doble (ahora en `test/setup-dom.ts`, al lado del de
+  `ResizeObserver`), abrir un `Select` en un test revienta con un error del
+  ENTORNO que se lee como un fallo del componente.
+- ⚠️ **Para elegir una opción de un `Select` en un test, por ROL y no por
+  texto**: el trigger de Radix repite la etiqueta elegida, así que
+  `findByText` encuentra dos y el test se cae por ambiguo.
+
 
 ## Entorno
 - Windows / PowerShell: usar su sintaxis (`$env:VAR` no `$VAR`, `$null` no

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { tramosParaLaTienda } from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
 import { Button, Field, Input, NumberInput } from '@/components/ui';
 import { Dialog } from '@/components/overlays';
@@ -27,6 +28,17 @@ export function SaveProductModal({ onClose }: { onClose: () => void }) {
   // El precio final de la calculadora: el mismo que se ve en el panel.
   const suggested = result?.price.final ?? 0;
 
+  /**
+   * ⚠️ Los tramos de mayoreo VIAJAN (2026-11-07). Iban dentro del `input`, que
+   * se guarda, pero el campo que la TIENDA usa para cobrar es `priceTiers` y
+   * nacía vacío: el mismo dato había que escribirlo dos veces, y si te
+   * olvidabas la vitrina cobraba precio de lista para siempre.
+   *
+   * No es un cast: la ficha pide cosas que la calculadora no (ver
+   * `tramosParaLaTienda`), y mandar la lista cruda hacía rebotar el guardado.
+   */
+  const priceTiers = useMemo(() => tramosParaLaTienda(c.input.wholesale?.tiers), [c.input]);
+
   const [name, setName] = useState(c.quoteName);
   const [priceUsd, setPriceUsd] = useState(Number(suggested.toFixed(4)));
   const [saving, setSaving] = useState(false);
@@ -38,6 +50,7 @@ export function SaveProductModal({ onClose }: { onClose: () => void }) {
         name,
         priceUsd,
         input: c.input,
+        priceTiers,
         // Oculta hasta que se le cargue foto y descripción.
         visible: false,
       });
@@ -75,6 +88,14 @@ export function SaveProductModal({ onClose }: { onClose: () => void }) {
         <Field label="Precio de venta · unidad" hint="Viene del panel; podés ajustarlo">
           <NumberInput value={priceUsd} onChange={setPriceUsd} min={0} step={0.01} />
         </Field>
+        {priceTiers.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Se copian <strong className="text-foreground">{priceTiers.length}</strong>{' '}
+            {priceTiers.length === 1 ? 'tramo de mayoreo' : 'tramos de mayoreo'} (desde{' '}
+            {priceTiers.map((t) => t.minQty).join(', ')} unidades). El precio de arriba es el de
+            lista: el descuento lo aplica la tienda por cantidad.
+          </p>
+        )}
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="outline" onClick={onClose}>
             Cancelar

@@ -252,7 +252,7 @@ export function DashboardPage() {
      *
      * ⚠️ Los abonos NO se convierten en ventas: entran UNA vez, del lado de
      * encargos. Por eso el total de la dona es exactamente
-     * `agg.ventas + agg.abonos` = los KPIs "Ventas" + "Cobrado de encargos"
+     * `agg.ventas + agg.abonos` = el KPI "Dinero entrado por venta"
      * de arriba, en esta misma pantalla.
      */
     const porCanal = repartoPorCanal(saleRows, paymentRows);
@@ -452,19 +452,47 @@ export function DashboardPage() {
       <AtrasoDeCompraAlert />
       <RecordatoriosDelDashboard />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* KPIs: arriba la plata que ENTRA, abajo lo que sale y el resultado. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Stat
-          label="Ventas"
+          label="Ventas de mostrador"
           value={<NumberTicker value={agg.ventas} format={money} />}
           accent="yellow"
-          sub={`${agg.numVentas} de mostrador`}
+          sub={`${agg.numVentas} ventas`}
         />
         <Stat
           label="Cobrado de encargos"
           value={<NumberTicker value={agg.abonos} format={money} />}
           sub={moneyAlt ? `≈ ${moneyAlt(agg.abonos)}` : 'abonos del periodo'}
         />
+        {/*
+          ⚠️ El PIE aclara que NO es la caja (2026-11-07). «Resultado de la
+          operación» ya se leyó una vez como un saldo y el dueño se creyó en
+          rojo; un rótulo que empieza con «Dinero entrado» invita al mismo
+          error, y el saldo de verdad está en la fila de abajo.
+
+          `agg.ingresos` NO es una cuenta nueva: es la que ya alimentaba el
+          resultado de la operación. Un abono no genera una venta, así que
+          sumar los dos canales no cuenta nada dos veces.
+        */}
+        <Stat
+          label="Dinero entrado por venta"
+          value={<NumberTicker value={agg.ingresos} format={money} />}
+          accent="blue"
+          // En el teléfono la fila va de a dos: el total ocupa el ancho entero
+          // en vez de dejar un hueco al lado.
+          className="col-span-2 lg:col-span-1"
+          sub={
+            <>
+              mostrador + encargos{moneyAlt ? ` · ≈ ${moneyAlt(agg.ingresos)}` : ''}
+              <br />
+              no es el saldo en caja
+            </>
+          }
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
         {/*
           ⚠️ EL PIE DICE DE DÓNDE SALIÓ LA PLATA, y GANA el renglón cuando
           tiene algo que decir (2026-10-11). El dueño leyó «GASTOS $202.00» y
@@ -784,7 +812,7 @@ export function DashboardPage() {
                   : ''
               }: un encargo cobra abonos, no genera una venta. El total (${money(
                 agg.porCanal.total,
-              )}) es "Ventas" + "Cobrado de encargos" de arriba. Compara los dos canales, así que no sigue al selector.`}
+              )}) es la tarjeta "Dinero entrado por venta" de arriba. Compara los dos canales, así que no sigue al selector.`}
             >
               <PieChart>
                 <Pie data={agg.tramosCanal} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3}>

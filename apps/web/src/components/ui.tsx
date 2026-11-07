@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
@@ -145,16 +146,316 @@ function textoDe(node: React.ReactNode): string {
 const normalizar = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
+
 /**
- * ¿El dispositivo es táctil (puntero grueso)? Importa para el buscador del Select:
- * en táctil, enfocar el buscador abre el TECLADO VIRTUAL, y el `resize` que eso
- * provoca hace que Radix CIERRE el desplegable (su listener de `resize`/`blur`
- * está hardcodeado en el primitivo). Síntoma: "toco el select, se abre, abre el
- * teclado y se cierran las dos cosas". Por eso en táctil NO se autoenfoca el
- * buscador y se ignora ese cierre espurio apenas se enfoca.
+ * EL SELECT CON BUSCADOR NO PUEDE SER UN RADIX SELECT (2026-11-07).
+ *
+ * Radix Select no es un combobox: maneja el foco él y lo devuelve a la lista
+ * cada vez que cambia el conjunto de opciones MONTADAS. Al escribir una letra
+ * la lista se filtra, la opción resaltada se desmonta, y Radix se lleva el
+ * foco del buscador al contenedor. **Medido** en este repo a 390×844: antes de
+ * escribir, el foco estaba en `INPUT | Buscar en la lista`; después de UNA
+ * tecla, en el `div` del contenido. En un teléfono eso es el teclado virtual
+ * cerrándose: había que volver a tocar el buscador letra por letra.
+ *
+ * Los dos parches que había —enfocar en el siguiente tick al montar e ignorar
+ * 600 ms de cierres espurios— tapaban la APERTURA, no el re-render de cada
+ * tecla, que es donde estaba el bug.
+ *
+ * ⚠️ Y la lista va EN UN PORTAL, no absoluta dentro del campo. El cuerpo de
+ * `Dialog` es `overflow-y-auto` y las `Card` recortan: sin portal se arregla el
+ * foco y se rompe lo otro, que es el error clásico de este bug —cambiar de
+ * bando en vez de resolverlo—. Que el portal ande DENTRO de un modal está
+ * medido: con el diálogo abierto, un input en portal conserva el foco; el
+ * focus trap de Radix Dialog no se lo quita.
  */
-const esTactil = () =>
-  typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true;
+function SelectBuscable({
+  opts,
+  actual,
+  elegir,
+  placeholder,
+  disabled,
+  className,
+  ariaLabel,
+  onBlur,
+  name,
+  botonRef,
+}: {
+  opts: SelectOpt[];
+  actual: string;
+  elegir: (v: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  ariaLabel?: string;
+  onBlur?: () => void;
+  name?: string;
+  botonRef: React.RefObject<HTMLButtonElement>;
+}) {
+  const [abierto, setAbierto] = React.useState(false);
+  const [busqueda, setBusqueda] = React.useState('');
+  const [activo, setActivo] = React.useState(0);
+  const [caja, setCaja] = React.useState<{ estilo: React.CSSProperties; anfitrion: HTMLElement } | null>(
+    null,
+  );
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const idLista = React.useId();
+
+  const q = normalizar(busqueda.trim());
+  const visibles = q ? opts.filter((o) => normalizar(textoDe(o.label)).includes(q)) : opts;
+  const elegibles = visibles.filter((o) => !o.disabled);
+
+  /**
+   * Dónde se dibuja la lista. `position: fixed` + las medidas del botón: el
+   * portal no hereda la posición de nadie. Abre hacia abajo salvo que no quepa
+   * y arriba haya más sitio — un select al final de un formulario largo se
+   * cortaba si no.
+   */
+  const medir = React.useCallback(() => {
+    const b = botonRef.current;
+    const r = b?.getBoundingClientRect();
+    if (!b || !r) return;
+    /**
+     * ⚠️ DENTRO DE UN MODAL, LA LISTA SE CUELGA DEL MODAL, no de `body`.
+     *
+     * Medido: con el diálogo abierto, un `focus()` sobre un input colgado de
+     * `body` produce un `focusin` en el BOTÓN del select — el focus trap de
+     * Radix Dialog devuelve el foco a lo último que estuvo dentro de su
+     * ámbito. Es el mismo bug que veníamos a arreglar, por la otra puerta.
+     *
+     * Colgarla del contenido del diálogo la deja dentro del ámbito (conserva
+     * el foco) y FUERA del cuerpo `overflow-y-auto` (no se recorta): el
+     * contenido no tiene `overflow`, así que la lista puede sobresalir.
+     *
+     * El contenido del diálogo tiene `transform`, y eso hace que `fixed` se
+     * mida contra ÉL y no contra la ventana: por eso ahí se posiciona en
+     * `absolute` y con las coordenadas pasadas a su sistema.
+     */
+    const anfitrion = (b.closest('[role="dialog"]') as HTMLElement | null) ?? document.body;
+    const margen = 8;
+    const libreAbajo = window.innerHeight - r.bottom - margen;
+    const libreArriba = r.top - margen;
+    const haciaAbajo = libreAbajo >= 220 || libreAbajo >= libreArriba;
+    const alto = Math.max(140, Math.min(288, haciaAbajo ? libreAbajo : libreArriba));
+    const izquierda = Math.max(margen, Math.min(r.left, window.innerWidth - r.width - margen));
+    const h = anfitrion === document.body ? null : anfitrion.getBoundingClientRect();
+    setCaja({
+      anfitrion,
+      estilo: h
+        ? {
+            position: 'absolute',
+            left: izquierda - h.left,
+            width: r.width,
+            maxHeight: alto,
+            ...(haciaAbajo ? { top: r.bottom + 6 - h.top } : { bottom: h.bottom - r.top + 6 }),
+          }
+        : {
+            position: 'fixed',
+            left: izquierda,
+            width: r.width,
+            maxHeight: alto,
+            ...(haciaAbajo ? { top: r.bottom + 6 } : { bottom: window.innerHeight - r.top + 6 }),
+          },
+    });
+  }, [botonRef]);
+
+  React.useLayoutEffect(() => {
+    if (abierto) medir();
+  }, [abierto, medir, busqueda]);
+
+  React.useEffect(() => {
+    if (!abierto) return;
+    // El teclado virtual dispara `resize`: acá eso REUBICA la lista. Con Radix
+    // ese mismo resize la CERRABA, que era el otro síntoma del bug.
+    const alMover = () => medir();
+    const afuera = (e: Event) => {
+      const t = e.target as Node;
+      if (panelRef.current?.contains(t) || botonRef.current?.contains(t)) return;
+      setAbierto(false);
+      setBusqueda('');
+    };
+    window.addEventListener('resize', alMover);
+    window.addEventListener('scroll', alMover, true);
+    document.addEventListener('mousedown', afuera);
+    document.addEventListener('touchstart', afuera);
+    return () => {
+      window.removeEventListener('resize', alMover);
+      window.removeEventListener('scroll', alMover, true);
+      document.removeEventListener('mousedown', afuera);
+      document.removeEventListener('touchstart', afuera);
+    };
+  }, [abierto, medir, botonRef]);
+
+  /**
+   * Al abrir, el foco va al BUSCADOR y se queda ahí: escribir es lo primero que
+   * se hace. Corre dentro del gesto que abrió la lista, así que en el teléfono
+   * el teclado sube solo.
+   *
+   * ⚠️ Por eso `abrir()` MIDE ANTES de abrir: el portal solo se monta cuando
+   * ya hay medidas: si se abriera primero, este efecto correría con el
+   * input todavía sin existir y el foco se quedaba en el botón. Medido: el
+   * buscador existía en el DOM pero no recibía las teclas.
+   */
+  React.useLayoutEffect(() => {
+    if (abierto) inputRef.current?.focus();
+  }, [abierto]);
+
+  const abrir = () => {
+    medir();
+    setAbierto(true);
+  };
+
+  React.useEffect(() => setActivo(0), [busqueda, abierto]);
+
+  const cerrar = (devolverFoco = true) => {
+    setAbierto(false);
+    setBusqueda('');
+    if (devolverFoco) botonRef.current?.focus();
+  };
+
+  const tomar = (v: string) => {
+    elegir(v);
+    cerrar();
+  };
+
+  const mover = (paso: number) => {
+    if (!elegibles.length) return;
+    setActivo((a) => {
+      const i = elegibles.indexOf(visibles[a]);
+      const base = i < 0 ? (paso > 0 ? -1 : 0) : i;
+      const sig = elegibles[(base + paso + elegibles.length) % elegibles.length];
+      return visibles.indexOf(sig);
+    });
+  };
+
+  const teclas = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      mover(1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      mover(-1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const o = visibles[activo];
+      if (o && !o.disabled) tomar(o.value);
+    } else if (e.key === 'Escape') {
+      // ⚠️ Sin frenarlo, el Escape sigue hasta el Dialog y cierra el MODAL
+      // entero: querías cerrar una lista y perdías el formulario.
+      e.preventDefault();
+      e.stopPropagation();
+      cerrar();
+    } else if (e.key === 'Tab') {
+      cerrar(false);
+    }
+  };
+
+  const etiqueta = opts.find((o) => o.value === actual)?.label;
+
+  return (
+    <>
+      <button
+        ref={botonRef}
+        type="button"
+        role="combobox"
+        aria-expanded={abierto}
+        aria-haspopup="listbox"
+        aria-controls={abierto ? idLista : undefined}
+        aria-label={ariaLabel}
+        name={name}
+        disabled={disabled}
+        onBlur={onBlur}
+        onClick={() => (abierto ? cerrar() : abrir())}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            abrir();
+          }
+        }}
+        className={cn(
+          'flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background/50 px-3 py-2 text-sm shadow-sm transition-all hover:border-brand-blue/50 focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50',
+          className,
+        )}
+      >
+        <span className={cn('line-clamp-1 text-left', etiqueta == null && 'text-muted-foreground')}>
+          {etiqueta ?? placeholder}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+      </button>
+
+      {abierto &&
+        caja &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={caja.estilo}
+            // z-70: por encima del Dialog (z-50) y de la paleta de búsqueda (z-60).
+            className="z-[70] flex flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-card backdrop-blur-xl animate-[fade-in-up_0.12s_ease-out]"
+          >
+            <div className="shrink-0 border-b border-border/70 p-2">
+              <input
+                ref={inputRef}
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                onKeyDown={teclas}
+                placeholder="Buscar…"
+                aria-label="Buscar en la lista"
+                aria-autocomplete="list"
+                aria-controls={idLista}
+                aria-activedescendant={visibles[activo] ? `${idLista}-${activo}` : undefined}
+                className="h-8 w-full rounded-md border border-input bg-background/60 px-2 text-sm outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30"
+              />
+            </div>
+            <div
+              id={idLista}
+              role="listbox"
+              aria-label={ariaLabel}
+              className="flex-1 overflow-y-auto p-1"
+            >
+              {visibles.length === 0 && (
+                <p className="px-3 py-4 text-center text-sm text-muted-foreground">
+                  Nada coincide con “{busqueda.trim()}”.
+                </p>
+              )}
+              {visibles.map((o, i) => (
+                <div
+                  key={o.value || SELECT_EMPTY}
+                  id={`${idLista}-${i}`}
+                  role="option"
+                  aria-selected={o.value === actual}
+                  aria-disabled={o.disabled || undefined}
+                  // `onMouseDown` y no `onClick`: el click llega DESPUÉS del
+                  // blur, y para entonces el cierre por «clic afuera» ya se
+                  // comió la elección.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    if (!o.disabled) tomar(o.value);
+                  }}
+                  onMouseMove={() => setActivo(i)}
+                  className={cn(
+                    'relative flex w-full cursor-pointer select-none items-center rounded-md py-1.5 pl-3 pr-8 text-sm transition-colors',
+                    i === activo && !o.disabled && 'bg-brand-blue/40 text-foreground',
+                    o.value === actual && 'font-semibold text-brand-yellow-ink',
+                    o.disabled && 'pointer-events-none opacity-50',
+                  )}
+                >
+                  <span className="min-w-0 truncate">{o.label}</span>
+                  {o.value === actual && (
+                    <Check
+                      className="absolute right-2 h-4 w-4 text-brand-yellow-ink"
+                      strokeWidth={3}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>,
+          caja.anfitrion,
+        )}
+    </>
+  );
+}
 
 export const Select = React.forwardRef<
   HTMLButtonElement,
@@ -207,47 +508,54 @@ export const Select = React.forwardRef<
     const toInner = (v: string) => (v === '' ? SELECT_EMPTY : v);
     const fromInner = (v: string) => (v === SELECT_EMPTY ? '' : v);
 
-    // El buscador aparece solo si la lista es larga. Se limpia al cerrar: si
-    // quedara escrito, al reabrir verías media lista sin saber por qué.
-    const [busqueda, setBusqueda] = React.useState('');
-    // Apertura CONTROLADA: así podemos ignorar el cierre espurio que el teclado
-    // virtual provoca en táctil (ver `esTactil`). En escritorio no cambia nada.
-    const [abierto, setAbierto] = React.useState(false);
-    const ignorarCierre = React.useRef(0);
     // Lo elegido, también cuando el componente va sin `value` (no controlado).
     const [interno, setInterno] = React.useState(defaultValue ?? '');
     const actual = value ?? interno;
-    const buscable = opts.length >= MINIMO_PARA_BUSCAR;
-    const q = normalizar(busqueda.trim());
-    const visibles =
-      buscable && q ? opts.filter((o) => normalizar(textoDe(o.label)).includes(q)) : opts;
 
-    const handle = (inner: string) => {
-      const real = fromInner(inner);
+    // Un solo ref para las dos variantes: el botón real está en una o en otra,
+    // y `useImperativeHandle` tiene que llamarse siempre (no puede ir después
+    // del `return` de una rama).
+    const botonRef = React.useRef<HTMLButtonElement>(null);
+    React.useImperativeHandle(ref, () => botonRef.current as HTMLButtonElement, []);
+
+    const aplicar = (real: string) => {
       setInterno(real);
       onValueChange?.(real);
       onChange?.({ target: { value: real, name } });
     };
 
+    /**
+     * LISTA LARGA → variante con buscador, que NO es un Radix Select (ver
+     * `SelectBuscable`). Corta acá a propósito: así la rama de Radix queda
+     * para lo que Radix hace bien —una lista corta sin campo de texto— y no
+     * hay que pelearle el foco.
+     */
+    if (opts.length >= MINIMO_PARA_BUSCAR) {
+      return (
+        <SelectBuscable
+          opts={opts}
+          actual={actual}
+          elegir={aplicar}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={className}
+          ariaLabel={ariaLabel}
+          onBlur={onBlur}
+          name={name}
+          botonRef={botonRef}
+        />
+      );
+    }
+
     return (
       <SelectPrimitive.Root
         value={value === undefined ? undefined : toInner(value)}
         defaultValue={defaultValue === undefined ? undefined : toInner(defaultValue)}
-        onValueChange={handle}
+        onValueChange={(inner) => aplicar(fromInner(inner))}
         disabled={disabled}
-        open={abierto}
-        onOpenChange={(nuevo) => {
-          // En táctil, el teclado que abre el buscador dispara un resize/blur que
-          // Radix convierte en cierre: lo ignoramos en la ventana corta tras enfocar
-          // el buscador, o el desplegable se cerraría solo al tocarlo. En escritorio
-          // `esTactil()` es false, así que el cierre nunca se ignora.
-          if (!nuevo && esTactil() && Date.now() < ignorarCierre.current) return;
-          setAbierto(nuevo);
-          if (!nuevo) setBusqueda('');
-        }}
       >
         <SelectPrimitive.Trigger
-          ref={ref}
+          ref={botonRef}
           onBlur={onBlur}
           aria-label={ariaLabel}
           className={cn(
@@ -255,11 +563,6 @@ export const Select = React.forwardRef<
             className,
           )}
         >
-          {/*
-            ⚠️ La etiqueta se le pasa a mano. `Select.Value` sin hijos la saca
-            del `Select.Item` MONTADO, y al filtrar la lista el elegido deja de
-            estarlo: el select se quedaba en blanco mientras escribías.
-          */}
           <SelectPrimitive.Value placeholder={placeholder}>
             {opts.find((o) => o.value === actual)?.label}
           </SelectPrimitive.Value>
@@ -279,51 +582,11 @@ export const Select = React.forwardRef<
             // variable no está.
             className="relative z-50 max-h-72 w-max min-w-[var(--radix-select-trigger-width)] max-w-[min(var(--radix-select-content-available-width),calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-card backdrop-blur-xl data-[state=open]:animate-[fade-in-up_0.12s_ease-out]"
           >
-            {buscable && (
-              <div
-                className="sticky top-0 z-10 border-b border-border/70 bg-popover/95 p-2 backdrop-blur-xl"
-                // Radix mueve el foco a la opción marcada y además tiene su
-                // propio "escribí para saltar". Sin frenar el evento acá, cada
-                // tecla se la lleva la lista y el campo queda vacío.
-                onKeyDown={(e) => {
-                  if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'].includes(e.key)) {
-                    e.stopPropagation();
-                  }
-                }}
-              >
-                <input
-                  // ⚠️ `autoFocus` NO alcanza: Radix enfoca la opción marcada
-                  // DESPUÉS de montar el contenido y se lo lleva. Hay que pedirlo en
-                  // el siguiente tick, cuando Radix ya terminó. En TÁCTIL no se
-                  // autoenfoca: abriría el teclado y el resize cerraría el
-                  // desplegable (ver `esTactil`). El buscador igual sirve: se toca.
-                  ref={(el) => {
-                    if (el && !esTactil()) setTimeout(() => el.focus(), 0);
-                  }}
-                  // Al enfocar (en táctil, al tocarlo) el teclado va a provocar un
-                  // resize: marcamos una ventana corta para ignorar ese cierre.
-                  onFocus={() => {
-                    ignorarCierre.current = Date.now() + 600;
-                  }}
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  placeholder="Buscar…"
-                  aria-label="Buscar en la lista"
-                  className="h-8 w-full rounded-md border border-input bg-background/60 px-2 text-sm outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30"
-                />
-              </div>
-            )}
             <SelectPrimitive.ScrollUpButton className="flex h-6 items-center justify-center text-muted-foreground">
               <ChevronUp className="h-4 w-4" />
             </SelectPrimitive.ScrollUpButton>
             <SelectPrimitive.Viewport className="p-1">
-              {/* Sin esto, filtrar hasta no dejar nada muestra un hueco mudo. */}
-              {visibles.length === 0 && (
-                <p className="px-3 py-4 text-center text-sm text-muted-foreground">
-                  Nada coincide con “{busqueda.trim()}”.
-                </p>
-              )}
-              {visibles.map((o) => (
+              {opts.map((o) => (
                 <SelectPrimitive.Item
                   key={o.value || SELECT_EMPTY}
                   value={toInner(o.value)}

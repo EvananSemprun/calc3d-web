@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Download, Lock, MessageCircle, Pencil, Plus, Trash2 } from 'lucide-react';
-import type { OrderLineDto } from '@calc3d/shared';
+import { saldoAFavorDelAbono, usdDesdeMoneda, type OrderLineDto } from '@calc3d/shared';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
-import { useDocRate } from '@/features/settings/useExchangeRates';
+import { useDocRate, useExchangeRates } from '@/features/settings/useExchangeRates';
 import { useOrder, ORDER_STATUS_OPTIONS } from '@/features/orders/api';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, NumberInput, PageSkeleton, Select, Stat, FieldGrid } from '@/components/ui';
 import { OrderLinesEditor, EMPTY_ORDER_LINE } from '@/features/orders/OrderLinesEditor';
@@ -261,9 +261,8 @@ export function OrderDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Lo que pasó al producirlo + abonos */}
+        {/* Abonos, de dónde vino y, al final, lo que pasó al producirlo */}
         <div className="space-y-5">
-        <ProductionCard order={order} />
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>Abonos</CardTitle>
@@ -330,6 +329,10 @@ export function OrderDetailPage() {
             />
           </CardContent>
         </Card>
+
+        {/* ÚLTIMA a propósito: casi no se usa y el dueño la quiere al final
+            (2026-11-07). El orden de la columna lo decide el uso, no el flujo. */}
+        <ProductionCard order={order} />
         </div>
       </div>
 
@@ -421,6 +424,22 @@ function EditLinesModal({
   );
 }
 
+/**
+ * REGISTRAR UN ABONO, en USD o en la moneda en que de verdad cobró (2026-11-07).
+ *
+ * El campo "Monto" pide lo que el cliente entregó: dólares si cobró en dólares,
+ * bolívares si cobró en bolívares. La app hace la cuenta, no el dueño.
+ *
+ * ⚠️ **La tasa la escribe ÉL.** Se precarga la vigente porque es el caso
+ * normal, pero el número que manda es el que cobró: antes de esto el servidor
+ * le pegaba al abono la tasa vigente al momento de guardar, así que un cobro a
+ * otra tasa quedaba registrado con una que nunca se usó.
+ *
+ * ⚠️ **El USD no se manda**: lo deriva el servidor con los bolívares y la tasa
+ * (ver `PaymentCreateSchema`). Acá se calcula lo MISMO solo para mostrarlo, con
+ * la misma función pura del motor — no con una división escrita a mano, o el
+ * número de la pantalla y el que se guarda podrían no coincidir.
+ */
 function AddPaymentModal({
   orderId,
   maxSuggested,
@@ -432,15 +451,55 @@ function AddPaymentModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { money } = useMoney();
   const [date, setDate] = useState(todayIso());
-  const [amount, setAmount] = useState(Math.max(0, maxSuggested));
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const { data: tasas } = useExchangeRates();
+  const monedas = tasas?.rates ?? [];
+
+  /** `''` = cobró en dólares. Si no, el nombre de la tasa. */
+  const [moneda, setMoneda] = useState('');
+  const elegida = monedas.find((r) => r.label === moneda) ?? null;
+
+  const [monto, setMonto] = useState(Math.max(0, maxSuggested));
+  const [tasa, setTasa] = useState(0);
+
+  /**
+   * Al cambiar de moneda se repone el campo: la tasa vigente y un monto que
+   * tenga sentido en ESA moneda. Dejar los bolívares al volver a USD cargaría
+   * un abono de miles de dólares con un solo toque.
+   */
+  const elegirMoneda = (label: string) => {
+    setMoneda(label);
+    const r = monedas.find((m) => m.label === label) ?? null;
+    setTasa(r?.rate ?? 0);
+    const pendiente = Math.max(0, maxSuggested);
+    setMonto(r ? Number((pendiente * r.rate).toFixed(2)) : pendiente);
+  };
+
+  // En USD el monto ES el monto; en otra moneda, el que deriva la tasa.
+  const usd = elegida && tasa > 0 && monto > 0 ? usdDesdeMoneda(monto, tasa) : elegida ? 0 : monto;
+  const aFavor = saldoAFavorDelAbono(maxSuggested, usd);
+  const puedeGuardar = !saving && monto > 0 && (!elegida || tasa > 0);
 
   const save = async () => {
     setSaving(true);
     try {
-      await api.post(`/orders/${orderId}/payments`, { date, amount, note: note || null });
+      await api.post(
+        `/orders/${orderId}/payments`,
+        elegida
+          ? // ⚠️ Sin `amount`: el schema lo RECHAZA si viaja junto con la moneda.
+            {
+              date,
+              note: note || null,
+              currencyLabel: elegida.label,
+              rate: tasa,
+              amountForeign: monto,
+            }
+          : { date, amount: monto, note: note || null },
+      );
       onSaved();
     } catch (e) {
       notify.error(apiErrorMessage(e));
@@ -454,25 +513,94 @@ function AddPaymentModal({
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          if (amount > 0 && !saving) save();
+          if (puedeGuardar) save();
         }}
       >
         <FieldGrid min="11rem" className="gap-3">
           <Field label="Fecha">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
-          <Field label="Monto">
-            <NumberInput autoFocus step="0.01" value={amount} onChange={setAmount} />
+          <Field label="¿Cómo pagó?">
+            <Select
+              aria-label="Cómo pagó"
+              value={moneda}
+              onChange={(e) => elegirMoneda(e.target.value)}
+            >
+              <option value="">En dólares</option>
+              {monedas.map((r) => (
+                <option key={r.label} value={r.label}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
           </Field>
         </FieldGrid>
+
+        <FieldGrid min="11rem" className="gap-3">
+          <Field label={elegida ? `Monto (${elegida.currencyCode})` : 'Monto (USD)'}>
+            <NumberInput
+              autoFocus
+              step="0.01"
+              aria-label={elegida ? `Monto (${elegida.currencyCode})` : 'Monto (USD)'}
+              value={monto}
+              onChange={setMonto}
+            />
+          </Field>
+          {elegida && (
+            <Field
+              label={`Tasa (${elegida.currencyCode} por USD)`}
+              hint="Viene la de hoy; cambiala si cobraste a otra"
+            >
+              <NumberInput
+                step="0.0001"
+                aria-label={`Tasa (${elegida.currencyCode} por USD)`}
+                value={tasa}
+                onChange={setTasa}
+                min={0}
+              />
+            </Field>
+          )}
+        </FieldGrid>
+
+        {elegida && (
+          <p className="text-sm text-muted-foreground">
+            {tasa > 0 ? (
+              <>
+                Se registra como <strong className="text-foreground">{money(usd)}</strong>
+                {' · '}
+                {elegida.currencyCode} {monto.toLocaleString('es-VE')} ÷ {tasa.toLocaleString('es-VE')}
+              </>
+            ) : (
+              <span className="text-destructive">Escribí la tasa a la que cobraste.</span>
+            )}
+          </p>
+        )}
+
+        {/*
+          ⚠️ AVISA Y DEJA GUARDAR (ámbar, no rojo). Pasarse unos centavos por
+          diferencia cambiaria es legítimo y es justo el caso que esto viene a
+          resolver; bloquear ahí sería bloquear lo normal. Rojo queda para lo
+          que el servidor rechaza.
+        */}
+        {aFavor > 0 && (
+          <p className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
+            Este abono supera lo que falta: quedan <strong>{money(aFavor)}</strong> a favor del
+            cliente. Se registra igual.
+          </p>
+        )}
+
         <Field label="Nota (opcional)">
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej. adelanto por Pago Móvil" />
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Ej. adelanto por Pago Móvil"
+          />
         </Field>
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" variant="accent" disabled={saving || amount <= 0}>
+          <Button type="submit" variant="accent" disabled={!puedeGuardar}>
             {saving ? 'Guardando…' : 'Registrar abono'}
           </Button>
         </div>

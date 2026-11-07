@@ -45,6 +45,18 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        /**
+         * ⚠️ FALTABA (2026-11-07). Las variables --popover / --popover-foreground
+         * existen en index.css desde siempre, pero nadie las mapeó acá: las
+         * clases `bg-popover` y `text-popover-foreground` que usa el
+         * desplegable del Select NO generaban ninguna regla, así que el fondo
+         * quedaba TRANSPARENTE. Sobre la página oscura el blur lo disimulaba;
+         * dentro de un modal se leía el formulario a través de la lista.
+         */
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
         brand: {
           blue: 'hsl(var(--brand-blue))',
           'blue-bright': 'hsl(var(--brand-blue-bright))',

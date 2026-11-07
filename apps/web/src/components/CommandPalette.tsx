@@ -192,73 +192,83 @@ export function CommandPalette() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           />
-          <motion.div
-            className="glass surface-grid absolute left-1/2 top-[12vh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-border shadow-glow-lg"
-            initial={{ opacity: 0, y: -12, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-            onKeyDown={onKeyDown}
-          >
-            <div className="flex items-center gap-3 border-b border-border/70 px-4">
-              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar páginas, contactos, encargos…"
-                aria-label="Buscar en toda la app"
-                role="combobox"
-                aria-expanded
-                aria-controls="cmd-list"
-                aria-activedescendant={results.length ? `cmd-opt-${active}` : undefined}
-                className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-muted-foreground"
-              />
-              <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
-                Esc
-              </kbd>
-            </div>
+          {/*
+            ⚠️ El centrado NO puede vivir en una clase `-translate-x-1/2`:
+            Framer Motion escribe `transform` INLINE para animar `y`/`scale` y
+            la pisa. La tarjeta quedaba con su borde izquierdo clavado en el
+            50 % de la pantalla y se salía por la derecha —en un teléfono,
+            cortada (2026-11-07)—. Centra el contenedor, que NO se anima, y la
+            animación vive adentro: así ninguna animación futura lo rompe.
+          */}
+          <div className="absolute inset-x-0 top-[12vh] flex justify-center px-4">
+            <motion.div
+              className="glass surface-grid w-full max-w-xl overflow-hidden rounded-2xl border border-border shadow-glow-lg"
+              initial={{ opacity: 0, y: -12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+              onKeyDown={onKeyDown}
+            >
+              <div className="flex items-center gap-3 border-b border-border/70 px-4">
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <input
+                  ref={inputRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar páginas, contactos, encargos…"
+                  aria-label="Buscar en toda la app"
+                  role="combobox"
+                  aria-expanded
+                  aria-controls="cmd-list"
+                  aria-activedescendant={results.length ? `cmd-opt-${active}` : undefined}
+                  className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-muted-foreground"
+                />
+                <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
+                  Esc
+                </kbd>
+              </div>
 
-            <div ref={listRef} id="cmd-list" role="listbox" className="max-h-[52vh] overflow-y-auto p-2">
-              {results.length === 0 ? (
-                <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  Nada coincide con «{query}».
-                </div>
-              ) : (
-                results.map((cmd, idx) => {
-                  const header = cmd.group !== lastGroup ? cmd.group : null;
-                  lastGroup = cmd.group;
-                  const isActive = idx === active;
-                  return (
-                    <div key={cmd.key}>
-                      {header && (
-                        <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                          {header}
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        data-idx={idx}
-                        id={`cmd-opt-${idx}`}
-                        role="option"
-                        aria-selected={isActive}
-                        onClick={() => go(cmd)}
-                        onMouseMove={() => setActive(idx)}
-                        className={cn(
-                          'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors',
-                          isActive ? 'bg-brand-blue/15 text-foreground' : 'text-muted-foreground',
+              <div ref={listRef} id="cmd-list" role="listbox" className="max-h-[52vh] overflow-y-auto p-2">
+                {results.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    Nada coincide con «{query}».
+                  </div>
+                ) : (
+                  results.map((cmd, idx) => {
+                    const header = cmd.group !== lastGroup ? cmd.group : null;
+                    lastGroup = cmd.group;
+                    const isActive = idx === active;
+                    return (
+                      <div key={cmd.key}>
+                        {header && (
+                          <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                            {header}
+                          </div>
                         )}
-                      >
-                        <cmd.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-brand-yellow-ink')} />
-                        <span className="flex-1 truncate text-foreground">{cmd.label}</span>
-                        {cmd.sub && <span className="shrink-0 truncate text-xs text-muted-foreground">{cmd.sub}</span>}
-                        {isActive && <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </motion.div>
+                        <button
+                          type="button"
+                          data-idx={idx}
+                          id={`cmd-opt-${idx}`}
+                          role="option"
+                          aria-selected={isActive}
+                          onClick={() => go(cmd)}
+                          onMouseMove={() => setActive(idx)}
+                          className={cn(
+                            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                            isActive ? 'bg-brand-blue/15 text-foreground' : 'text-muted-foreground',
+                          )}
+                        >
+                          <cmd.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-brand-yellow-ink')} />
+                          <span className="flex-1 truncate text-foreground">{cmd.label}</span>
+                          {cmd.sub && <span className="shrink-0 truncate text-xs text-muted-foreground">{cmd.sub}</span>}
+                          {isActive && <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </div>
         </div>
   );
 }

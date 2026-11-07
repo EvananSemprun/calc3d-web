@@ -36,7 +36,6 @@ export function CampaignModal({ campaign, onClose }: { campaign: Campaign | null
     status: campaign?.status ?? 'ACTIVE',
     startDate: campaign?.startDate?.slice(0, 10) ?? todayIso(),
     endDate: campaign?.endDate?.slice(0, 10) ?? '',
-    budget: campaign?.budget ?? 0,
     paidUsd: campaign?.paidUsd ?? 0,
     reach: campaign?.reach ?? 0,
     conversations: campaign?.conversations ?? 0,
@@ -59,7 +58,6 @@ export function CampaignModal({ campaign, onClose }: { campaign: Campaign | null
         status: form.status,
         startDate: form.startDate,
         endDate: form.endDate || null,
-        budget: form.budget || null,
         paidUsd: form.paidUsd || null,
         reach: form.reach || null,
         conversations: form.conversations || null,
@@ -109,9 +107,6 @@ export function CampaignModal({ campaign, onClose }: { campaign: Campaign | null
           </Field>
           <Field label="Fin (opcional)">
             <Input type="date" value={form.endDate} onChange={(e) => set({ endDate: e.target.value })} />
-          </Field>
-          <Field label="Presupuesto estimado (USD)">
-            <NumberInput step="0.01" value={form.budget} onChange={(v) => set({ budget: v })} />
           </Field>
           <Field
             label="Lo que pagué (USD)"

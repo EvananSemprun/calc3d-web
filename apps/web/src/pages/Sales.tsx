@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, ShoppingCart, Trash2 } from 'lucide-react';
+import { ChevronDown, Pencil, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
 import {
@@ -28,6 +28,7 @@ import { todayKey } from '@/lib/today';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { SALE_KIND_LABELS, useSales } from '@/features/finance/api';
 import {
+  diaGuardado,
   formatoDiaVenta,
   opcionesAtribucion,
   opcionesCliente,
@@ -50,6 +51,12 @@ export function SalesPage() {
   const qc = useQueryClient();
   const { data: sales = [], isLoading } = useSales(range);
   const [openManual, setOpenManual] = useState(false);
+  /**
+   * LA VENTA QUE SE ESTÁ CORRIGIENDO (2026-11-07). Hasta hoy una venta de
+   * mostrador mal cargada solo se podía BORRAR y volver a cargar: el endpoint
+   * `PATCH /sales/:id` existía desde siempre y el panel no lo usaba.
+   */
+  const [editando, setEditando] = useState<SaleRowFull | null>(null);
   const confirm = useConfirm();
 
   const [vista, setVista] = usePersistentState<Vista>('sales:vista', 'REGISTROS');
@@ -328,6 +335,13 @@ export function SalesPage() {
                             {money(s.amount)}
                           </td>
                           <td className="px-4 py-3 text-right">
+                            <Tooltip label="Corregir venta">
+                              {/* El Tooltip NO le da nombre accesible al botón: sin
+                                  esto, ni un lector de pantalla ni un test lo encuentran. */}
+                              <Button variant="ghost" size="icon" aria-label="Corregir venta" onClick={() => setEditando(s)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </Tooltip>
                             <Tooltip label="Eliminar venta">
                               <Button variant="ghost" size="icon" onClick={() => borrar(s.id)}>
                                 <Trash2 className="h-4 w-4 text-destructive" />
@@ -364,7 +378,10 @@ export function SalesPage() {
                       </div>
                       <div className="shrink-0 text-right">
                         <div className="font-display font-bold tabular">{money(s.amount)}</div>
-                        <Button variant="ghost" size="icon" onClick={() => borrar(s.id)}>
+                        <Button variant="ghost" size="icon" aria-label="Corregir venta" onClick={() => setEditando(s)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" aria-label="Eliminar venta" onClick={() => borrar(s.id)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
@@ -382,6 +399,17 @@ export function SalesPage() {
           onClose={() => setOpenManual(false)}
           onSaved={() => {
             setOpenManual(false);
+            qc.invalidateQueries({ queryKey: ['sales'] });
+          }}
+        />
+      )}
+
+      {editando && (
+        <ManualSaleModal
+          venta={editando}
+          onClose={() => setEditando(null)}
+          onSaved={() => {
+            setEditando(null);
             qc.invalidateQueries({ queryKey: ['sales'] });
           }}
         />
@@ -443,28 +471,59 @@ function BotonVista({
   );
 }
 
-function ManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+/**
+ * REGISTRAR o CORREGIR una venta de mostrador. Con `venta` es corrección.
+ *
+ * ⚠️ Es el MISMO formulario a propósito: con dos, el día que se agregue un
+ * campo se agrega en uno y se olvida en el otro, y el que quede corto va a ser
+ * justo el de corregir, que se usa menos.
+ */
+function ManualSaleModal({
+  venta,
+  onClose,
+  onSaved,
+}: {
+  venta?: SaleRowFull;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
     queryFn: async () => (await api.get<{ id: string; name: string }[]>('/clients')).data,
   });
-  const [form, setForm] = useState({ date: todayKey(), amount: 0, clientId: '', note: '' });
-  const [attr, setAttr] = useState<Attribution>(EMPTY_ATTRIBUTION);
+  const [form, setForm] = useState({
+    date: venta ? diaGuardado(venta.date) : todayKey(),
+    amount: venta?.amount ?? 0,
+    clientId: venta?.client?.id ?? '',
+    note: venta?.note ?? '',
+  });
+  const [attr, setAttr] = useState<Attribution>(
+    venta
+      ? { originChannel: venta.originChannel ?? null, campaignId: venta.campaignId ?? null }
+      : EMPTY_ATTRIBUTION,
+  );
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
     setSaving(true);
     try {
-      await api.post('/sales', {
+      const cuerpo = {
         date: form.date,
         amount: form.amount,
-        // Siempre mostrador: la API rechaza ventas ENCARGO nuevas (encargo = pedido).
-        kind: 'COUNTER',
         clientId: form.clientId || null,
         note: form.note || null,
         originChannel: attr.originChannel,
         campaignId: attr.campaignId,
-      });
+      };
+      if (venta) {
+        // ⚠️ SIN `kind`: corregir una venta no puede cambiar de qué canal es.
+        // Las 25 ENCARGO del histórico del Excel se leen y se editan, y
+        // mandarles 'COUNTER' las convertiría en ventas de mostrador.
+        await api.patch(`/sales/${venta.id}`, cuerpo);
+      } else {
+        // Siempre mostrador: la API rechaza ventas ENCARGO nuevas (encargo = pedido).
+        await api.post('/sales', { ...cuerpo, kind: 'COUNTER' });
+      }
       onSaved();
     } catch (e) {
       notify.error(apiErrorMessage(e));
@@ -478,8 +537,12 @@ function ManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      title="Registrar venta de mostrador"
-      description="Venta en el momento. Un encargo va en Encargos, con su cliente y sus abonos."
+      title={venta ? 'Corregir venta' : 'Registrar venta de mostrador'}
+      description={
+        venta
+          ? 'Cambia lo que se guardó. El canal no se toca.'
+          : 'Venta en el momento. Un encargo va en Encargos, con su cliente y sus abonos.'
+      }
     >
       <div className="space-y-3">
         <FieldGrid min="11rem" className="gap-3">
@@ -490,24 +553,44 @@ function ManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
             <NumberInput step="0.01" value={form.amount} onChange={(n) => setForm({ ...form, amount: n })} />
           </Field>
         </FieldGrid>
-        <Field label="Cliente (opcional)">
-          <Select value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
-            <option value="">Sin cliente</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
         <Field label="Nota (opcional)">
           <Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Ej. llaveros" />
         </Field>
-        <AttributionPicker value={attr} onChange={setAttr} />
+        {/*
+          ⚠️ PLEGADOS, no eliminados (2026-11-07). Sin ellos, el ROI por campaña
+          —que suma las ventas atribuidas— mediría solo lo que entró por
+          encargo, y una campaña que llena el local parecería no rendir.
+
+          Desde hoy una venta se puede CORREGIR (el lápiz de la lista), así que
+          esto ya no es la única oportunidad de cargarlos; sigue plegado porque
+          el caso normal es una venta suelta sin nada de esto.
+
+          El caso normal es una venta suelta sin nada de esto, y por eso van
+          cerrados: el formulario de todos los días son tres campos.
+        */}
+        <details className="group rounded-lg border border-border/70 bg-background/30">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+            Más opciones · cliente y campaña
+            <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-3 border-t border-border/70 p-3">
+            <Field label="Cliente (opcional)">
+              <Select value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
+                <option value="">Sin cliente</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <AttributionPicker value={attr} onChange={setAttr} />
+          </div>
+        </details>
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button variant="accent" onClick={save} disabled={saving || form.amount <= 0}>
-            {saving ? 'Guardando…' : 'Guardar'}
+            {saving ? 'Guardando…' : venta ? 'Guardar cambios' : 'Guardar'}
           </Button>
         </div>
       </div>

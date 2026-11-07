@@ -78,3 +78,13 @@ if (typeof globalThis.ResizeObserver !== 'function') {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 }
+
+/**
+ * `scrollIntoView` tampoco existe en jsdom, y Radix lo llama al abrir un
+ * desplegable para dejar a la vista la opción marcada. Sin el doble, abrir un
+ * `Select` en un test revienta con *"candidate?.scrollIntoView is not a
+ * function"* — un fallo del entorno que se lee como un fallo del componente.
+ */
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = () => {};
+}

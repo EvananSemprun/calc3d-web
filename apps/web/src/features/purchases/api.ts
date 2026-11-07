@@ -81,6 +81,8 @@ export interface InvoicePayment {
   /** ⚠️ Un abono anulado NO cuenta, pero sigue en la lista. */
   voidedAt: string | null;
   voidReason: string | null;
+  /** CUÁNDO SE CARGÓ (no la fecha del documento): de acá sale el plazo para anular. */
+  createdAt: string | null;
 }
 
 /** Una factura con sus cuentas ya DERIVADAS por el servidor. */
@@ -96,6 +98,8 @@ export interface PurchaseInvoice {
   supplier: { id: string; name: string } | null;
   voidedAt: string | null;
   voidReason: string | null;
+  /** CUÁNDO SE CARGÓ (no la fecha del documento): de acá sale el plazo para anular. */
+  createdAt: string | null;
   source: string;
   lines: InvoiceLine[];
   payments: InvoicePayment[];
@@ -169,10 +173,16 @@ export const useUpdateInvoice = () =>
     api.put(`/purchase-invoices/${id}`, dto),
   );
 
-/** Anular, **no borrar**: una factura con abonos movió plata de verdad. */
+/**
+ * Anular, **no borrar**: una factura con abonos movió plata de verdad.
+ *
+ * ⚠️ `confirmoFueraDePlazo` es el SEGUNDO SÍ que el servidor exige pasados 3
+ * días desde que se cargó. Sin él responde 400 diciendo cuántos pasaron.
+ */
 export const useVoidInvoice = () =>
-  useInvoiceMutation(({ id, reason }: { id: string; reason: string }) =>
-    api.post(`/purchase-invoices/${id}/void`, { reason }),
+  useInvoiceMutation(
+    ({ id, reason, confirmoFueraDePlazo }: { id: string; reason: string; confirmoFueraDePlazo?: boolean }) =>
+      api.post(`/purchase-invoices/${id}/void`, { reason, confirmoFueraDePlazo }),
   );
 
 export const useDeleteInvoice = () =>
@@ -184,8 +194,22 @@ export const useAddInvoicePayment = () =>
   );
 
 export const useVoidInvoicePayment = () =>
-  useInvoiceMutation(({ id, paymentId, reason }: { id: string; paymentId: string; reason: string }) =>
-    api.post(`/purchase-invoices/${id}/payments/${paymentId}/void`, { reason }),
+  useInvoiceMutation(
+    ({
+      id,
+      paymentId,
+      reason,
+      confirmoFueraDePlazo,
+    }: {
+      id: string;
+      paymentId: string;
+      reason: string;
+      confirmoFueraDePlazo?: boolean;
+    }) =>
+      api.post(`/purchase-invoices/${id}/payments/${paymentId}/void`, {
+        reason,
+        confirmoFueraDePlazo,
+      }),
   );
 
 /** Recibir: la mercadería entra al inventario y el precio del rollo se mueve. */
