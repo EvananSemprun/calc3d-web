@@ -144,10 +144,13 @@ export function useUpdateStoreCategory() {
       parentId,
     }: {
       id: string;
-      name: string;
+      name?: string;
       parentId?: string | null;
     }) => {
-      const cuerpo: { name: string; parentId?: string | null } = { name };
+      // PATCH parcial: cada clave viaja solo si vino. Renombrar no manda la madre y mover
+      // no manda el nombre (cacheado: podría pisar uno cambiado en otra pestaña).
+      const cuerpo: { name?: string; parentId?: string | null } = {};
+      if (name !== undefined) cuerpo.name = name;
       if (parentId !== undefined) cuerpo.parentId = parentId;
       return (await api.patch<StoreCategory>(`/store/categories/${id}`, cuerpo)).data;
     },

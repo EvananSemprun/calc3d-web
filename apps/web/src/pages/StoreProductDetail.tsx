@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Download, ArrowLeft, ImagePlus, Plus, Tags, Trash2, X } from 'lucide-react';
 import {
   arbolDeCategorias,
+  etiquetaDeHija,
   STORE_IMAGE_MAX_BYTES,
   STORE_IMAGE_MAX_COUNT,
   STORE_IMAGE_MIME_TYPES,
@@ -77,6 +78,7 @@ export function StoreProductDetailPage() {
 
   const { data: product, isLoading } = useStoreProduct(id);
   const { data: categories = [] } = useStoreCategories();
+  const opcionesDeCategorias = arbolDeCategorias(categories);
   const { data: status } = useStoreStatus();
   const update = useUpdateStoreProduct(id);
   const remove = useDeleteStoreProduct();
@@ -447,13 +449,13 @@ export function StoreProductDetailPage() {
                     <option value="">Sin categoría</option>
                     {/* El Select de la casa ignora <optgroup>: la jerarquía va en el TEXTO,
                         con sangría (espacios duros, que el HTML no colapsa). */}
-                    {arbolDeCategorias(categories).flatMap(({ categoria, hijas }) => [
+                    {opcionesDeCategorias.flatMap(({ categoria, hijas }) => [
                       <option key={categoria.id} value={categoria.id}>
                         {categoria.name}
                       </option>,
                       ...hijas.map((h) => (
                         <option key={h.id} value={h.id}>
-                          {'\u00A0\u00A0' + h.name}
+                          {etiquetaDeHija(opcionesDeCategorias, categoria, h)}
                         </option>
                       )),
                     ])}

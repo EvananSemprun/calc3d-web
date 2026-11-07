@@ -88,8 +88,10 @@ describe('Tienda (vitrina del panel) — filtro por categoría', () => {
     await montar();
     fireEvent.keyDown(await screen.findByRole('combobox', { name: 'Categoría' }), { key: 'Enter' });
     const textos = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    // «Autos» está en las dos madres: cada una lleva la suya entre paréntesis.
     expect(textos).toEqual([
-      'Categoría: todas', 'Juguetes', '  Autos', 'Llaveros', '  Autos',
+      'Categoría: todas', 'Juguetes', '  Autos (Juguetes)', 'Llaveros',
+      '  Autos (Llaveros)',
     ]);
   });
 

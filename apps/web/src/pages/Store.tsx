@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ImageOff, Plus, Store as StoreIcon, Tags, Zap } from 'lucide-react';
-import { arbolDeCategorias, descendientesDe, productMarkup } from '@calc3d/shared';
+import { arbolDeCategorias, descendientesDe, etiquetaDeHija, productMarkup } from '@calc3d/shared';
 import { useMoney } from '@/features/settings/useSettings';
 import { apiErrorMessage } from '@/lib/api';
 import { notify } from '@/components/toast';
@@ -175,7 +175,7 @@ export function StorePage() {
               </option>,
               ...hijas.map((h) => (
                 <option key={h.id} value={h.id}>
-                  {'  ' + h.name}
+                  {etiquetaDeHija(arbolCategorias, categoria, h)}
                 </option>
               )),
             ])}

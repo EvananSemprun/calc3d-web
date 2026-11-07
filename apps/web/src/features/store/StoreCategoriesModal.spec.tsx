@@ -82,14 +82,15 @@ describe('hooks de categoría', () => {
 
   it('mover manda parentId con su valor', async () => {
     const { result } = renderHook(() => useUpdateStoreCategory(), { wrapper: envoltura() });
-    await result.current.mutateAsync({ id: 'hija', name: 'Anime', parentId: 'otra' });
-    expect(cuerpoPatch()).toEqual({ name: 'Anime', parentId: 'otra' });
+    await result.current.mutateAsync({ id: 'hija', parentId: 'otra' });
+    expect(cuerpoPatch()).toEqual({ parentId: 'otra' });
+    expect('name' in cuerpoPatch()).toBe(false);
   });
 
   it('mover a la raíz manda parentId: null', async () => {
     const { result } = renderHook(() => useUpdateStoreCategory(), { wrapper: envoltura() });
-    await result.current.mutateAsync({ id: 'hija', name: 'Anime', parentId: null });
-    expect(cuerpoPatch()).toEqual({ name: 'Anime', parentId: null });
+    await result.current.mutateAsync({ id: 'hija', parentId: null });
+    expect(cuerpoPatch()).toEqual({ parentId: null });
   });
 
   it('crear con madre manda parentId en el POST', async () => {
@@ -219,7 +220,9 @@ describe('StoreCategoriesModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar mover' }));
     await waitFor(() => expect(mocks.patch).toHaveBeenCalled());
     expect(mocks.patch.mock.calls[0][0]).toBe('/store/categories/hija');
-    expect(cuerpoPatch()).toEqual({ name: 'Anime', parentId: 'otra' });
+    expect(cuerpoPatch()).toEqual({ parentId: 'otra' });
+    // ⚠️ Mover NO manda el nombre cacheado: si cambió en otra pestaña, lo pisaría (y el enlace).
+    expect('name' in cuerpoPatch()).toBe(false);
   });
 
   it('mover una hija a la raíz manda parentId: null', async () => {
@@ -230,7 +233,8 @@ describe('StoreCategoriesModal', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Ninguna (categoría principal)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar mover' }));
     await waitFor(() => expect(mocks.patch).toHaveBeenCalled());
-    expect(cuerpoPatch()).toEqual({ name: 'Anime', parentId: null });
+    expect(cuerpoPatch()).toEqual({ parentId: null });
+    expect('name' in cuerpoPatch()).toBe(false);
   });
 
   it('una madre con hijas NO se puede mover bajo otra (máximo dos niveles)', async () => {
@@ -265,5 +269,31 @@ describe('StoreCategoriesModal', () => {
     await waitFor(() => expect(mocks.patch).toHaveBeenCalled());
     expect(cuerpoPatch()).toEqual({ name: 'Animé' });
     expect('parentId' in cuerpoPatch()).toBe(false);
+  });
+
+  it('⚠️ renombrar rechaza un nombre que ya tiene una hermana (el servidor NO lo rechaza)', async () => {
+    const cats = [
+      ...CATEGORIAS,
+      { id: 'h2', name: 'Mundial', slug: 'mundial', position: 3, parentId: 'madre' },
+    ];
+    await montar(cats);
+    fireEvent.click(await screen.findByRole('button', { name: 'Renombrar Mundial' }));
+    fireEvent.change(await screen.findByLabelText('Nuevo nombre de Mundial'), {
+      target: { value: 'anime' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /guardar nombre/i }));
+    await waitFor(() => expect(notify.error).toHaveBeenCalled());
+    expect(mocks.patch).not.toHaveBeenCalled();
+  });
+
+  it('renombrar a un nombre que existe bajo OTRA madre sí se permite', async () => {
+    await montar();
+    fireEvent.click(await screen.findByRole('button', { name: 'Renombrar Anime' }));
+    fireEvent.change(await screen.findByLabelText('Nuevo nombre de Anime'), {
+      target: { value: 'Figuras' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /guardar nombre/i }));
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalled());
+    expect(cuerpoPatch()).toEqual({ name: 'Figuras' });
   });
 });

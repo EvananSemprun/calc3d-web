@@ -123,4 +123,35 @@ describe('StoreProductDetail — precios por cantidad', () => {
     fireEvent.change(screen.getByLabelText('Buscar en la lista'), { target: { value: 'munecas' } });
     await waitFor(async () => expect(await textos()).toEqual(['\u00A0\u00A0Muñecas']));
   });
+
+  it('⚠️ dos hijas homónimas bajo madres distintas llevan la madre entre paréntesis, también al buscar', async () => {
+    const cat = (id: string, name: string, position: number, parentId: string | null) => ({
+      id, name, slug: id, position, parentId,
+    });
+    categoriasMock = [
+      cat('juguetes', 'Juguetes', 0, null),
+      cat('autos-j', 'Autos', 0, 'juguetes'),
+      cat('munecas', 'Muñecas', 1, 'juguetes'),
+      cat('llaveros', 'Llaveros', 1, null),
+      cat('autos-l', 'Autos', 0, 'llaveros'),
+      cat('hogar', 'Hogar', 2, null),
+      cat('oficina', 'Oficina', 3, null),
+      cat('jardin', 'Jardín', 4, null),
+    ]; // 8 categorías + "Sin categoría": variante con buscador
+    await montar();
+    await screen.findByDisplayValue('Llavero');
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Categoría' }));
+
+    const textos = async () => (await screen.findAllByRole('option')).map((o) => o.textContent);
+    const todas = await textos();
+    expect(todas).toContain('  Autos (Juguetes)');
+    expect(todas).toContain('  Autos (Llaveros)');
+    // El nombre único queda limpio.
+    expect(todas).toContain('  Muñecas');
+
+    fireEvent.change(screen.getByLabelText('Buscar en la lista'), { target: { value: 'autos' } });
+    await waitFor(async () =>
+      expect(await textos()).toEqual(['  Autos (Juguetes)', '  Autos (Llaveros)']),
+    );
+  });
 });

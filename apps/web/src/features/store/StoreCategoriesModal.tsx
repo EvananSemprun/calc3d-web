@@ -92,12 +92,21 @@ export function StoreCategoriesModal({
     }
   };
 
-  const guardarNombre = async (id: string) => {
+  const guardarNombre = async (c: StoreCategory) => {
     const name = borrador.trim();
     if (!name) return;
+    // El servidor NO lo rechaza (sufija el enlace y el nombre no es único): se corta acá.
+    if (hayHermanaIgual(c.parentId ?? null, name, c.id)) {
+      notify.error(
+        c.parentId
+          ? 'Ya existe una subcategoría con ese nombre en esa categoría'
+          : 'Ya existe una categoría con ese nombre',
+      );
+      return;
+    }
     try {
       // Solo el nombre: la madre no viaja, el servidor la conserva.
-      await update.mutateAsync({ id, name });
+      await update.mutateAsync({ id: c.id, name });
       setEditando(null);
       notify.success('Categoría renombrada');
     } catch (e) {
@@ -118,7 +127,8 @@ export function StoreCategoriesModal({
       return;
     }
     try {
-      await update.mutateAsync({ id: c.id, name: c.name, parentId: madreId });
+      // Solo la madre: el nombre no viaja, el servidor lo conserva (y con él, el enlace).
+      await update.mutateAsync({ id: c.id, parentId: madreId });
       setMoviendo(null);
       notify.success('Categoría movida');
     } catch (e) {
@@ -170,7 +180,7 @@ export function StoreCategoriesModal({
             className="flex flex-1 items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              void guardarNombre(c.id);
+              void guardarNombre(c);
             }}
           >
             <Input
