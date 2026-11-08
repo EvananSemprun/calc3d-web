@@ -50,7 +50,7 @@ const BANNERS = [
 function respuestaPorUrl(url: string) {
   if (url === '/store/banners') return { data: BANNERS };
   if (url === '/store/status') return { data: { storageReady: true } };
-  if (url === '/store/categories') return { data: [] };
+  if (url === '/store/categories') return { data: [{ id: 'cat1', name: 'Navidad', slug: 'navidad', position: 0, parentId: null }] };
   if (url === '/store/products') return { data: [] };
   return { data: null };
 }
@@ -70,6 +70,24 @@ async function montar() {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+/**
+ * El `Select` de la casa es Radix, no un `<select>` nativo: `fireEvent.change` sobre el
+ * trigger NO dispara nada y el test pasa con el codigo roto. Se abre con Enter y se
+ * clickea la opcion, como en `Store.filtro-categoria.spec.tsx`.
+ */
+async function elegirEnSelect(nombre: string, textoDeLaOpcion: string | RegExp) {
+  const trigger = await screen.findByRole('combobox', { name: nombre });
+  fireEvent.keyDown(trigger, { key: 'Enter' });
+  const opciones = await screen.findAllByRole('option');
+  const op = opciones.find((o) =>
+    typeof textoDeLaOpcion === 'string'
+      ? o.textContent === textoDeLaOpcion
+      : textoDeLaOpcion.test(o.textContent ?? ''),
+  );
+  if (!op) throw new Error(`no encontre la opcion ${textoDeLaOpcion} en ${nombre}`);
+  fireEvent.click(op);
 }
 
 describe('StoreBannersPage', () => {
@@ -111,5 +129,45 @@ describe('StoreBannersPage', () => {
     await waitFor(() => expect(mocks.error).toHaveBeenCalled());
     expect(mocks.patch).not.toHaveBeenCalled();
     expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Los TRES TIPOS (2026-11-08). `kind` es DÓNDE se muestra; el destino es adónde lleva.
+   * Spec: `calc3d-api/docs/superpowers/specs/2026-11-08-tres-tipos-de-banner-design.md`.
+   */
+  it('el de TEXTO esconde la imagen: no se puede subir una que el contrato prohíbe', async () => {
+    await montar();
+    await screen.findByText('Promo de verano');
+    fireEvent.click(screen.getByRole('button', { name: /nuevo banner/i }));
+    expect(await screen.findByText('Subir imagen')).toBeInTheDocument();
+    await elegirEnSelect('Tipo de banner', /Franja de texto/);
+    await waitFor(() => expect(screen.queryByText('Subir imagen')).toBeNull());
+  });
+
+  it('el de CATEGORIA pide la categoría y no guarda sin ella', async () => {
+    await montar();
+    await screen.findByText('Promo de verano');
+    // Se EDITA uno que YA tiene imagen: si no, la que corta es la guarda de la imagen y
+    // el test pasaría por el motivo equivocado (medido: con la guarda de categoría
+    // borrada, los 314 seguían verdes).
+    fireEvent.click(screen.getAllByRole('button', { name: /editar/i })[0]);
+    await screen.findByText('Cambiar imagen');
+    await elegirEnSelect('Tipo de banner', /Dentro de una categor/);
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() =>
+      expect(mocks.error).toHaveBeenCalledWith('Elegí la categoría donde se muestra'),
+    );
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it('el selector de dónde se MUESTRA existe solo en el de categoría', async () => {
+    await montar();
+    await screen.findByText('Promo de verano');
+    fireEvent.click(screen.getByRole('button', { name: /nuevo banner/i }));
+    await screen.findByText('Subir imagen');
+    expect(screen.queryByRole('combobox', { name: 'Categoría donde se muestra' })).toBeNull();
+    await elegirEnSelect('Tipo de banner', /Dentro de una categor/);
+    expect(await screen.findByRole('combobox', { name: 'Categoría donde se muestra' })).toBeInTheDocument();
   });
 });

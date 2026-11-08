@@ -3,6 +3,7 @@ import { GalleryHorizontalEnd, ImageOff, Pencil, Plus, Trash2, Upload } from 'lu
 import {
   STORE_IMAGE_MAX_BYTES,
   STORE_IMAGE_MIME_TYPES,
+  type StoreBannerKind,
   type StoreBannerLinkType,
 } from '@calc3d/shared';
 import {
@@ -37,7 +38,10 @@ interface FormState {
   id: string | null;
   title: string;
   subtitle: string;
+  kind: StoreBannerKind;
   imageKey: string;
+  /** Solo en CATEGORIA: dónde se MUESTRA (no confundir con el destino del enlace). */
+  categoryId: string;
   imageUrl: string;
   linkType: StoreBannerLinkType;
   linkValue: string;
@@ -48,7 +52,9 @@ const VACIO: FormState = {
   id: null,
   title: '',
   subtitle: '',
+  kind: 'HERO',
   imageKey: '',
+  categoryId: '',
   imageUrl: '',
   linkType: 'NONE',
   linkValue: '',
@@ -84,8 +90,10 @@ export function StoreBannersPage() {
       id: b.id,
       title: b.title,
       subtitle: b.subtitle ?? '',
-      imageKey: b.imageKey,
-      imageUrl: b.imageUrl,
+      kind: b.kind,
+      imageKey: b.imageKey ?? '',
+      categoryId: b.categoryId ?? '',
+      imageUrl: b.imageUrl ?? '',
       linkType: b.linkType,
       linkValue: b.linkValue ?? '',
       visible: b.visible,
@@ -247,8 +255,14 @@ function BannerForm({
       notify.error('Poné un título');
       return;
     }
-    if (!file && !form.imageKey) {
+    // Cada tipo pide lo suyo. Se valida ANTES de subir: si no, el servidor rechaza
+    // (400) recién después del upload y queda una imagen huérfana en R2.
+    if (form.kind !== 'TEXTO' && !file && !form.imageKey) {
       notify.error('Subí una imagen');
+      return;
+    }
+    if (form.kind === 'CATEGORIA' && !form.categoryId) {
+      notify.error('Elegí la categoría donde se muestra');
       return;
     }
     // Validar el destino ANTES de subir la imagen: si no, el servidor rechaza
@@ -270,11 +284,15 @@ function BannerForm({
     }
     setGuardando(true);
     try {
-      const imageKey = file ? (await uploadBannerImage(file)).key : form.imageKey;
+      // Un banner de TEXTO no sube ni manda imagen: el contrato la PROHÍBE.
+      const imageKey =
+        form.kind === 'TEXTO' ? null : file ? (await uploadBannerImage(file)).key : form.imageKey;
       const dto = {
+        kind: form.kind,
         title: form.title,
         subtitle: form.subtitle || null,
         imageKey,
+        categoryId: form.kind === 'CATEGORIA' ? form.categoryId : null,
         linkType: form.linkType,
         linkValue: form.linkType === 'NONE' ? null : form.linkValue || null,
         visible: form.visible,
@@ -297,6 +315,40 @@ function BannerForm({
       title={form.id ? 'Editar banner' : 'Nuevo banner'}
     >
       <div className="space-y-4">
+        <Field
+          label="Tipo"
+          required
+          hint="Dónde se muestra. No es lo mismo que el destino, que es adónde lleva."
+        >
+          <Select
+            aria-label="Tipo de banner"
+            value={form.kind}
+            onChange={(e) => set('kind', e.target.value as StoreBannerKind)}
+          >
+            <option value="HERO">Carrusel de la portada</option>
+            <option value="TEXTO">Franja de texto de arriba</option>
+            <option value="CATEGORIA">Dentro de una categoría</option>
+          </Select>
+        </Field>
+
+        {form.kind === 'CATEGORIA' && (
+          <Field label="Categoría donde se muestra" required hint="Se ve en esa categoría y en las fichas de sus productos.">
+            <Select
+              aria-label="Categoría donde se muestra"
+              value={form.categoryId}
+              onChange={(e) => set('categoryId', e.target.value)}
+            >
+              <option value="">Elegí una…</option>
+              {(categorias ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+
+        {form.kind !== 'TEXTO' && (
         <Field label="Imagen" required hint="PNG, JPEG o WebP, hasta 5 MB. Se recomienda horizontal (16:9).">
           <div className="space-y-2">
             {previa ? (
@@ -326,6 +378,7 @@ function BannerForm({
             </Button>
           </div>
         </Field>
+        )}
 
         <FieldGrid min="11rem">
           <Field label="Título" required>

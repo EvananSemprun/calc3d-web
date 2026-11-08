@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  StoreBannerKind,
   StoreBannerCreateDto,
   StoreBannerLinkType,
   StoreBannerUpdateDto,
@@ -18,8 +19,14 @@ export interface StoreBanner {
   id: string;
   title: string;
   subtitle: string | null;
-  imageKey: string;
-  imageUrl: string;
+  /** DONDE se muestra. No confundir con `linkType`, que es adonde lleva. */
+  kind: StoreBannerKind;
+  /** null en los de TEXTO: no llevan imagen. */
+  imageKey: string | null;
+  /** Solo en CATEGORIA: la categoria donde se muestra. */
+  categoryId: string | null;
+  /** null en los de TEXTO. */
+  imageUrl: string | null;
   linkType: StoreBannerLinkType;
   linkValue: string | null;
   position: number;
