@@ -15,6 +15,7 @@ import { api, apiErrorMessage } from '@/lib/api';
 import { notify } from '@/components/toast';
 import { useConfirm } from '@/components/overlays';
 import { useMoney } from '@/features/settings/useSettings';
+import { useUsdt } from '@/features/settings/useUsdt';
 import {
   deleteStoreImage,
   moveItem,
@@ -156,6 +157,8 @@ export function StoreProductDetailPage() {
   const markup = costo != null && costo > 0 ? productMarkup(form.priceUsd, costo) : null;
   // El enlace público se recalcula al vuelo, pero manda el backend (resuelve choques).
   const slugPrevio = slugify(form.name) || product.slug;
+
+  const usdt = useUsdt();
 
   const guardar = async () => {
     // «Nuevo» es automática desde el 2026-11-08: sale de la fecha de publicación. El
@@ -572,7 +575,15 @@ export function StoreProductDetailPage() {
               <CardTitle>Precio y entrega</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Field label="Precio de venta (USD)" required>
+              <Field
+                label="Precio de venta (USD)"
+                required
+                hint={
+                  usdt.listo && form.priceUsd > 0
+                    ? `Está en dólares BCV. En USDT entran ≈ ${usdt.enUsdt(form.priceUsd)?.toFixed(2)} (${((usdt.brecha(form.priceUsd) ?? 0) * 100).toFixed(1)} % menos).`
+                    : undefined
+                }
+              >
                 <NumberInput
                   value={form.priceUsd}
                   onChange={(v) => set('priceUsd', v)}

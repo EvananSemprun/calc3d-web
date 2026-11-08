@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ImageOff, Plus, Store as StoreIcon, Tags, Zap } from 'lucide-react';
 import { arbolDeCategorias, descendientesDe, etiquetaDeHija, productMarkup } from '@calc3d/shared';
 import { useMoney } from '@/features/settings/useSettings';
+import { useUsdt } from '@/features/settings/useUsdt';
 import { apiErrorMessage } from '@/lib/api';
 import { notify } from '@/components/toast';
 import {
@@ -247,6 +248,8 @@ function StoreCard({
   const costo = product.costAtPublish == null ? null : Number(product.costAtPublish);
   // El margen solo se puede mostrar si la ficha está enlazada a un costeo.
   const markup = costo != null && costo > 0 ? productMarkup(precio, costo) : null;
+  // Lectura INTERNA: el precio está en dólares BCV y en USDT entra menos.
+  const enUsdt = useUsdt().enUsdt(precio);
 
   return (
     /* `h-full` en los TRES niveles. Sin él, la tarjeta medía lo que medía su contenido
@@ -286,6 +289,9 @@ function StoreCard({
               {money(precio)}
               {product.category && ` · ${product.category.name}`}
             </p>
+            {enUsdt != null && (
+              <p className="font-mono text-xs text-muted-foreground">≈ {enUsdt.toFixed(2)} USDT</p>
+            )}
             {markup != null && (
               <p
                 className={`font-mono text-xs ${
