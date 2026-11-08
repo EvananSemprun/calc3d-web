@@ -392,7 +392,7 @@ export function StoreProductDetailPage() {
                   </Select>
                 </Field>
               </FieldGrid>
-              <Field label="Resumen" hint="Una línea, la que se ve en la tarjeta de la vitrina">
+              <Field label="Resumen" hint="Una línea. Se ve en la ficha y en la tarjeta, y es el texto que muestran Google y la previsualización de WhatsApp al compartir el producto.">
                 <Input value={form.summary} onChange={(e) => set('summary', e.target.value)} />
               </Field>
               <Field label="Descripción">
@@ -403,7 +403,7 @@ export function StoreProductDetailPage() {
                 />
               </Field>
               <FieldGrid>
-                <Field label="Material" hint="Se muestra en la tarjeta, junto a la categoría">
+                <Field label="Material" hint="No se le muestra al cliente: solo viaja en los datos que lee Google. No hace falta nombrarlo en el Resumen.">
                   <Input
                     list="materiales-tienda"
                     placeholder="PLA"
