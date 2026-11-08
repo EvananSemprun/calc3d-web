@@ -2591,3 +2591,30 @@ gastos reales. La columna sigue en la base con lo ya cargado; nadie la lee.
 - No hacer commit ni push salvo que se pida.
 - No usar flags interactivos (`-i`) ni `--no-verify`.
 - Cuando sí se pida commit, usar mensajes limpios y consistentes.
+
+## Lo del 2026-11-08 en la tienda del panel
+
+- **La insignia «Nuevo» ya no se escribe.** Es automática (sale de `publishedAt`, 15 días
+  desde que se publica). El campo Insignia la **rechaza** —en el contrato y antes de
+  mandar— y su ayuda lo explica. Queda para «Más vendido», «Edición limitada» y demás.
+- **Las tarjetas del catálogo son parejas y la foto es CUADRADA** (1254×1254, el formato
+  que fijó el dueño). ⚠️ Los tres síntomas que reportó —tarjetas desparejas, controles de
+  orden cayendo FUERA de la tarjeta— eran **una sola causa**: el `Link` no llevaba
+  `h-full`, así que la tarjeta medía su contenido mientras el contenedor se estiraba al
+  alto de la fila. ⚠️ Es el formato del PANEL; la tienda sigue en 4/3 a propósito.
+- **Cuánto entra en USDT** (`features/settings/useUsdt.ts`): los precios de la tienda
+  están en dólares BCV y en USDT entra menos. Se ve en la tarjeta y como ayuda del campo
+  Precio. ⚠️ La tasa BCV se resuelve por su ETIQUETA (`RATE_LABELS.BCV_USD`) porque no
+  existe una configuración que diga «los precios están en BCV»: es una convención. Si la
+  renombran, el renglón deja de dibujarse — mejor callar que sacar el número de otra tasa.
+- **Los tres tipos de banner** se cargan desde la misma pantalla, con un selector de Tipo.
+  El de TEXTO esconde la imagen (el contrato la prohíbe) y el de CATEGORIA pide dónde se
+  muestra, que **no es lo mismo** que el destino del enlace.
+- ⚠️ **Al escribir tests de esa pantalla**: el `Select` de la casa es Radix, no un
+  `<select>`. `fireEvent.change` sobre el trigger **no dispara nada** y el test pasa con
+  el código roto. Se abre con `Enter` y se clickea la opción (helper `elegirEnSelect` en
+  `StoreBanners.spec.tsx`).
+- ⚠️ **Un hook después de un `return` temprano rompe la pantalla.** Pasó al cablear el
+  USDT en `StoreProductDetail`: quedó debajo de `if (isLoading || !product) return
+  <PageSkeleton />` y React tiró «Rendered more hooks than during the previous render»,
+  con 6 tests en rojo. Los hooks van ARRIBA de ese return.
