@@ -148,6 +148,11 @@ export function StoreProductDetailPage() {
     );
   }, [product]);
 
+  // ⚠️ ARRIBA del return temprano: un hook despues de un return cambia la cantidad de
+  // hooks entre renders y React rompe con «Rendered more hooks than during the previous
+  // render». Paso por eso al cablearlo.
+  const usdt = useUsdt();
+
   if (isLoading || !product) return <PageSkeleton />;
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
@@ -157,8 +162,6 @@ export function StoreProductDetailPage() {
   const markup = costo != null && costo > 0 ? productMarkup(form.priceUsd, costo) : null;
   // El enlace público se recalcula al vuelo, pero manda el backend (resuelve choques).
   const slugPrevio = slugify(form.name) || product.slug;
-
-  const usdt = useUsdt();
 
   const guardar = async () => {
     // «Nuevo» es automática desde el 2026-11-08: sale de la fecha de publicación. El
