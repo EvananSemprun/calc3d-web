@@ -158,6 +158,13 @@ export function StoreProductDetailPage() {
   const slugPrevio = slugify(form.name) || product.slug;
 
   const guardar = async () => {
+    // «Nuevo» es automática desde el 2026-11-08: sale de la fecha de publicación. El
+    // contrato la rechaza igual; se avisa acá para no esperar un 400 y para explicar
+    // POR QUÉ, que es lo que un 400 no hace.
+    if (form.badge.trim().toLowerCase() === 'nuevo') {
+      notify.error('«Nuevo» se pone solo en los productos recién publicados: elegí otra palabra');
+      return;
+    }
     // Validar los tramos ANTES de mandar: el servidor también los valida, pero
     // avisamos acá para no esperar un 400.
     const tramosLimpios = tramos
@@ -416,7 +423,10 @@ export function StoreProductDetailPage() {
                     ))}
                   </datalist>
                 </Field>
-                <Field label="Insignia" hint='Esquina de la tarjeta: "Nuevo", "Más vendido"'>
+                <Field
+                  label="Insignia"
+                  hint='Esquina de la tarjeta: "Más vendido", "Edición limitada". «Nuevo» se pone solo durante los primeros 15 días desde que lo publicás.'
+                >
                   <Input
                     maxLength={24}
                     placeholder="Nuevo"

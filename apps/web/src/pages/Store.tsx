@@ -249,10 +249,18 @@ function StoreCard({
   const markup = costo != null && costo > 0 ? productMarkup(precio, costo) : null;
 
   return (
-    <div className="group relative">
-      <Link to={`/store/${product.id}`} className="block">
-        <Card className="h-full overflow-hidden transition-colors group-hover:border-brand-blue/40">
-          <div className="relative aspect-[16/10] w-full overflow-hidden bg-brand-blue/10">
+    /* `h-full` en los TRES niveles. Sin él, la tarjeta medía lo que medía su contenido
+       mientras el contenedor se estiraba al alto de la fila: las tarjetas quedaban
+       desparejas entre sí y los controles de orden —que se posicionan contra el
+       contenedor— caían POR DEBAJO de la tarjeta, fuera de ella. */
+    <div className="group relative h-full">
+      <Link to={`/store/${product.id}`} className="block h-full">
+        <Card className="flex h-full flex-col overflow-hidden transition-colors group-hover:border-brand-blue/40">
+          {/* Cuadrada: las fotos del catálogo son 1254×1254 (1:1), así que así se ven
+              enteras, sin recorte. ⚠️ Es el formato del PANEL; la tienda sigue con 4/3
+              a propósito, que ahí está bien. Una foto que no sea 1:1 se recorta: por eso
+              el formato está fijado. */}
+          <div className="relative aspect-square w-full overflow-hidden bg-brand-blue/10">
             {foto ? (
               <img
                 src={foto.url}
@@ -272,7 +280,7 @@ function StoreCard({
               {product.kind === 'SERVICE' && <Badge variant="outline">Servicio</Badge>}
             </div>
           </div>
-          <CardContent className="space-y-1 py-3">
+          <CardContent className="flex-1 space-y-1 py-3">
             <p className="truncate font-medium">{product.name}</p>
             <p className="text-sm text-muted-foreground">
               {money(precio)}
