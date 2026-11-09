@@ -20,9 +20,10 @@ const PRODUCTO = {
 };
 
 let categoriasMock: unknown[] = [];
+let tramosMock: unknown[] = [];
 
 function respuesta(url: string) {
-  if (url === '/store/products/p1') return { data: PRODUCTO };
+  if (url === '/store/products/p1') return { data: { ...PRODUCTO, priceTiers: tramosMock } };
   if (url === '/store/categories') return { data: categoriasMock };
   if (url === '/store/products') return { data: [] };
   if (url === '/store/status') return { data: { storageReady: true } };
@@ -57,21 +58,60 @@ describe('StoreProductDetail — precios por cantidad', () => {
     mocks.post.mockReset();
     mocks.del.mockReset();
     categoriasMock = [];
+    tramosMock = [];
   });
 
-  it('agrega un tramo y lo guarda como fracción', async () => {
+  /**
+   * ⚠️ EL EDITOR TRABAJA EN PRECIOS, NO EN PORCENTAJES (2026-11-08).
+   *
+   * Con el descuento en % no se puede llegar a un precio redondo: de $10 un 27 % da
+   * $7,30 pero de $1,50 da $1,0950. Y el campo cortaba a enteros con `Math.round`, así
+   * que una ficha con 26,6 % guardado —hay una publicada— quedaba en 27 % al tocar
+   * cualquier otra cosa: un precio que cambia sin que nadie lo pida.
+   */
+  it('un tramo nuevo se guarda con SU PRECIO, no con un porcentaje', async () => {
     await montar();
     await screen.findByDisplayValue('Llavero');
     fireEvent.click(screen.getByRole('button', { name: /agregar tramo/i }));
     fireEvent.change(screen.getByLabelText('Cantidad del tramo'), { target: { value: '10' } });
-    fireEvent.change(screen.getByLabelText('Descuento del tramo %'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Precio del tramo'), { target: { value: '8.5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() =>
       expect(mocks.patch).toHaveBeenCalledWith(
         '/store/products/p1',
-        expect.objectContaining({ priceTiers: [{ minQty: 10, discountPct: 0.1 }] }),
+        expect.objectContaining({ priceTiers: [{ minQty: 10, unitPriceUsd: 8.5 }] }),
       ),
     );
+  });
+
+  it('⚠️ un tramo VIEJO guardado como % se abre con su precio, sin cambiar lo que cobra', async () => {
+    // Es la ficha publicada: 26,6 % sobre $10 son $7,34. Si el editor lo abriera en 0 o
+    // lo redondeara, guardar pisaría el precio de un producto que está a la venta.
+    tramosMock = [{ minQty: 20, discountPct: 0.266 }];
+    await montar();
+    await screen.findByDisplayValue('Llavero');
+    await waitFor(() =>
+      expect((screen.getByLabelText('Precio del tramo') as HTMLInputElement).value).toBe('7.34'),
+    );
+  });
+
+  it('no deja guardar un tramo sin precio', async () => {
+    await montar();
+    await screen.findByDisplayValue('Llavero');
+    fireEvent.click(screen.getByRole('button', { name: /agregar tramo/i }));
+    fireEvent.change(screen.getByLabelText('Cantidad del tramo'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(mocks.patch).not.toHaveBeenCalled());
+  });
+
+  it('no deja guardar un tramo que SUBE el precio: no sería mayoreo', async () => {
+    await montar();
+    await screen.findByDisplayValue('Llavero');
+    fireEvent.click(screen.getByRole('button', { name: /agregar tramo/i }));
+    fireEvent.change(screen.getByLabelText('Cantidad del tramo'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Precio del tramo'), { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(mocks.patch).not.toHaveBeenCalled());
   });
 
   it('el selector de categoría lista las hijas sangradas bajo su madre', async () => {

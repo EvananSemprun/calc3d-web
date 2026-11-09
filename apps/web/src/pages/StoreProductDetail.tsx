@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Download, ArrowLeft, ImagePlus, Plus, Tags, Trash2, X } from 'lucide-react';
 import {
   arbolDeCategorias,
+  descuentoDeTramo,
   etiquetaDeHija,
   STORE_IMAGE_MAX_BYTES,
   STORE_IMAGE_MAX_COUNT,
@@ -109,7 +110,11 @@ export function StoreProductDetailPage() {
   const [grupos, setGrupos] = useState<GrupoEdit[]>([]);
   const [specs, setSpecs] = useState<{ label: string; value: string }[]>([]);
   // Tramos de precio por cantidad. En la UI el descuento va en %, se guarda fracción.
-  const [tramos, setTramos] = useState<{ minQty: number; discountPct: number }[]>([]);
+  // ⚠️ El editor trabaja en PRECIOS, no en porcentajes (2026-11-08). Con el descuento
+  // en % no se puede llegar a un precio redondo: de $1,50 un 27 % da $1,0950. Y el
+  // campo cortaba a enteros, así que abrir una ficha con 26,6 % guardado y tocar
+  // cualquier otra cosa lo pisaba con 27 % — un precio que cambia sin que nadie lo pida.
+  const [tramos, setTramos] = useState<{ minQty: number; unitPriceUsd: number }[]>([]);
 
   useEffect(() => {
     if (!product) return;
@@ -129,7 +134,17 @@ export function StoreProductDetailPage() {
       custom: product.custom,
     });
     setSpecs(product.specs ?? []);
-    setTramos(product.priceTiers ?? []);
+    // Un tramo guardado como % se traduce a su precio AL ABRIR. El número cobrado no
+  // cambia en ese momento (es la misma cuenta), pero a partir de ahí el dueño lo edita
+  // como precio y puede dejarlo redondo.
+  setTramos(
+    (product.priceTiers ?? []).map((t) => ({
+      minQty: t.minQty,
+      unitPriceUsd:
+        t.unitPriceUsd ??
+        Number((Number(product.priceUsd) * (1 - (t.discountPct ?? 0))).toFixed(4)),
+    })),
+  );
     setGrupos(
       product.optionGroups.map((g) => ({
         id: g.id,
@@ -165,6 +180,13 @@ export function StoreProductDetailPage() {
   // El enlace público se recalcula al vuelo, pero manda el backend (resuelve choques).
   const slugPrevio = slugify(form.name) || product.slug;
 
+  /** El descuento que representa el precio del tramo, para que el dueño lo vea. Es
+   *  DERIVADO: no se guarda, lo calcula `descuentoDeTramo` del motor. */
+  const descuentoDelTramo = (t: { unitPriceUsd: number }) => {
+    const d = descuentoDeTramo(form.priceUsd, { minQty: 2, unitPriceUsd: t.unitPriceUsd });
+    return d == null || !(t.unitPriceUsd > 0) ? null : `${percent(d, 1)} de descuento`;
+  };
+
   const guardar = async () => {
     // «Nuevo» es automática desde el 2026-11-08: sale de la fecha de publicación. El
     // contrato la rechaza igual; se avisa acá para no esperar un 400 y para explicar
@@ -188,8 +210,14 @@ export function StoreProductDetailPage() {
         notify.error('Hay dos tramos con la misma cantidad');
         return;
       }
-      if (t.discountPct <= 0 || t.discountPct >= 1) {
-        notify.error('El descuento de un tramo tiene que ir entre 1 % y 99 %');
+      if (!(t.unitPriceUsd > 0)) {
+        notify.error('Cada tramo necesita su precio por unidad');
+        return;
+      }
+      if (t.unitPriceUsd >= form.priceUsd) {
+        notify.error(
+          `El precio de un tramo tiene que ser MENOR que el de lista (${money(form.priceUsd)})`,
+        );
         return;
       }
     }
@@ -629,7 +657,8 @@ export function StoreProductDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Descuento de mayoreo: desde cierta cantidad, un % de descuento sobre el precio.
+                Mayoreo: desde cierta cantidad, cuánto sale cada unidad. El descuento se calcula
+                solo.
               </p>
               {tramos.map((t, i) => (
                 <div key={i} className="flex items-end gap-2">
@@ -642,13 +671,18 @@ export function StoreProductDetailPage() {
                       }
                     />
                   </Field>
-                  <Field label="% de descuento">
+                  <Field
+                    label="Precio por unidad"
+                    hint={descuentoDelTramo(t) ?? undefined}
+                  >
                     <NumberInput
-                      aria-label="Descuento del tramo %"
-                      value={Math.round(t.discountPct * 100)}
+                      aria-label="Precio del tramo"
+                      value={t.unitPriceUsd}
+                      min={0}
+                      step={0.05}
                       onChange={(v) =>
                         setTramos((ts) =>
-                          ts.map((x, xi) => (xi === i ? { ...x, discountPct: (v || 0) / 100 } : x)),
+                          ts.map((x, xi) => (xi === i ? { ...x, unitPriceUsd: v || 0 } : x)),
                         )
                       }
                     />
@@ -666,7 +700,7 @@ export function StoreProductDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setTramos((ts) => [...ts, { minQty: 0, discountPct: 0 }])}
+                onClick={() => setTramos((ts) => [...ts, { minQty: 0, unitPriceUsd: 0 }])}
               >
                 <Plus className="h-4 w-4" /> Agregar tramo
               </Button>

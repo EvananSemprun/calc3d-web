@@ -1,3 +1,4 @@
+import type { StorePriceTier } from '@calc3d/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   StoreProductCreateDto,
@@ -70,7 +71,9 @@ export interface StoreProduct {
   custom: boolean;
   specs: { label: string; value: string }[];
   /** Tramos de precio por cantidad (mayoreo): desde minQty, discountPct (fracción). */
-  priceTiers: { minQty: number; discountPct: number }[];
+  /** Tramos de mayoreo. Cada uno trae SU precio fijo (`unitPriceUsd`, la forma nueva)
+   *  o un descuento (`discountPct`, la vieja, viva en fichas ya publicadas). */
+  priceTiers: StorePriceTier[];
   visible: boolean;
   position: number;
   categoryId: string | null;
