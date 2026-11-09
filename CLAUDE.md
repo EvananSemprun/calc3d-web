@@ -556,8 +556,35 @@ nada** — si el rojo aparece también cuando podés seguir, deja de querer deci
   `features/calculator/useCatalogData.ts`. Al elegir un insumo del catálogo, el
   costo unitario es `packagePrice / unitsPerPackage` (el catálogo guarda el
   PAQUETE). Desde la calculadora se guarda un **presupuesto** (`SaveQuoteModal`)
-  o un **producto** (`SaveProductModal`, precio prellenado con `price.final`).
-  `ProductDetail` reusa `ResultPanel` para el recosteo en vivo.
+  o un **producto** (`SaveProductModal`). `ProductDetail` reusa `ResultPanel`
+  para el recosteo en vivo.
+
+#### ⚠️ Guardar un producto CONVIERTE el precio (2026-11-08, shared 0.71.0)
+
+El modal prellenaba el campo de la tienda con `price.final` **tal cual**. La
+calculadora trabaja en **USDT** (el dólar real con el que se compra el
+filamento) y el campo de la ficha se lee como **dólar BCV**, que vale menos:
+cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
+
+- El campo propone ahora el **precio de vitrina**, con
+  `useUsdt().paraPublicar(precioUsdt)` → `precioParaPublicar` de shared.
+- ⚠️ **El redondeo va DESPUÉS de convertir.** Es el precio que el CLIENTE ve el
+  que tiene que quedar redondo, no el de costeo: $1,50 USDT → $1,71 BCV → con
+  «hacia arriba a 0,50» queda **$2,00**. Redondeando antes, $1,50 se queda en
+  $1,50 y se publica $1,71, que no es redondo para nadie.
+- ⚠️ **Lo que entra se recalcula sobre el precio YA redondeado**, no es el que
+  se costeó: el redondeo hacia arriba agrega plata y el dueño tiene que verla.
+- ⚠️ **Las tasas llegan por una consulta aparte**, así que el primer render
+  puede no tenerlas y el precio nacería sin convertir. Se re-propone hasta que
+  el dueño TOQUE el campo (`tocado`); a partir de ahí manda él.
+- **Sin alguna de las dos tasas NO convierte y lo dice.** Publicar barato sin
+  avisar es exactamente el bug que esto cierra.
+- La conversión es `enBcv`, el inverso de `enUsdt`, y hay un test en shared que
+  la **ancla al `adjustedBaseUsd`** de `computeChargeEquivalents` —la tabla
+  «precio a cotizar» que el dueño ya mira—: si divergen, la app diría dos
+  precios distintos para la misma pieza en dos pantallas.
+- Test de pantalla: `SaveProductModal.conversion.spec.tsx`. La conversión pura
+  seguiría verde con el modal copiando el número; volver al código viejo tumba 3.
 
 ### Control de filamento (`pages/Filament.tsx`, `features/filament/`)
 
@@ -1668,6 +1695,47 @@ periodo en el panel. Tests en `rango-de-mes.spec.ts`.
 - **Margen bajo costo**: si la ficha está enlazada a un costeo y el precio queda
   por debajo, la tarjeta y la ficha lo marcan en rojo con cuánto se pierde por
   unidad. Sin enlace de costeo simplemente no hay margen que mostrar.
+
+#### ⚠️ El margen se mide en USDT (2026-11-08, shared 0.70.0)
+
+El costo está en **USDT** y el precio de la tienda en **dólares BCV**, que valen
+menos. Dividir uno por el otro inflaba el margen: el llavero decía 582 % donde
+el real es 498 %.
+
+- Sale de **`useUsdt().margen(precio, costo)`**, que usa `productStatus` — el
+  **MISMO** motor con el que el servidor decide la alerta de rentabilidad. Con
+  dos cuentas, la pantalla podría decir que el producto está bien mientras el
+  recosteo lo marca en rojo.
+- La ficha muestra **«Lo que entra»**, el **margen real (USDT)** como principal y
+  el **nominal (BCV)** como referencia.
+- ⚠️ **El aviso de vender bajo costo ahora caza el caso que importa**: en BCV
+  parece que ganás y en USDT no. Con el margen nominal ese caso no se veía.
+- ⚠️ **Sin alguna de las dos tasas el margen se declara NOMINAL** en vez de
+  mentir (`convertido: false`). Un margen inflado rotulado «real» es peor que no
+  mostrarlo.
+- Test de pantalla: `Store.margen-usdt.spec.tsx`. Por mutación, pintar el
+  nominal da **«margen 582% en USDT»** — la función pura sigue verde.
+
+#### ⚠️ El editor de tramos trabaja en PRECIOS (2026-11-08, shared 0.72.0)
+
+El campo pedía un **%** y lo cortaba a enteros con `Math.round(t.discountPct *
+100)`. Dos problemas, y el segundo es plata:
+
+1. Con el descuento en porcentaje **no se puede llegar a un precio redondo**: de
+   $1,50 un 27 % da $1,0950.
+2. Una ficha con **26,6 %** guardado —`identificadores-para-lapices` lo tiene—
+   quedaba en **27 %** al tocar cualquier otra cosa de la ficha. Un precio que
+   cambia sin que nadie lo pida, en un producto a la venta.
+
+- Ahora se escribe «desde 10 u: **$1,25**» y debajo sale el descuento derivado
+  (`descuentoDeTramo`, que **no se guarda**: hay un número, no dos).
+- ⚠️ **Un tramo VIEJO se abre con SU precio**, calculado del % guardado contra el
+  precio de lista. Lo que se cobra no cambia en ese momento; a partir de ahí el
+  dueño lo puede dejar redondo. Si se abriera en 0, guardar pisaría el precio de
+  un producto publicado — **es el test que protege eso**, y la mutación que lo
+  rompe tumba exactamente ese.
+- No deja guardar un tramo **sin precio** ni uno que **suba** el precio de lista.
+- Tests: `StoreProductDetail.tramos.spec.tsx`.
 
 ### Bandeja de la tienda (`pages/StoreRequests.tsx`, `features/store/requests-api.ts`)
 - Los pedidos y consultas que llegan de la tienda pública **NO entran a Pedidos**:
