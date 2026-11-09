@@ -32,6 +32,7 @@ import {
 import { CounterpartiesCard } from '@/features/cash/CounterpartiesCard';
 import { CashAccountsCard } from '@/features/cash/CashAccountsCard';
 import { useAuth } from '@/auth/AuthContext';
+import { monedaPorDefectoFantasma } from '@/features/settings/monedaFantasma';
 import {
   Badge,
   Button,
@@ -399,6 +400,23 @@ function CurrencySettings() {
               ))}
           </Select>
         </div>
+
+        {/*
+          AVISO DE MONEDA FANTASMA (2026-11-09).
+
+          `defaultRateLabel` guarda un NOMBRE, no una referencia: si la tasa se renombra
+          o se borra, la configuración queda apuntando a algo que no existe y todo sigue
+          funcionando «bien» — solo que la tienda no muestra bolívares y nadie se entera.
+          Pasó de verdad: quedó en «Bolívar (BCV)» mientras las tasas se llamaban «BCV
+          Dólar», y la tienda publicó meses sin equivalente en bolívares.
+        */}
+        {settings && monedaPorDefectoFantasma(settings.defaultRateLabel, rates) && (
+          <p className="rounded-lg border border-brand-yellow-ink/40 bg-brand-yellow-ink/10 p-3 text-sm">
+            La moneda por defecto está en <strong>«{settings.defaultRateLabel}»</strong> y no hay
+            ninguna tasa con ese nombre, así que la tienda <strong>no muestra bolívares</strong>.
+            Elige «Usar por defecto» en la tasa que corresponda.
+          </p>
+        )}
 
         {/* Tasas vigentes */}
         <div className="space-y-2">
