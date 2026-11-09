@@ -1,4 +1,10 @@
-import { DEFAULT_PROTECTION_LABEL, RATE_LABELS, brechaUsdt, enUsdt } from '@calc3d/shared';
+import {
+  DEFAULT_PROTECTION_LABEL,
+  RATE_LABELS,
+  brechaUsdt,
+  enUsdt,
+  productStatus,
+} from '@calc3d/shared';
 import { useMoney, useSettings } from './useSettings';
 
 /**
@@ -35,5 +41,31 @@ export function useUsdt() {
     enUsdt: (precio: number) => enUsdt(precio, bcv, usdt),
     /** Cuánto menos se recibe, en fracción (0.123 = 12,3 %), o null. */
     brecha: (precio: number) => brechaUsdt(precio, bcv, usdt),
+    /**
+     * El margen de un producto, con el precio YA traducido a USDT.
+     *
+     * ⚠️ Sale de `productStatus`, el MISMO motor con el que el servidor decide la alerta
+     * de rentabilidad. Si el panel hiciera su propia cuenta, la pantalla podría decir que
+     * el producto está bien mientras el recosteo lo marca en rojo.
+     *
+     * El panel solo conoce el costo congelado al publicar, así que `costAtSave` y
+     * `costNow` son el mismo número: acá no hay recosteo, eso lo hace el servidor.
+     *
+     * `null` si no hay costo (ficha cargada a mano). `convertido: false` significa que
+     * faltó una tasa y los márgenes son NOMINALES: quien los muestre tiene que decirlo.
+     */
+    margen: (precio: number, costo: number | null | undefined) => {
+      if (costo == null || !(costo > 0)) return null;
+      const s = productStatus(precio, costo, costo, 0, bcv && usdt ? { tasaBcv: bcv, tasaUsdt: usdt } : null);
+      return {
+        /** Markup contra lo que REALMENTE entra. Es el que manda. */
+        real: s.markupNow,
+        /** El mismo markup contra el precio de etiqueta en BCV. Solo referencia. */
+        nominal: s.markupNominal,
+        /** El precio publicado, traducido a USDT. */
+        precioUsdt: s.priceUsdt,
+        convertido: s.converted,
+      };
+    },
   };
 }

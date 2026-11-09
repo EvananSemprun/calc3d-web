@@ -7,7 +7,6 @@ import {
   STORE_IMAGE_MAX_BYTES,
   STORE_IMAGE_MAX_COUNT,
   STORE_IMAGE_MIME_TYPES,
-  productMarkup,
   slugify,
   type StoreProductKind,
 } from '@calc3d/shared';
@@ -159,7 +158,10 @@ export function StoreProductDetailPage() {
     setForm((f) => ({ ...f, [k]: v }));
 
   const costo = product.costAtPublish == null ? null : Number(product.costAtPublish);
-  const markup = costo != null && costo > 0 ? productMarkup(form.priceUsd, costo) : null;
+  // ⚠️ El costo está en USDT y el precio en dólares BCV: `margen` traduce antes de medir.
+  // El viejo `productMarkup(precio, costo)` daba 582 % donde el real era 498 %.
+  const margen = usdt.margen(form.priceUsd, costo);
+  const markup = margen?.real ?? null;
   // El enlace público se recalcula al vuelo, pero manda el backend (resuelve choques).
   const slugPrevio = slugify(form.name) || product.slug;
 
@@ -683,16 +685,34 @@ export function StoreProductDetailPage() {
                 </p>
               ) : (
                 <>
-                  <Row label="Costo por unidad" value={money(costo)} />
-                  <Row label="Precio de venta" value={money(form.priceUsd)} />
+                  <Row label="Costo por unidad" value={`${money(costo)} USDT`} />
+                  <Row label="Precio de venta" value={`${money(form.priceUsd)} BCV`} />
+                  {margen?.convertido && (
+                    <Row label="Lo que entra" value={`${money(margen.precioUsdt)} USDT`} />
+                  )}
                   <Row
-                    label="Margen sobre el costo"
+                    label={margen?.convertido ? 'Margen real (USDT)' : 'Margen sobre el costo'}
                     value={markup == null ? '—' : percent(markup, 0)}
                   />
-                  {markup != null && markup < 0 && (
+                  {margen?.convertido && (
+                    <Row
+                      label="Margen nominal (BCV)"
+                      value={percent(margen.nominal, 0)}
+                      hint="Lo que diría la etiqueta. No es lo que entra."
+                    />
+                  )}
+                  {margen != null && margen.real < 0 && (
                     <p className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs font-medium text-destructive">
-                      El precio de venta está por debajo del costo: cada unidad vendida pierde{' '}
-                      {money(costo - form.priceUsd)}.
+                      {margen.convertido && margen.nominal >= 0
+                        ? `En BCV parece que ganás, pero en USDT no: entran ${money(margen.precioUsdt)} contra un costo de ${money(costo)}. Cada unidad pierde ${money(costo - margen.precioUsdt)}.`
+                        : `El precio de venta está por debajo del costo: cada unidad vendida pierde ${money(costo - margen.precioUsdt)}.`}
+                    </p>
+                  )}
+                  {!margen?.convertido && (
+                    <p className="text-xs text-muted-foreground">
+                      Falta una de las dos tasas, así que este margen compara el precio en BCV
+                      contra un costo en USDT: queda más alto de lo real. Cargá la tasa en
+                      Configuración para verlo bien.
                     </p>
                   )}
                   <p className="pt-1 text-xs text-muted-foreground">
@@ -734,10 +754,12 @@ export function StoreProductDetailPage() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
+      <span className="text-muted-foreground" title={hint}>
+        {label}
+      </span>
       <span className="font-mono tabular-nums">{value}</span>
     </div>
   );

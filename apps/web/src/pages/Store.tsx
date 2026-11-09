@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ImageOff, Plus, Store as StoreIcon, Tags, Zap } from 'lucide-react';
-import { arbolDeCategorias, descendientesDe, etiquetaDeHija, productMarkup } from '@calc3d/shared';
+import { arbolDeCategorias, descendientesDe, etiquetaDeHija } from '@calc3d/shared';
 import { useMoney } from '@/features/settings/useSettings';
 import { useUsdt } from '@/features/settings/useUsdt';
 import { apiErrorMessage } from '@/lib/api';
@@ -246,10 +246,14 @@ function StoreCard({
   const foto = product.images[0];
   const precio = Number(product.priceUsd);
   const costo = product.costAtPublish == null ? null : Number(product.costAtPublish);
-  // El margen solo se puede mostrar si la ficha está enlazada a un costeo.
-  const markup = costo != null && costo > 0 ? productMarkup(precio, costo) : null;
+  const usdt = useUsdt();
+  // El margen solo se puede mostrar si la ficha está enlazada a un costeo. Se mide contra
+  // lo que REALMENTE entra (USDT), no contra la etiqueta en BCV: el precio y el costo no
+  // están en la misma moneda y dividir uno por el otro infla el margen.
+  const margen = usdt.margen(precio, costo);
+  const markup = margen?.real ?? null;
   // Lectura INTERNA: el precio está en dólares BCV y en USDT entra menos.
-  const enUsdt = useUsdt().enUsdt(precio);
+  const enUsdt = usdt.enUsdt(precio);
 
   return (
     /* `h-full` en los TRES niveles. Sin él, la tarjeta medía lo que medía su contenido
@@ -300,7 +304,7 @@ function StoreCard({
               >
                 {markup < 0
                   ? `bajo costo · ${percent(markup, 0)}`
-                  : `margen ${percent(markup, 0)} sobre el costo`}
+                  : `margen ${percent(markup, 0)}${margen?.convertido ? ' en USDT' : ' sobre el costo'}`}
               </p>
             )}
           </CardContent>
