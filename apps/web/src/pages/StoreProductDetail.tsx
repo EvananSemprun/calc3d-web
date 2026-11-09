@@ -58,6 +58,11 @@ interface OpcionEdit {
   value: string;
   priceDeltaUsd: number;
   swatchHex: string | null;
+  /**
+   * Días de entrega PROPIOS de esta opción. `null` = no cambia el plazo y manda el del
+   * producto; NO es 0, que sería prometer entrega el mismo día.
+   */
+  leadTimeDays: number | null;
   /** Fotos propias del color (solo en el grupo que define la foto). */
   images: StoreImage[];
 }
@@ -156,6 +161,7 @@ export function StoreProductDetailPage() {
           value: o.value,
           priceDeltaUsd: Number(o.priceDeltaUsd),
           swatchHex: o.swatchHex,
+          leadTimeDays: o.leadTimeDays ?? null,
           images: o.images ?? [],
         })),
       })),
@@ -256,6 +262,9 @@ export function StoreProductDetailPage() {
                 value: o.value.trim(),
                 priceDeltaUsd: o.priceDeltaUsd || 0,
                 swatchHex: o.swatchHex || null,
+                // `?? null` y no `|| null`: un 0 es un valor que el dueño puede querer
+                // (sale el mismo día) y `||` lo convertiría en «no cambia el plazo».
+                leadTimeDays: o.leadTimeDays ?? null,
               })),
           })),
       });
@@ -894,6 +903,26 @@ function OpcionesEditor({
                       step={0.5}
                       aria-label="Recargo en dólares"
                     />
+                    {/*
+                      Días PROPIOS de esta opción. Vacío = no cambia el plazo y manda el
+                      del producto; por eso es un input suelto y no un NumberInput, que
+                      no distingue «vacío» de «0». Un 0 sería entrega el mismo día.
+                    */}
+                    <Input
+                      type="number"
+                      className="w-full sm:w-28"
+                      value={op.leadTimeDays ?? ''}
+                      placeholder="días"
+                      min={0}
+                      max={365}
+                      step={1}
+                      aria-label={`Días de entrega de ${op.value || 'la opción'}`}
+                      onChange={(e) =>
+                        setOpcion(gi, oi, {
+                          leadTimeDays: e.target.value === '' ? null : Number(e.target.value),
+                        })
+                      }
+                    />
                     <input
                       type="color"
                       aria-label="Color de la muestra"
@@ -937,7 +966,7 @@ function OpcionesEditor({
                   setGrupo(gi, {
                     options: [
                       ...grupo.options,
-                      { value: '', priceDeltaUsd: 0, swatchHex: null, images: [] },
+                      { value: '', priceDeltaUsd: 0, swatchHex: null, leadTimeDays: null, images: [] },
                     ],
                   })
                 }
@@ -957,7 +986,7 @@ function OpcionesEditor({
                 name: '',
                 required: false,
                 drivesPhoto: false,
-                options: [{ value: '', priceDeltaUsd: 0, swatchHex: null, images: [] }],
+                options: [{ value: '', priceDeltaUsd: 0, swatchHex: null, leadTimeDays: null, images: [] }],
               },
             ])
           }

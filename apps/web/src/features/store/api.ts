@@ -32,6 +32,11 @@ export interface StoreOption {
   /** Decimal de Prisma → string en JSON. */
   priceDeltaUsd: string;
   swatchHex: string | null;
+  /**
+   * Días de entrega PROPIOS de esta opción, cuando elegirla cambia el plazo.
+   * `null` = no lo cambia y manda el del producto. NO es 0, que sería el mismo día.
+   */
+  leadTimeDays: number | null;
   /** Fotos propias de este color (solo en el grupo que define la foto). */
   images: StoreImage[];
 }
