@@ -1,9 +1,12 @@
 import {
+  D,
   DEFAULT_PROTECTION_LABEL,
   RATE_LABELS,
   brechaUsdt,
   enUsdt,
+  precioParaPublicar,
   productStatus,
+  roundToIncrement,
 } from '@calc3d/shared';
 import { useMoney, useSettings } from './useSettings';
 
@@ -41,6 +44,23 @@ export function useUsdt() {
     enUsdt: (precio: number) => enUsdt(precio, bcv, usdt),
     /** Cuánto menos se recibe, en fracción (0.123 = 12,3 %), o null. */
     brecha: (precio: number) => brechaUsdt(precio, bcv, usdt),
+    /**
+     * El camino INVERSO, para publicar una pieza costeada: de los USDT que calculó la
+     * calculadora al precio en dólares BCV que hay que poner en la vitrina, ya redondeado
+     * con la regla del negocio.
+     *
+     * ⚠️ Es la pieza que faltaba: hasta el 2026-11-08 el modal de guardar copiaba el
+     * precio en USDT tal cual al campo de la tienda —que se lee como BCV— y publicaba un
+     * 12 % más barato de lo costeado.
+     *
+     * El redondeo sale de Configuración (el dueño usa hacia arriba a 0,50) y se aplica
+     * DESPUÉS de convertir: es el precio que el cliente ve el que tiene que quedar
+     * redondo, no el de costeo.
+     */
+    paraPublicar: (precioEnUsdt: number) =>
+      precioParaPublicar(precioEnUsdt, bcv, usdt, (v) =>
+        roundToIncrement(D(v), data?.roundingMode ?? 'NONE', data?.roundingIncrement || 1).toNumber(),
+      ),
     /**
      * El margen de un producto, con el precio YA traducido a USDT.
      *
