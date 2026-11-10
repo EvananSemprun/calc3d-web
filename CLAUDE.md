@@ -1014,14 +1014,18 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
       categoría que se puede abrir vale ≠ 0 y **un detalle vacío es siempre un
       BUG**: se dice con esas palabras, no con un "sin movimientos"
       tranquilizador.
-    - ⚠️ **Las líneas son DOCE desde la fase B** (2026-11-10): `CashCategory`
-      ganó `consumables`, `services` y `supplierAdvances` («Anticipos a
-      proveedores (pagado y sin recibir)»). **Acá no hubo que tocar nada más que
+    - ⚠️ **Las líneas son ONCE desde la fase B** (2026-11-10): `CashCategory`
+      ganó `consumables` y `supplierAdvances` («Anticipos a proveedores (pagado
+      y sin recibir)»). **Acá no hubo que tocar nada más que
       `etiquetasSaldo`**: las filas se recorren desde `CASH_SIGN`, que es la
       única lista, y una categoría nueva aparece sola — pero su etiqueta en
       español es obligatoria (`Record<CashCategory, string>` no compila sin
-      ella). `services` vale 0 en todos los datos de hoy (nada la alimenta
-      todavía), así que su fila no se dibuja.
+      ella).
+    - ⚠️ **`services` y `advertising` NO existen todavía**, y no es un olvido:
+      una categoría de Caja se agrega **con lo que la llena** (fase (c)).
+      `services` llegó a estar y se sacó el mismo día. Si hace falta una línea
+      nueva, el cambio en el panel es **una etiqueta**; lo que hay que tener
+      resuelto es el productor.
     - Badge **"Importado"** solo donde `source === 'EXCEL_IMPORT'`.
       `MIGRATION` y `RECONCILIATION` no son importaciones y una insignia de más
       vuelve ruido a todas.

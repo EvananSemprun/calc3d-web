@@ -196,7 +196,6 @@ function etiquetasSaldo(nombre: string): Record<CashCategory, string> {
     filament: 'Filamento comprado',
     equipment: 'Equipos pagados por la caja',
     consumables: 'Insumos comprados',
-    services: 'Servicios pagados',
     /**
      * ⚠️ Dice «pagado y sin recibir» a propósito: es plata que YA salió, no una
      * deuda. «Anticipos» a secas se lee como algo que todavía no se pagó, que es
