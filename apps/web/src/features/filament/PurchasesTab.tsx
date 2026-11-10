@@ -67,7 +67,7 @@ export function PurchasesTab() {
         <div className="col-span-full sm:col-span-1">
           <DateRangePicker range={range} />
         </div>
-        <Select className="w-full sm:w-56" value={materialSeguro} onChange={(e) => setMaterialF(e.target.value)}>
+        <Select aria-label="Filtrar por filamento" className="w-full sm:w-56" value={materialSeguro} onChange={(e) => setMaterialF(e.target.value)}>
           <option value="">Filamento: todos</option>
           {materiales.map((m) => (
             <option key={m} value={m}>
@@ -75,7 +75,7 @@ export function PurchasesTab() {
             </option>
           ))}
         </Select>
-        <Select className="w-full sm:w-48" value={proveedorSeguro} onChange={(e) => setProveedorF(e.target.value)}>
+        <Select aria-label="Filtrar por proveedor" className="w-full sm:w-48" value={proveedorSeguro} onChange={(e) => setProveedorF(e.target.value)}>
           <option value="">Proveedor: todos</option>
           {proveedores.map((p) => (
             <option key={p} value={p}>

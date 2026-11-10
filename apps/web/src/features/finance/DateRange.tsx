@@ -138,6 +138,7 @@ export function DateRangePicker({ range }: { range: ReturnType<typeof useDateRan
     // fechas repartidas en una fila); desde `sm` vuelven a su ancho fijo en línea.
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <Select
+        aria-label="Período"
         className="w-full sm:w-44"
         value={range.preset}
         onChange={(e) => range.setPreset(e.target.value as RangePreset)}

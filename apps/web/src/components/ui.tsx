@@ -177,6 +177,7 @@ function SelectBuscable({
   disabled,
   className,
   ariaLabel,
+  ariaLabelledBy,
   onBlur,
   name,
   botonRef,
@@ -188,6 +189,7 @@ function SelectBuscable({
   disabled?: boolean;
   className?: string;
   ariaLabel?: string;
+  ariaLabelledBy?: string;
   onBlur?: () => void;
   name?: string;
   botonRef: React.RefObject<HTMLButtonElement>;
@@ -363,6 +365,7 @@ function SelectBuscable({
         aria-haspopup="listbox"
         aria-controls={abierto ? idLista : undefined}
         aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         name={name}
         disabled={disabled}
         onBlur={onBlur}
@@ -411,6 +414,7 @@ function SelectBuscable({
               id={idLista}
               role="listbox"
               aria-label={ariaLabel}
+              aria-labelledby={ariaLabelledBy}
               className="flex-1 overflow-y-auto p-1"
             >
               {visibles.length === 0 && (
@@ -495,6 +499,8 @@ export const Select = React.forwardRef<
     },
     ref,
   ) => {
+    // Sin `aria-label` propio, el nombre lo da la etiqueta del `Field` que lo envuelve.
+    const ariaLabelledBy = useEtiquetaDeCampo(ariaLabel);
     const opts: SelectOpt[] = [];
     React.Children.forEach(children, (child) => {
       if (!React.isValidElement(child) || child.type !== 'option') return;
@@ -540,6 +546,7 @@ export const Select = React.forwardRef<
           disabled={disabled}
           className={className}
           ariaLabel={ariaLabel}
+          ariaLabelledBy={ariaLabelledBy}
           onBlur={onBlur}
           name={name}
           botonRef={botonRef}
@@ -558,6 +565,7 @@ export const Select = React.forwardRef<
           ref={botonRef}
           onBlur={onBlur}
           aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
           className={cn(
             'flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background/50 px-3 py-2 text-sm shadow-sm transition-all hover:border-brand-blue/50 focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground [&>span]:line-clamp-1 [&>span]:text-left',
             className,
@@ -611,6 +619,21 @@ export const Select = React.forwardRef<
 );
 Select.displayName = 'Select';
 
+/**
+ * El `<label>` de `Field` es hermano de su control y un `<button>` (el trigger
+ * de Radix o el `role="combobox"` propio) NO es etiquetable por un `<label>`:
+ * sin esto, ningún `Select` dentro de un `Field` tenía nombre accesible. `Field`
+ * publica el id de su etiqueta y los controles lo toman como `aria-labelledby`,
+ * así el control nuevo nace con nombre sin que quien lo usa repita nada.
+ */
+const EtiquetaDeCampo = React.createContext<string | undefined>(undefined);
+
+/** Id de la etiqueta del `Field` más cercano, salvo que el control traiga su `aria-label`. */
+export function useEtiquetaDeCampo(ariaLabel?: string): string | undefined {
+  const id = React.useContext(EtiquetaDeCampo);
+  return ariaLabel ? undefined : id;
+}
+
 export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label className={cn('text-sm font-medium leading-none text-foreground', className)} {...props} />
@@ -630,18 +653,19 @@ export function Field({
   required?: boolean;
   children: React.ReactNode;
 }) {
+  const idEtiqueta = React.useId();
   return (
     <div className="space-y-1.5">
       {/* Alto FIJO de la fila de la etiqueta: con la insignia "Obligatorio" la
           fila crecía ~5 px, y en una grilla eso bajaba el input respecto del
           campo vecino que no la tiene. */}
       <div className="flex min-h-5 items-center gap-2">
-        <Label data-field-label title={label}>
+        <Label id={idEtiqueta} data-field-label title={label}>
           {label}
         </Label>
         {required && <RequiredTag />}
       </div>
-      {children}
+      <EtiquetaDeCampo.Provider value={idEtiqueta}>{children}</EtiquetaDeCampo.Provider>
       {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

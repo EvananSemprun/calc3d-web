@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronsUpDown, Plus, Trash2 } from 'lucide-react';
 import type { CatalogOptionKind } from '@calc3d/shared';
 import { cn } from '@/lib/utils';
+import { useEtiquetaDeCampo } from '@/components/ui';
 import { useConfirm } from '@/components/overlays';
 import {
   useCatalogOptions,
@@ -19,13 +20,21 @@ export function Combobox({
   kind,
   value,
   onChange,
-  placeholder = 'Elegir o escribir…',
+  placeholder: placeholderProp,
+  'aria-label': ariaLabel,
 }: {
   kind: CatalogOptionKind;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Nombre propio; sin él, lo da el `Field` que lo envuelve y, si no hay, el placeholder. */
+  'aria-label'?: string;
 }) {
+  const placeholder = placeholderProp ?? 'Elegir o escribir…';
+  // Orden del nombre: `aria-label` propio, luego un placeholder descriptivo
+  // pasado a propósito, luego la etiqueta del `Field`. El default genérico
+  // nunca es un nombre si hay una etiqueta que lo reemplace.
+  const ariaLabelledBy = useEtiquetaDeCampo(ariaLabel ?? placeholderProp);
   const { data: options = [] } = useCatalogOptions(kind);
   const createOption = useCreateOption();
   const deleteOption = useDeleteOption();
@@ -78,7 +87,8 @@ export function Combobox({
         role="combobox"
         aria-expanded={open}
         aria-haspopup="listbox"
-        aria-label={placeholder}
+        aria-label={ariaLabelledBy ? undefined : (ariaLabel ?? placeholder)}
+        aria-labelledby={ariaLabelledBy}
         className={cn(
           'flex h-10 w-full items-center justify-between rounded-lg border border-input bg-background/50 px-3 py-2 text-sm shadow-sm transition-all hover:border-brand-blue/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
         )}
