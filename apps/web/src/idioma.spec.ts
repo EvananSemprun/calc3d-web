@@ -38,6 +38,9 @@ export const FORMAS_DE_VOSEO = [
  */
 export const PALABRAS_PERMITIDAS = [
   'más', 'además', 'después', 'demás', 'revés', 'estás',
+  // Aparecen al barrer `shared` (jamás y arnés viven solo en la API): código de país y
+  // «estar» en tú (subjuntivo).
+  'país', 'estés',
 ] as const;
 
 const PATRON_PRESENTE = /(?<![\p{L}\p{N}_])[\p{L}]*(?<!r)(?:ás|és|ís)(?![\p{L}\p{N}_])/giu;
@@ -49,7 +52,10 @@ export function presentesDeVoseo(texto: string): string[] {
     .filter((p) => !permitidas.includes(p));
 }
 
-const RAIZ = path.resolve(__dirname);
+// El panel y la copia sincronizada de `shared`: si se corrige en calc3d-api y
+// nadie sincroniza, el panel seguiría con voseo y ningún test lo notaría.
+const RAICES = [path.resolve(__dirname), path.resolve(__dirname, '../../../packages/shared/src')];
+const RAIZ = RAICES[0];
 const ESTE_ARCHIVO = path.resolve(__dirname, 'idioma.spec.ts');
 
 function archivos(dir: string): string[] {
@@ -72,12 +78,12 @@ export function hallazgos(texto: string): string[] {
 describe('idioma del panel', () => {
   it('ningún archivo del panel usa voseo', () => {
     const encontrados: string[] = [];
-    for (const ruta of archivos(RAIZ)) {
+    for (const ruta of RAICES.flatMap(archivos)) {
       if (ruta === ESTE_ARCHIVO) continue;
       const texto = readFileSync(ruta, 'utf8');
       for (const forma of hallazgos(texto)) {
         const n = texto.match(regexDe(forma))?.length ?? 0;
-        encontrados.push(`${path.relative(RAIZ, ruta)}: «${forma}» x${n}`);
+        encontrados.push(`${path.relative(path.resolve(RAIZ, '../../..'), ruta)}: «${forma}» x${n}`);
       }
     }
     expect(encontrados, `Voseo en el panel (usa «tú»):\n${encontrados.join('\n')}`).toEqual([]);
@@ -85,10 +91,10 @@ describe('idioma del panel', () => {
 
   it('ningún archivo del panel usa el presente de voseo (-ás/-és/-ís)', () => {
     const encontrados: string[] = [];
-    for (const ruta of archivos(RAIZ)) {
+    for (const ruta of RAICES.flatMap(archivos)) {
       if (ruta === ESTE_ARCHIVO) continue;
       for (const palabra of new Set(presentesDeVoseo(readFileSync(ruta, 'utf8')))) {
-        encontrados.push(`${path.relative(RAIZ, ruta)}: «${palabra}»`);
+        encontrados.push(`${path.relative(path.resolve(RAIZ, '../../..'), ruta)}: «${palabra}»`);
       }
     }
     expect(
@@ -105,7 +111,7 @@ describe('idioma del panel', () => {
 
   it('la lista blanca no está vacía y cada entrada sigue usándose en el código', () => {
     expect(PALABRAS_PERMITIDAS.length).toBeGreaterThan(0);
-    const todo = archivos(RAIZ)
+    const todo = RAICES.flatMap(archivos)
       .filter((r) => r !== ESTE_ARCHIVO)
       .map((r) => readFileSync(r, 'utf8').toLowerCase())
       .join('\n');
