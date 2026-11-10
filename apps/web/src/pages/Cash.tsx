@@ -503,7 +503,7 @@ function FinanciamientoCard({ data }: { data: CashSummary }) {
           </table>
         </div>
         <p className="text-xs text-muted-foreground">
-          Lo que sacas para vos se descuenta de las deudas, de la más antigua a la más reciente. Al
+          Lo que sacas para ti se descuenta de las deudas, de la más antigua a la más reciente. Al
           prestamista se le paga con las cuotas, no con la caja.
         </p>
         {/* ÁMBAR y no rojo: sacar más de lo que pusiste NO es un error, es
@@ -666,7 +666,7 @@ function ConciliacionesCard({ data, onNuevo }: { data: CashSummary; onNuevo: () 
         {filas.length === 0 ? (
           <EmptyState
             title="Todavía no conciliaste"
-            description="Una vez por semana, antes de abrir. Si se te pasa, hacelo al otro día: lo grave es dejar pasar dos semanas."
+            description="Una vez por semana, antes de abrir. Si se te pasa, hazlo al otro día: lo grave es dejar pasar dos semanas."
             action={<Button onClick={onNuevo}>Primera conciliación</Button>}
           />
         ) : (
@@ -800,14 +800,14 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
         <div>
           <h2 className="font-display text-lg font-bold">Movimientos con tu bolsillo</h2>
           <p className="text-sm text-muted-foreground">
-            Solo la plata pura: lo que sacas para vos o lo que metes sin comprar nada. Una compra que
-            pagaste vos va en Gastos con “¿Quién lo pagó?”, no acá.
+            Solo la plata pura: lo que sacas para ti o lo que metes sin comprar nada. Una compra que
+            pagaste tú va en Gastos con “¿Quién lo pagó?”, no acá.
           </p>
         </div>
         {data.movements.length === 0 ? (
           <EmptyState
             title="Sin movimientos"
-            description="Cuando saques plata del negocio para vos, anotala: es lo que más descuadra la caja."
+            description="Cuando saques plata del negocio para ti, anótala: es lo que más descuadra la caja."
             action={<Button onClick={onNuevo}>Anotar movimiento</Button>}
           />
         ) : (
@@ -1065,7 +1065,7 @@ function ReconciliationDialog({
           {cuenta.shared && (
             <Field
               label={`De eso, cuánto es personal de ${nombre}`}
-              hint="Lo declarás vos: el sistema no puede saberlo. Se sugiere lo de la conciliación anterior."
+              hint="Lo declaras tú: el sistema no puede saberlo. Se sugiere lo de la conciliación anterior."
             >
               <NumberInput value={personal} onChange={setPersonal} />
             </Field>

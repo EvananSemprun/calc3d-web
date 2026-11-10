@@ -723,7 +723,7 @@ export function StoreProductDetailPage() {
             <CardContent className="space-y-2 text-sm">
               {costo == null ? (
                 <p className="text-muted-foreground">
-                  Esta ficha se cargó a mano, sin enlace a un costeo. Publicala desde un producto o
+                  Esta ficha se cargó a mano, sin enlace a un costeo. Publícala desde un producto o
                   una cotización para ver el margen acá.
                 </p>
               ) : (

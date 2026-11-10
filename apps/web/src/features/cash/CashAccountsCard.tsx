@@ -80,7 +80,7 @@ export function CashAccountsCard() {
  * CUENTAS — dónde vive la plata.
  *
  * ⚠️ Los errores los escribe el SERVIDOR (409 con el nombre y el motivo:
- * "Binance tiene 2 conciliación(es). Desactivala en vez de borrarla.", "Es la
+ * "Binance tiene 2 conciliación(es). Desactívala en vez de borrarla.", "Es la
  * única cuenta: la conciliación la necesita."). Se muestran tal cual con
  * `apiErrorMessage`: un "no se pudo" genérico deja al dueño trabado.
  */
@@ -526,7 +526,7 @@ function ReconciliationRulesCard() {
 
           <Field
             label="Orden de aplicación de los pagos"
-            hint="Con qué deuda empieza un pago a tu socio o a vos."
+            hint="Con qué deuda empieza un pago a tu socio o a ti."
           >
             <Select value={orden} onChange={(e) => setOrden(e.target.value as Orden)}>
               {(Object.keys(ORDEN) as Orden[]).map((o) => (

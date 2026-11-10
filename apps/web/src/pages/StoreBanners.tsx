@@ -153,7 +153,7 @@ export function StoreBannersPage() {
         <EmptyState
           icon={GalleryHorizontalEnd}
           title="Sin banners todavía"
-          description="Agregá un banner para que aparezca en el carrusel de la home. Mientras no haya ninguno, la tienda muestra sus banners por defecto."
+          description="Agrega un banner para que aparezca en el carrusel de la home. Mientras no haya ninguno, la tienda muestra sus banners por defecto."
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

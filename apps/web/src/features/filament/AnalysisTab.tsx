@@ -51,7 +51,7 @@ export function AnalysisTab() {
         <Stat
           label="Marcas distintas"
           value={String(marcas.length)}
-          sub={marcas[0] && `La que más comprás: ${marcas[0].key}`}
+          sub={marcas[0] && `La que más compras: ${marcas[0].key}`}
         />
       </div>
 

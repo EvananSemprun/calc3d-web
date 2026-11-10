@@ -1124,10 +1124,10 @@ function RestockCard({
         </div>
         <p className="text-xs text-muted-foreground">
           Por tipo y color, con todas las marcas juntas. «Conviene reponer» son los colores que
-          comprás más que el promedio ({promedio.toLocaleString('es', { maximumFractionDigits: 1 })}{' '}
+          compras más que el promedio ({promedio.toLocaleString('es', { maximumFractionDigits: 1 })}{' '}
           rollos por color, hasta el cierre del mes) y a los que les queda 1 rollo o menos. Los
           colores descontinuados no entran. El pedido se arma solo
-          con los dos primeros grupos: lo que conviene reponer lo decides vos.
+          con los dos primeros grupos: lo que conviene reponer lo decides tú.
         </p>
       </CardContent>
     </Card>

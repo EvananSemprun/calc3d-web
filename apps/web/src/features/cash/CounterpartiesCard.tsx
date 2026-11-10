@@ -144,7 +144,7 @@ export function CounterpartiesCard() {
           <div className="space-y-1">
             <CardTitle>Contrapartes</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Quién pone plata en el negocio y a quién se le debe: vos, un socio o un prestamista
+              Quién pone plata en el negocio y a quién se le debe: tú, un socio o un prestamista
               de afuera.
             </p>
           </div>

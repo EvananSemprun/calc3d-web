@@ -199,7 +199,7 @@ export function WholesaleTable() {
         {ranges.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
             Sin tramos. Usa «Sugerir» para que la app proponga unos que respeten tu piso de recargo, o
-            agregá uno a mano.
+            agrega uno a mano.
           </p>
         ) : (
           <div className="space-y-2">

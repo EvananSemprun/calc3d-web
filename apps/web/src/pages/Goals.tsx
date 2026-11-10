@@ -431,7 +431,7 @@ function Explicacion({ s }: { s?: MetricSuggestion }) {
   if (s.value == null) {
     return (
       <p className="mt-1 text-xs text-muted-foreground">
-        Sin datos suficientes para sugerir: cargalo a mano.
+        Sin datos suficientes para sugerir: cárgalo a mano.
       </p>
     );
   }

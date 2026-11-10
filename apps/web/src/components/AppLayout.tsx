@@ -104,7 +104,7 @@ const navGroups: {
         activeWhen: (p) => p.startsWith('/orders') && p !== '/orders/calendario' && p !== '/orders/por-cobrar',
       },
       { to: '/production', label: 'Producción', icon: Activity },
-      // El espejo de "Por cobrar": lo que VOS debes por lo que encargaste.
+      // El espejo de "Por cobrar": lo que TÚ debes por lo que encargaste.
       { to: '/compras', label: 'Compras', icon: FileText },
     ],
   },

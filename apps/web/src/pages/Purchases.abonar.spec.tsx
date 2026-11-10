@@ -251,7 +251,7 @@ describe('Abonar: tomar del saldo a favor más de lo que la factura debe', () =>
     expect(cartel(/quedan a favor en ESTA factura/)).toBe(
       'Estás tomando $15.00 y a esta factura le faltan $5.00: los $10.00 de diferencia quedan a ' +
         'favor en ESTA factura. Se registra igual —no se pierde nada, el saldo pasa de una ' +
-        'factura a la otra— pero vas a tener que volver a usarlo desde acá. Bajá el monto si no ' +
+        'factura a la otra— pero vas a tener que volver a usarlo desde acá. Baja el monto si no ' +
         'era eso lo que querías.',
     );
   });
@@ -277,7 +277,7 @@ describe('Abonar: tomar del saldo a favor más de lo que la factura debe', () =>
     fireEvent.change(monto(), { target: { value: '20' } });
 
     expect(cartel(/de saldo a favor y estás usando/)).toBe(
-      'Esa factura tiene $15.00 de saldo a favor y estás usando $20.00. Bajá el monto o abonalo ' +
+      'Esa factura tiene $15.00 de saldo a favor y estás usando $20.00. Baja el monto o abónalo ' +
         'con plata.',
     );
     expect(screen.queryByText(/quedan a favor en ESTA factura/)).not.toBeInTheDocument();
@@ -296,7 +296,7 @@ describe('Abonar: tomar del saldo a favor más de lo que la factura debe', () =>
     expect(cartel(/ya está paga/)).toBe(
       'Esta factura ya está paga, así que los $15.00 que tomes quedan enteros a favor en ELLA. ' +
         'Se registra igual —no se pierde nada, el saldo pasa de una factura a la otra— pero vas ' +
-        'a tener que volver a usarlo desde acá. Bajá el monto si no era eso lo que querías.',
+        'a tener que volver a usarlo desde acá. Baja el monto si no era eso lo que querías.',
     );
     expect(botonGuardar()).toBeEnabled();
   });

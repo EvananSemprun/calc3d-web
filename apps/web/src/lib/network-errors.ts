@@ -40,7 +40,7 @@ export function mensajeDeRed({ enDesarrollo, enLinea, codigo }: EstadoDeRed): st
   if (enDesarrollo) {
     return 'No se pudo conectar con el servidor. ¿Está corriendo el backend (pnpm dev)?';
   }
-  return 'No se pudo conectar con el servidor. Probá de nuevo en unos segundos.';
+  return 'No se pudo conectar con el servidor. Prueba de nuevo en unos segundos.';
 }
 
 /** Cuántos reintentos como máximo, y cuánto se espera antes de cada uno. */

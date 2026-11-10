@@ -90,7 +90,7 @@ export interface DeudaConProveedor {
 
 /**
  * LAS TRES DEUDAS. Lo que le debes al prestamista, lo que el negocio te debe a
- * vos y lo que le debes a los proveedores son cosas distintas.
+ * ti y lo que le debes a los proveedores son cosas distintas.
  */
 export interface LoansOverview {
   loans: Loan[];

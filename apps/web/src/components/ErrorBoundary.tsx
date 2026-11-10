@@ -44,7 +44,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
           <div className="space-y-1">
             <h1 className="font-display text-xl font-semibold">La pantalla falló al dibujarse</h1>
             <p className="text-sm text-muted-foreground">
-              Recargar suele alcanzar, pero esto no debería pasar. Sacale una captura a este cuadro
+              Recargar suele alcanzar, pero esto no debería pasar. Sácale una captura a este cuadro
               para encontrar la causa.
             </p>
           </div>

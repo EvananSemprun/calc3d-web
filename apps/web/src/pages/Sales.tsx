@@ -282,7 +282,7 @@ export function SalesPage() {
                 icon={ShoppingCart}
                 description={
                   hayFiltros
-                    ? 'Ninguna venta con esos filtros. Probá quitando alguno.'
+                    ? 'Ninguna venta con esos filtros. Prueba quitando alguno.'
                     : 'Sin ventas de mostrador en este periodo. Registra la primera con «Registrar venta de mostrador».'
                 }
                 action={

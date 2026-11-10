@@ -15,18 +15,41 @@ import { describe, expect, it } from 'vitest';
  *
  * Se exporta para que la API use LA MISMA lista.
  */
+/**
+ * ⚠️ Dos listas, y SE TRATAN DISTINTO a propósito (no las «unifiques»):
+ * - `FORMAS_DE_VOSEO` depende del IDIOMA: una forma que es voseo en la API lo es en
+ *   el panel. Es IDÉNTICA en los dos repos (copiada de calc3d-api, no importada).
+ * - `PALABRAS_PERMITIDAS` depende del CORPUS de cada repo (qué palabras legítimas
+ *   usa): es DISTINTA en cada uno y cada entrada tiene que usarse en ESTE código.
+ * Tratar las dos como «del corpus» dejó al panel con la lista corta.
+ */
 export const FORMAS_DE_VOSEO = [
   'abonás', 'tenés', 'podés', 'tocá', 'mirá', 'dejalo', 'registrá', 'elegí',
   'hacé', 'ingresá', 'avisá', 'sacá', 'pasá', 'verificá', 'poné', 'cargá',
   'borrá', 'revisá', 'usá', 'sumá', 'decí', 'fijate', 'acordate', 'escribí',
   'mandá', 'corregí', 'volvé', 'cargala', 'contá', 'llená', 'cerrá', 'anotá',
   'publicá', 'cambiá', 'marcá', 'recargá',
+  // Medidas en este corpus:
+  'deshacé', 'generá', 'indicá', 'apuntá', 'bajá', 'probá', 'pedí', 'agregá',
+  // Con pronombre pegado (el acento se pierde: borrá + la = borrala):
+  'cargalo', 'borrala', 'borralas', 'desactivala', 'activala', 'anulala',
+  'descontinuala', 'corregila', 'reabrilo', 'anotalo', 'abonalo', 'elegilo',
+  'agregalo', 'agregale', 'cambiale', 'movelas', 'ponele', 'contanos',
+  'hacelo', 'anotala', 'contalo', 'revisalas', 'usalo', 'atribuilo', 'cambiala',
+  'cambialo', 'publicala', 'sacale', 'renombrala',
+  // El pronombre mismo:
+  'vos',
 ] as const;
 
 /**
  * Presente de voseo POR PATRÓN: toda palabra terminada en `-ás`, `-és` o `-ís`
- * (anotás, pagás, elegís...) se marca sin que nadie la enumere. Se excluyen las
- * terminadas en `-rás`/`-rés`/`-rís`: es el futuro del tuteo (verás, tendrás).
+ * (anotás, pagás, elegís...) se marca sin que nadie la enumere.
+ *
+ * ⚠️ Las terminadas en `-rás`/`-rés`/`-rís` TAMBIÉN se marcan. Antes se excluían
+ * por ser el futuro del tuteo (verás, tendrás), pero eso escondía el voseo de los
+ * verbos en `-rar` (comprás, cobrás, declarás, mostrás, esperás, enterás). Se
+ * prefiere el falso positivo, que se ve y se arregla con una entrada en
+ * `PALABRAS_PERMITIDAS`, al falso negativo, que no avisa.
  *
  * Los imperativos (`cargá`, `volvé`) NO se pueden cazar por patrón (`está`,
  * `acá`, `todavía`...), por eso para ellos queda la lista explícita de arriba.
@@ -41,9 +64,11 @@ export const PALABRAS_PERMITIDAS = [
   // Aparecen al barrer `shared` (jamás y arnés viven solo en la API): código de país y
   // «estar» en tú (subjuntivo).
   'país', 'estés',
+  // `-rás/-rés`: futuro del tuteo y adverbios, medidos en este corpus.
+  'atrás', 'detrás', 'verás',
 ] as const;
 
-const PATRON_PRESENTE = /(?<![\p{L}\p{N}_])[\p{L}]*(?<!r)(?:ás|és|ís)(?![\p{L}\p{N}_])/giu;
+const PATRON_PRESENTE = /(?<![\p{L}\p{N}_])[\p{L}]*(?:ás|és|ís)(?![\p{L}\p{N}_])/giu;
 
 export function presentesDeVoseo(texto: string): string[] {
   const permitidas: readonly string[] = PALABRAS_PERMITIDAS;
@@ -106,7 +131,9 @@ describe('idioma del panel', () => {
 
   it('el patrón caza voseo que nadie enumeró y deja pasar lo legítimo', () => {
     expect(presentesDeVoseo('Si escribís o elegís algo')).toEqual(['escribís', 'elegís']);
-    expect(presentesDeVoseo('Después verás que estás además más aquí, tendrás el revés')).toEqual([]);
+    expect(presentesDeVoseo('Después verás que estás además más aquí, atrás y detrás, el revés')).toEqual([]);
+    // El voseo de los verbos en -rar ya no se cuela por la excepción del futuro.
+    expect(presentesDeVoseo('lo que comprás y declarás')).toEqual(['comprás', 'declarás']);
   });
 
   it('la lista blanca no está vacía y cada entrada sigue usándose en el código', () => {

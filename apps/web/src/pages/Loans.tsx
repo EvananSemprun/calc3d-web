@@ -107,7 +107,7 @@ export function LoansPage() {
           <EmptyState
             icon={HandCoins}
             title="Sin deudas registradas"
-            description="Si compraste un equipo con plata prestada, cargalo acá: la cuota entra en el punto de equilibrio del Dashboard."
+            description="Si compraste un equipo con plata prestada, cárgalo acá: la cuota entra en el punto de equilibrio del Dashboard."
             action={<Button onClick={() => setNuevo(true)}>Nuevo préstamo</Button>}
           />
         ) : (
@@ -292,7 +292,7 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
             <p className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
               Tus proveedores te deben <strong className="tabular-nums">{money(aFavor)}</strong> de
               facturas que pagaste de más. <strong>No se descuenta solo</strong> de lo que debes
-              arriba: usalo abonando una factura de ese mismo proveedor y eligiendo{' '}
+              arriba: úsalo abonando una factura de ese mismo proveedor y eligiendo{' '}
               <em>tomarlo del saldo a favor</em>, en Compras.
             </p>
           )}
@@ -875,7 +875,7 @@ function NewLoanDialog({ open, onClose }: { open: boolean; onClose: () => void }
           );
         }}
       >
-        <Field label="Nombre" hint="Cómo lo reconoces vos: “Deuda impresora P2S”">
+        <Field label="Nombre" hint="Cómo lo reconoces tú: “Deuda impresora P2S”">
           <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </Field>
 

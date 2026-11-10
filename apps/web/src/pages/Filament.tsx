@@ -68,7 +68,7 @@ export function FilamentAnalysisPage() {
   return (
     <FilamentShell
       title="Análisis de filamento"
-      description="Qué marcas, tipos y colores comprás más, y cuánto invertiste en cada uno."
+      description="Qué marcas, tipos y colores compras más, y cuánto invertiste en cada uno."
     >
       <AnalysisTab />
     </FilamentShell>

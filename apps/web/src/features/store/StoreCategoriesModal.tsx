@@ -123,7 +123,7 @@ export function StoreCategoriesModal({
   const confirmarMover = async (c: StoreCategory) => {
     const madreId = destino || null;
     if (hayHermanaIgual(madreId, c.name, c.id)) {
-      notify.error(`Ya hay una categoría llamada "${c.name}" en ese destino. Renombrala antes de moverla.`);
+      notify.error(`Ya hay una categoría llamada "${c.name}" en ese destino. Renómbrala antes de moverla.`);
       return;
     }
     try {
@@ -141,7 +141,7 @@ export function StoreCategoriesModal({
     if (hijas > 0) {
       // El servidor tampoco la deja borrar; se avisa acá para no pedir una confirmación inútil.
       notify.error(
-        `"${name}" tiene ${hijas} subcategoría${hijas === 1 ? '' : 's'}. Movelas o borralas primero.`,
+        `"${name}" tiene ${hijas} subcategoría${hijas === 1 ? '' : 's'}. Muévelas o bórralas primero.`,
       );
       return;
     }

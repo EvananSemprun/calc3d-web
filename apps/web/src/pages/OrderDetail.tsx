@@ -172,7 +172,7 @@ export function OrderDetailPage() {
             disabled={order.lines.length === 0}
             title={
               order.lines.length === 0
-                ? 'Agregá artículos para poder cotizar'
+                ? 'Agrega artículos para poder cotizar'
                 : 'Lo que se le manda al cliente: sin costos ni márgenes'
             }
           >
@@ -321,7 +321,7 @@ export function OrderDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Atribuilo a una campaña para medir cómo le fue: lo vendido de este encargo suma al ROI de esa campaña.
+              Atribúyelo a una campaña para medir cómo le fue: lo vendido de este encargo suma al ROI de esa campaña.
             </p>
             <AttributionPicker
               value={{ originChannel: order.originChannel ?? null, campaignId: order.campaignId ?? null }}
@@ -549,7 +549,7 @@ function AddPaymentModal({
           {elegida && (
             <Field
               label={`Tasa (${elegida.currencyCode} por USD)`}
-              hint="Viene la de hoy; cambiala si cobraste a otra"
+              hint="Viene la de hoy; cámbiala si cobraste a otra"
             >
               <NumberInput
                 step="0.0001"

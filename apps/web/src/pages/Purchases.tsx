@@ -432,7 +432,7 @@ function FacturaCard({
               <span className="text-muted-foreground">
                 {f.saldo > 0
                   ? 'Puedes usarlo al abonar esta factura: en “Abonar”, elige tomarlo del saldo a favor.'
-                  : 'Usalo al abonar otra factura de este proveedor: la plata ya salió, así que no vuelve a mover la caja.'}
+                  : 'Úsalo al abonar otra factura de este proveedor: la plata ya salió, así que no vuelve a mover la caja.'}
               </span>
             </p>
           )}
@@ -765,7 +765,7 @@ function Abonar({
         {aviso?.clase === 'SIN_SALDO' && (
           <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-xs">
             Esa factura tiene {money(aviso.disponible)} de saldo a favor y estás usando{' '}
-            {money(aviso.tomado)}. Bajá el monto o abonalo con plata.
+            {money(aviso.tomado)}. Baja el monto o abónalo con plata.
           </p>
         )}
         {/* ÁMBAR, no rojo: se guarda igual. El rojo de arriba es el único que
@@ -799,7 +799,7 @@ function Abonar({
               </>
             )}{' '}
             Se registra igual —no se pierde nada, el saldo pasa de una factura a la otra— pero vas a
-            tener que volver a usarlo desde acá. Bajá el monto si no era eso lo que querías.
+            tener que volver a usarlo desde acá. Baja el monto si no era eso lo que querías.
           </p>
         )}
         <div className="flex justify-end gap-2 pt-1">
@@ -1273,7 +1273,7 @@ function NuevaFactura({
                     l.nuevoTipo === 'PRINTER'
                       ? 'La impresora se crea cuando llegue, con el precio de la compra.'
                       : l.nuevoTipo === 'COMPONENT'
-                        ? 'El insumo se crea cuando llegue. Queda como gasto por pedido: si de verdad se gasta en cada pieza, cambialo desde su catálogo.'
+                        ? 'El insumo se crea cuando llegue. Queda como gasto por pedido: si de verdad se gasta en cada pieza, cámbialo desde su catálogo.'
                         : 'La ficha del filamento se crea cuando llegue.'
                   }
                 >

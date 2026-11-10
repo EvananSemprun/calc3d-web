@@ -1093,7 +1093,7 @@ function useRecordatorioDeConteo(): Recordatorio | null {
     detalle: (
       <>
         Ese mes terminó sin el conteo de rollos, así que no se sabe cuánto filamento se consumió ni
-        qué hay que reponer. Contalo mirando el estante.
+        qué hay que reponer. Cuéntalo mirando el estante.
       </>
     ),
     onDescartar: () => setDescartado(pendiente.mes),
@@ -1105,7 +1105,7 @@ function useRecordatorioDeConteo(): Recordatorio | null {
  * Aviso proactivo: campañas en pérdida o en riesgo (la publicidad no rinde).
  *
  * ⚠️ Solo las VIGENTES. Hasta el 2026-10-02 avisaba de campañas terminadas el
- * 23/09 pidiendo "revisalas antes de seguir invirtiendo": una orden imposible
+ * 23/09 pidiendo "revísalas antes de seguir invirtiendo": una orden imposible
  * de cumplir sobre algo que ya cerró. Pedir una acción que no se puede hacer es
  * peor que no avisar — enseña a ignorar el aviso.
  */
@@ -1178,7 +1178,7 @@ function useRecordatorioDeLecturas(): Recordatorio | null {
     detalle: (
       <>
         Sin la lectura del contador no se sabe cuánta vida útil le queda a cada máquina, y el
-        desgaste que cobrás es un supuesto que nadie contrasta. Se anota una vez por mes.
+        desgaste que cobras es un supuesto que nadie contrasta. Se anota una vez por mes.
       </>
     ),
     onDescartar: () => setDescartado(hoy.slice(0, 7)),
