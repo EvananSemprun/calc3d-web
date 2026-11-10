@@ -195,13 +195,22 @@ function etiquetasSaldo(nombre: string): Record<CashCategory, string> {
     expenses: 'Gastos generales',
     filament: 'Filamento comprado',
     equipment: 'Equipos pagados por la caja',
-    consumables: 'Insumos comprados',
     /**
-     * ⚠️ Dice «pagado y sin recibir» a propósito: es plata que YA salió, no una
-     * deuda. «Anticipos» a secas se lee como algo que todavía no se pagó, que es
-     * justo lo contrario, y esta línea RESTA del saldo.
+     * ⚠️ **«por factura» no es un adorno**: esta línea cuenta SOLO los insumos
+     * que entraron por una factura de compra. Un insumo cargado como gasto
+     * directo cae en «Gastos generales» (el motor clasifica los gastos por
+     * `isFilament`/`isInvestment` y nada más). La asimetría con el filamento es
+     * **deuda conocida de la fase (c)**, no diseño.
      */
-    supplierAdvances: 'Anticipos a proveedores (pagado y sin recibir)',
+    consumables: 'Insumos comprados por factura',
+    /**
+     * ⚠️ El paréntesis está porque es plata que YA salió, no una deuda:
+     * «Anticipos» a secas se lee como algo que todavía no se pagó, y esta línea
+     * RESTA del saldo. Y dice **«por encima de lo recibido»** y no «sin
+     * recibir» porque son TRES puertas: lo que no llegó, la factura recibida
+     * entera y pagada de más, y la recibida a un precio menor al pedido.
+     */
+    supplierAdvances: 'Anticipos a proveedores (pagado por encima de lo recibido)',
     contributionsRefundable: `Aportes de ${nombre} (se devuelven)`,
     contributionsCapital: `Aportes de capital de ${nombre}`,
     debtRepayments: `Devoluciones a ${nombre}`,

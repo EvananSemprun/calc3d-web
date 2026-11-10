@@ -1015,8 +1015,7 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
       BUG**: se dice con esas palabras, no con un "sin movimientos"
       tranquilizador.
     - ⚠️ **Las líneas son ONCE desde la fase B** (2026-11-10): `CashCategory`
-      ganó `consumables` y `supplierAdvances` («Anticipos a proveedores (pagado
-      y sin recibir)»). **Acá no hubo que tocar nada más que
+      ganó `consumables` y `supplierAdvances`. **Acá no hubo que tocar nada más que
       `etiquetasSaldo`**: las filas se recorren desde `CASH_SIGN`, que es la
       única lista, y una categoría nueva aparece sola — pero su etiqueta en
       español es obligatoria (`Record<CashCategory, string>` no compila sin
@@ -1026,6 +1025,15 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
       `services` llegó a estar y se sacó el mismo día. Si hace falta una línea
       nueva, el cambio en el panel es **una etiqueta**; lo que hay que tener
       resuelto es el productor.
+    - ⚠️ **Las dos etiquetas nuevas dicen más de lo que parece, y hay un test
+      que las fija** (`pages/Cash.etiquetas.spec.tsx`): «Insumos comprados **por
+      factura**» porque un insumo cargado como gasto directo cae en «Gastos
+      generales» (asimetría con el filamento, deuda conocida de la fase (c)), y
+      «Anticipos a proveedores (**pagado por encima de lo recibido**)» porque
+      son tres puertas —lo que no llegó, la factura pagada de más y la recibida
+      a un precio menor al pedido—, no solo «sin recibir». Hasta ese test el
+      panel no tenía ni una aserción sobre esos textos: la única guarda era que
+      `Record<CashCategory, string>` no compila sin ellos.
     - Badge **"Importado"** solo donde `source === 'EXCEL_IMPORT'`.
       `MIGRATION` y `RECONCILIATION` no son importaciones y una insignia de más
       vuelve ruido a todas.
@@ -1034,7 +1042,7 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
 
 > ⚠️ **Verificar Caja en local es difícil y el modo honesto está acotado.** Los
 > datos locales **no tienen** ninguna conciliación ajustada, ninguna fila
-> `EXCEL_IMPORT` ni ningún retiro parcialmente aplicado, y **varias de las doce
+> `EXCEL_IMPORT` ni ningún retiro parcialmente aplicado, y **varias de las once
 > categorías valen 0**, así que no se dibujan. Para medir esos casos: inyectar
 > el dato **en el render** con un bloque temporal, medir, revertir y confirmar
 > con `grep`. **Nunca escribirlo en la base del dueño.**
