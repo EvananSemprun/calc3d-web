@@ -2,6 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+// ⚠️ Import ESTÁTICO, y no un `await import()` dentro del helper. Estaba adentro de
+// `montar()`, así que **el primer test del archivo pagaba la transformación de
+// `SaveProductModal` y todo su árbol de dependencias**. Con la máquina cargada eso cruzaba
+// los 20 s de `testTimeout` y el test fallaba **por tiempo, no por su aserción**:
+// intermitente, verde al correrlo solo, y bloqueando el gancho de pre-push.
+// Moverlo a un `beforeAll` no sirve: ahí choca con el tope de 10 s del hook. Estático, el
+// costo se paga al cargar el archivo, que no tiene tope.
+// Es seguro porque **vitest eleva los `vi.mock` por encima de los imports**: los mocks de
+// abajo ya están puestos cuando este módulo se carga.
+import { SaveProductModal } from './SaveProductModal';
 
 /**
  * GUARDAR UNA PIEZA COSTEADA LA PUBLICA AL PRECIO CORRECTO (2026-11-08).
@@ -59,7 +69,6 @@ async function montar(rates: unknown[] = TASAS, settings: Record<string, unknown
     return Promise.resolve({ data: null });
   });
   mocks.post.mockResolvedValue({ data: { id: 'sp1' } });
-  const { SaveProductModal } = await import('./SaveProductModal');
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
