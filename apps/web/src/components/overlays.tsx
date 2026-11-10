@@ -5,6 +5,7 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
+import { CapasDelModal, useRegistroDeCapas } from '@/components/capas-del-modal';
 
 /**
  * Modal accesible sobre Radix Dialog: foco atrapado, cierre con Esc y
@@ -26,11 +27,33 @@ export function Dialog({
   children: React.ReactNode;
   className?: string;
 }) {
+  const capas = useRegistroDeCapas();
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm data-[state=open]:animate-[overlay-in_0.22s_ease-out] data-[state=closed]:animate-[overlay-out_0.15s_ease-in]" />
         <DialogPrimitive.Content
+          /**
+           * ⚠️ **EL ESCAPE CIERRA EL DESPLEGABLE ABIERTO, NO EL MODAL.**
+           *
+           * Es el ÚNICO lugar donde se puede frenar: Radix escucha el Escape en
+           * `document` y en fase de CAPTURA, así que cuando el `onKeyDown` del
+           * desplegable se entera —burbuja, después— el modal ya se cerró. Un
+           * `stopPropagation()` allá no cancela un listener que ya corrió; lo
+           * que Radix mira es `event.defaultPrevented` después de este
+           * callback. Ver `components/capas-del-modal.ts`.
+           *
+           * Y además cierra la lista acá en vez de confiar en el handler del
+           * desplegable: si el foco se fue de ella (un Tab), ese handler no
+           * corre y el Escape no haría nada. Llamar dos veces a su cierre es
+           * inofensivo.
+           */
+          onEscapeKeyDown={(event) => {
+            const cerrarCapa = capas.ultima();
+            if (!cerrarCapa) return; // Nada abierto adentro: que el modal cierre.
+            event.preventDefault();
+            cerrarCapa();
+          }}
           className={cn(
             'fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl glass p-5 focus:outline-none data-[state=open]:animate-[dialog-in_0.34s_cubic-bezier(0.34,1.4,0.5,1)] data-[state=closed]:animate-[dialog-out_0.16s_ease-in]',
             className,
@@ -57,7 +80,10 @@ export function Dialog({
           {/* Cuerpo scrolleable: el modal nunca se sale de la pantalla (-mx/px-5
               compensa el padding para que la barra de scroll quede al borde). */}
           <div className="-mx-5 flex-1 overflow-y-auto px-5 animate-[dialog-content-in_0.32s_0.05s_both_ease-out]">
-            {children}
+            {/* El ámbito donde los desplegables se anotan como abiertos. Un
+                modal anidado monta el suyo, así que su lista no se mezcla con
+                la del modal de abajo. */}
+            <CapasDelModal.Provider value={capas}>{children}</CapasDelModal.Provider>
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

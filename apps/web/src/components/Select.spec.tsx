@@ -131,21 +131,30 @@ describe('Select (primitivo)', () => {
     expect(lista.closest('[role="dialog"]')).not.toBeNull();
   });
 
-  it('Escape cierra la lista y NO llega al modal que la contiene', () => {
-    const escapeDelModal = vi.fn();
+  /**
+   * ⚠️ **ACÁ VIVÍA UN VERDE FALSO, y conviene saber cómo era** (borrado el
+   * 2026-11-10). El test se llamaba «Escape cierra la lista y NO llega al
+   * modal que la contiene» y montaba un `<div role="dialog" onKeyDown={...}>`:
+   * un handler de React, o sea en fase de BURBUJA — justo lo único que el
+   * `stopPropagation()` de la lista sí frenaba. Afirmaba que la regla se
+   * cumplía usando el único montaje donde el bug NO se reproduce: contra el
+   * `Dialog` de verdad, el modal se cerraba igual (Radix escucha en
+   * `document` y en CAPTURA, antes que cualquier `onKeyDown`).
+   *
+   * Lo que de verdad protege esa regla es `components/Escape.spec.tsx`, que
+   * monta el `Dialog` real. De este archivo queda solo la mitad que le
+   * corresponde: en una PÁGINA, sin ningún modal detrás, el Escape de la lista
+   * es el único que puede cerrarla.
+   */
+  it('en una página, el Escape cierra la lista', () => {
     render(
-      <div role="dialog" onKeyDown={escapeDelModal}>
-        <Select aria-label="escape" value="v0" onChange={() => {}}>
-          {opciones(12)}
-        </Select>
-      </div>,
+      <Select aria-label="escape" value="v0" onChange={() => {}}>
+        {opciones(12)}
+      </Select>,
     );
     abrir('escape');
-    // El Enter que abre también sube al modal: lo que se mide es el Escape.
-    escapeDelModal.mockClear();
+    expect(screen.getByLabelText('Buscar en la lista')).toBeInTheDocument();
     fireEvent.keyDown(screen.getByLabelText('Buscar en la lista'), { key: 'Escape' });
     expect(screen.queryByLabelText('Buscar en la lista')).not.toBeInTheDocument();
-    // Si el Escape subiera, el modal entero se cerraría y perderías el formulario.
-    expect(escapeDelModal).not.toHaveBeenCalled();
   });
 });

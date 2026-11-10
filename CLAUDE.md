@@ -2071,8 +2071,49 @@ El campo pedía un **%** y lo cortaba a enteros con `Math.round(t.discountPct *
     - ⚠️ La opción se elige en **`onMouseDown`**, no en `onClick`: el click
       llega DESPUÉS del blur y para entonces el cierre por «clic afuera» ya se
       comió la elección.
-    - ⚠️ El **Escape frena la propagación**: sin eso sube al `Dialog` y cierra
-      el modal entero — querías cerrar una lista y perdías el formulario.
+    - ⚠️ **EL ESCAPE CIERRA LA LISTA, NO EL MODAL — Y `stopPropagation()` NO
+      PUEDE HACER ESO** (arreglado el 2026-11-10; hasta esa fecha esta línea
+      afirmaba lo contrario y había un `stopPropagation()` puesto acá, con un
+      comentario que nombraba este mismo bug). Quien escucha el Escape de un
+      `Dialog` es el `DismissableLayer` interno de Radix, en `document` y en
+      fase de **captura**; React engancha sus `onKeyDown` en el contenedor raíz
+      y en fase de **burbuja**, o sea DESPUÉS. Frenar la propagación no cancela
+      un listener que **ya corrió**: el modal se cerraba primero y la lista
+      después, y perdías el formulario entero. (`Combobox` ni lo intentaba:
+      hacía `setOpen(false)` a secas.)
+      - ⚠️ **Y SU TEST ERA UN VERDE FALSO.** `Select.spec.tsx` montaba un
+        `<div role="dialog" onKeyDown={...}>` —un handler de React, en burbuja,
+        lo único que `stopPropagation` sí frena—, así que afirmaba que la regla
+        se cumplía **usando el único montaje donde el bug no se reproduce**. Un
+        test de overlay que no monta el overlay de verdad no mide nada.
+      - **El arreglo va donde Radix escucha**: lo único que mira antes de
+        cerrarse es `event.defaultPrevented` **después** de llamar a
+        `onEscapeKeyDown`. El `Dialog` pasa ese callback y hace
+        `preventDefault()` cuando tiene un desplegable abierto adentro. El
+        registro vive en **`components/capas-del-modal.ts`** (contexto +
+        `useCapaDescartable`), y lo llaman `SelectBuscable` y `Combobox`
+        mientras su lista está abierta. Un desplegable nuevo con lista propia
+        tiene que llamarlo también.
+      - ⚠️ **Está en su propio archivo por un CICLO**: `overlays.tsx` ya
+        importa de `ui.tsx`, así que poner el contexto ahí dejaría a `ui.tsx`
+        importando de `overlays.tsx`.
+      - ⚠️ **Es una PILA, no un booleano.** Con dos desplegables abiertos, un
+        booleano se apaga al cerrar el primero y el Escape que cierra el
+        segundo vuelve a llevarse el formulario: el mismo bug, más difícil de
+        ver a mano.
+      - ⚠️ **El `Dialog` además CIERRA la capa**, no solo previene. Si el foco
+        se fue de la lista (un Tab: el `Combobox` no se cierra al perder el
+        foco), su `onKeyDown` no corre y el Escape no haría **nada**. Llamar
+        dos veces a su cierre es inofensivo.
+      - ⚠️ **Un modal anidado monta su propio ámbito**, así que su lista no se
+        mezcla con la del modal de abajo (Radix llama `onEscapeKeyDown` solo en
+        la capa más alta).
+      - El `AlertDialog` del `ConfirmProvider` **no** lleva el registro: su
+        contenido es título, descripción y dos botones. Si alguna vez entra un
+        desplegable ahí, hay que montárselo igual.
+      - `preventDefault()` **sí se queda** en el `onKeyDown` de la lista: la
+        tecla la consumió ella, y un Escape sin consumir cancela cargas y sale
+        de pantalla completa en el navegador.
     - **La rama de Radix se queda para las listas cortas** (< 8 opciones), que
       es lo que Radix hace bien: una lista sin campo de texto.
     - Tests: `components/Select.spec.tsx` (7). jsdom **no reproduce** el robo
@@ -2080,7 +2121,15 @@ El campo pedía un **%** y lo cortaba a enteros con `Math.round(t.discountPct *
       que amarran es la ESTRUCTURA que lo hace imposible: que no haya un
       `[data-radix-popper-content-wrapper]`, y las dos reglas de dónde cuelga
       la lista. Por mutación: colgarla siempre de `body` tumba 1 y pasar la
-      elección a `onClick` tumba 1.
+      elección a `onClick` tumba 1. Del Escape queda acá solo la mitad de
+      PÁGINA (sin modal detrás, la lista es la única que puede cerrarse); el
+      modal lo mide **`components/Escape.spec.tsx`** (7), que monta el
+      `Dialog` **real** — es lo único que reproduce el bug. Por mutación:
+      quitarle el `preventDefault` al `Dialog` tumba 5; prevenir sin cerrar la
+      capa, 1 (el del foco afuera); la pila en FIFO, 1; el registro sin
+      limpiarse al cerrar, 2 (ahí el modal queda imposible de cerrar con el
+      teclado, el bug opuesto); y que cada desplegable deje de anotarse, 3
+      cada uno.
   - ⚠️ **`bg-popover` NO EXISTÍA como utilidad de Tailwind** (arreglado el
     2026-11-07). Las variables `--popover`/`--popover-foreground` están en
     `index.css` desde siempre y **nadie las mapeó en `tailwind.config.js`**:

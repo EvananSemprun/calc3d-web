@@ -4,6 +4,7 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { cn } from '@/lib/utils';
+import { useCapaDescartable } from '@/components/capas-del-modal';
 
 /** Primitivas de UI del sistema de marca Calc3D (azul #003566 / oro #ffc300).
  *  Paleta ESTRICTA; profundidad por glass + glow, no por colores nuevos. */
@@ -316,6 +317,11 @@ function SelectBuscable({
     if (devolverFoco) botonRef.current?.focus();
   };
 
+  // Mientras la lista está abierta queda anotada en el modal que la contiene,
+  // para que el Escape de Radix cierre la lista y no el formulario entero.
+  // Fuera de un modal no hace nada: ahí alcanza el `onKeyDown` de abajo.
+  useCapaDescartable(abierto, () => cerrar());
+
   const tomar = (v: string) => {
     elegir(v);
     cerrar();
@@ -343,10 +349,20 @@ function SelectBuscable({
       const o = visibles[activo];
       if (o && !o.disabled) tomar(o.value);
     } else if (e.key === 'Escape') {
-      // ⚠️ Sin frenarlo, el Escape sigue hasta el Dialog y cierra el MODAL
-      // entero: querías cerrar una lista y perdías el formulario.
+      /**
+       * ⚠️ **NO lleva `stopPropagation()`, y eso es el arreglo.** Acá hubo uno
+       * durante meses, con un comentario que decía que sin él el Escape se
+       * llevaba el modal entero — y no servía para nada: Radix escucha el
+       * Escape en `document` y en CAPTURA, así que cuando esta línea corre
+       * (burbuja) el modal ya se cerró. Frenar la propagación no cancela un
+       * listener que ya corrió. Lo que lo frena de verdad es el
+       * `onEscapeKeyDown` del `Dialog` (ver `capas-del-modal.ts`).
+       *
+       * `preventDefault()` sí se queda: esta tecla la consumió la lista, y en
+       * un navegador el Escape sin consumir cancela cargas y sale de
+       * pantalla completa.
+       */
       e.preventDefault();
-      e.stopPropagation();
       cerrar();
     } else if (e.key === 'Tab') {
       cerrar(false);

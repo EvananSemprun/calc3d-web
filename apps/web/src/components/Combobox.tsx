@@ -4,6 +4,7 @@ import type { CatalogOptionKind } from '@calc3d/shared';
 import { cn } from '@/lib/utils';
 import { useEtiquetaDeCampo } from '@/components/ui';
 import { useConfirm } from '@/components/overlays';
+import { useCapaDescartable } from '@/components/capas-del-modal';
 import {
   useCatalogOptions,
   useCreateOption,
@@ -53,6 +54,11 @@ export function Combobox({
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
+
+  // Mientras la lista está abierta queda anotada en el modal que la contiene:
+  // el Escape de Radix cierra la lista y no el formulario entero. Fuera de un
+  // modal no hace nada, y ahí alcanza el `onKeyDown` del buscador.
+  useCapaDescartable(open, () => setOpen(false));
 
   const q = query.trim();
   const filtered = useMemo(
