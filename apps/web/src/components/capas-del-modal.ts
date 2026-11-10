@@ -57,6 +57,35 @@ export function useRegistroDeCapas(): RegistroDeCapas {
 }
 
 /**
+ * Lo que necesita un overlay con trampa de foco (`Dialog`, `AlertDialog`) para
+ * no cerrarse cuando el Escape era para un desplegable de adentro: el registro
+ * que se publica a los hijos y el `onEscapeKeyDown` que va en su `Content`.
+ *
+ * Los dos overlays usan ESTA función y no una copia del handler: con el cableado
+ * escrito dos veces, el día que uno cambie el otro se queda con la regla vieja
+ * y el bug vuelve solo por esa puerta. Lo exige
+ * `capas-del-modal.codigo.spec.ts`.
+ */
+export function useCapasDelModal(): {
+  registro: RegistroDeCapas;
+  alEscape: (evento: { preventDefault: () => void }) => void;
+} {
+  const registro = useRegistroDeCapas();
+  return {
+    registro,
+    alEscape: (evento) => {
+      const cerrarCapa = registro.ultima();
+      if (!cerrarCapa) return; // Nada abierto adentro: que el overlay cierre.
+      evento.preventDefault();
+      // Se cierra ACÁ y no se confía en el `onKeyDown` del desplegable: si el
+      // foco se fue de su lista (un Tab), ese handler no corre y el Escape no
+      // haría nada. Llamar dos veces a su cierre es inofensivo.
+      cerrarCapa();
+    },
+  };
+}
+
+/**
  * Lo llama cada desplegable con lista propia (`SelectBuscable`, `Combobox`).
  *
  * Fuera de un modal no hay registro y no hace nada: en una página el Escape ya

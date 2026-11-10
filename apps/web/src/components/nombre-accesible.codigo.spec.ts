@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { finDeEtiqueta, fuentesTsx, lineaDe } from '@/test/jsx-estatico';
 
 /**
  * GUARDIÁN POR CÓDIGO: TODO DESPLEGABLE TIENE NOMBRE ACCESIBLE.
@@ -20,34 +21,6 @@ const CONTROLES = ['Select', 'SelectBuscable', 'Combobox'];
 
 /** Lo que define a los propios componentes: no es un uso. */
 const EXCLUIDOS = [`components${sep}ui.tsx`, `components${sep}Combobox.tsx`];
-
-function fuentes(dir: string): string[] {
-  return readdirSync(dir).flatMap((nombre) => {
-    const ruta = join(dir, nombre);
-    if (statSync(ruta).isDirectory()) return fuentes(ruta);
-    if (!/\.tsx$/.test(ruta) || /\.spec\.tsx$/.test(ruta)) return [];
-    return [ruta];
-  });
-}
-
-/** Índice del `>` que cierra la etiqueta que abre en `desde` (respeta llaves y comillas). */
-function finDeEtiqueta(src: string, desde: number): number {
-  let llaves = 0;
-  let comilla: string | null = null;
-  for (let i = desde; i < src.length; i++) {
-    const c = src[i];
-    if (comilla) {
-      if (c === comilla && src[i - 1] !== '\\') comilla = null;
-      continue;
-    }
-    if (llaves > 0 && (c === '"' || c === "'" || c === '`')) comilla = c;
-    else if (llaves === 0 && (c === '"' || c === "'")) comilla = c;
-    else if (c === '{') llaves++;
-    else if (c === '}') llaves--;
-    else if (c === '>' && llaves === 0 && src[i - 1] !== '=') return i;
-  }
-  return src.length;
-}
 
 /** Rangos [inicio, fin) del contenido de cada `<Field ...>...</Field>`. */
 function rangosDeField(src: string): Array<[number, number]> {
@@ -73,8 +46,6 @@ function rangosDeField(src: string): Array<[number, number]> {
   return rangos;
 }
 
-const linea = (src: string, i: number) => src.slice(0, i).split('\n').length;
-
 /** Usos de los controles sin nombre: `ruta:línea`. */
 export function sinNombre(src: string, ruta = 'x.tsx'): string[] {
   const campos = rangosDeField(src);
@@ -85,14 +56,14 @@ export function sinNombre(src: string, ruta = 'x.tsx'): string[] {
     const etiqueta = src.slice(ini, finDeEtiqueta(src, ini));
     const dentro = campos.some(([a, b]) => ini > a && ini < b);
     if (dentro || /\baria-label(ledby)?=/.test(etiqueta)) continue;
-    malos.push(`${ruta}:${linea(src, ini)} <${m[1]}>`);
+    malos.push(`${ruta}:${lineaDe(src, ini)} <${m[1]}>`);
   }
   return malos;
 }
 
 describe('Todo desplegable tiene nombre accesible (guardián por código)', () => {
   it('ningún Select/SelectBuscable/Combobox queda fuera de un Field sin aria-label', () => {
-    const malos = fuentes(RAIZ)
+    const malos = fuentesTsx(RAIZ)
       .filter((r) => !EXCLUIDOS.some((e) => relative(RAIZ, r) === e))
       .flatMap((r) => sinNombre(readFileSync(r, 'utf8'), relative(RAIZ, r).split(sep).join('/')));
     expect(malos, `Faltan nombres accesibles:\n${malos.join('\n')}`).toEqual([]);
@@ -100,7 +71,9 @@ describe('Todo desplegable tiene nombre accesible (guardián por código)', () =
 
   describe('el detector muerde (con su hermano que no)', () => {
     it('marca un Select suelto sin aria-label', () => {
-      expect(sinNombre('<div><Select value="a" onChange={(e) => f(e)}></Select></div>')).toHaveLength(1);
+      expect(
+        sinNombre('<div><Select value="a" onChange={(e) => f(e)}></Select></div>'),
+      ).toHaveLength(1);
     });
     it('marca un Combobox suelto', () => {
       expect(sinNombre('<Combobox kind="X" value="" onChange={() => {}} />')).toHaveLength(1);
@@ -112,7 +85,9 @@ describe('Todo desplegable tiene nombre accesible (guardián por código)', () =
       expect(sinNombre('<Field label="M"><Select value="a"></Select></Field>')).toEqual([]);
     });
     it('marca el Select que está DESPUÉS de cerrar el Field', () => {
-      expect(sinNombre('<Field label="M"><Input /></Field><Select value="a"></Select>')).toHaveLength(1);
+      expect(
+        sinNombre('<Field label="M"><Input /></Field><Select value="a"></Select>'),
+      ).toHaveLength(1);
     });
     it('un `=>` dentro de las props no corta la etiqueta antes de ver el aria-label', () => {
       expect(sinNombre('<Select onChange={(e) => f(e)} aria-label="Moneda"></Select>')).toEqual([]);

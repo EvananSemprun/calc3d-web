@@ -2108,12 +2108,43 @@ El campo pedía un **%** y lo cortaba a enteros con `Math.round(t.discountPct *
       - ⚠️ **Un modal anidado monta su propio ámbito**, así que su lista no se
         mezcla con la del modal de abajo (Radix llama `onEscapeKeyDown` solo en
         la capa más alta).
-      - El `AlertDialog` del `ConfirmProvider` **no** lleva el registro: su
-        contenido es título, descripción y dos botones. Si alguna vez entra un
-        desplegable ahí, hay que montárselo igual.
+      - **El `AlertDialog` del `ConfirmProvider` lleva el MISMO registro**, y
+        los dos overlays comparten el cableado en **`useCapasDelModal()`** en
+        vez de copiar el handler. Hoy ese contenido es título, descripción y dos
+        botones, así que **ningún test de comportamiento puede ejercerlo**: no
+        hay dónde poner un desplegable adentro. Va puesto igual porque la
+        alternativa era anotarlo acá como pendiente, y el día que ese contenido
+        acepte un `Select` el Escape se llevaría la confirmación entera por una
+        puerta que ya sabíamos abierta.
       - `preventDefault()` **sí se queda** en el `onKeyDown` de la lista: la
         tecla la consumió ella, y un Escape sin consumir cancela cargas y sale
         de pantalla completa en el navegador.
+      - ⚠️ **EL GUARDIÁN QUE LO SOSTIENE: `capas-del-modal.codigo.spec.ts`.**
+        Un desplegable nuevo **no puede acordarse** de llamar al hook, así que
+        el conjunto se DERIVA de los fuentes en vez de enumerarlo. Tres clases,
+        y la tercera es la que cierra el agujero:
+        - `role="listbox"` + `aria-haspopup="listbox"` = una lista que se abre
+          **sobre otro contenido** → tiene que llamar a `useCapaDescartable`.
+        - `role="listbox"` + `aria-modal` = el componente **ES** la capa de
+          arriba (`CommandPalette`) → NO registra: su Escape lo cierra a él.
+        - `role="listbox"` y nada más → **rojo**, sin clasificar.
+        ⚠️ **`role="listbox"` a secas NO servía como señal**: medido, da TRES
+        archivos y uno (`CommandPalette`) no es un desplegable — exigirle
+        registrar es marcar algo que no es el problema, que es cómo se apaga un
+        guardián. Y `aria-haspopup` SOLO tampoco, porque olvidárselo dejaría al
+        guardián callado: para eso está la tercera clase.
+        El mismo archivo exige que **todo overlay de Radix con trampa de foco**
+        (los `*Primitive.Content` de un paquete `*dialog`, derivados del
+        `import`; el `Tooltip` queda afuera porque no atrapa el foco) pase
+        `onEscapeKeyDown={capas.alEscape}` y publique el registro. Es lo único
+        que cubre al `AlertDialog`, y hace que un tercer overlay nazca cubierto.
+        Por mutación: un desplegable que olvida registrar tumba 1; una lista sin
+        declarar qué es, 2; el `AlertDialog` sin el handler, 1; y sin publicar
+        el registro, 1.
+      - El recorrido de fuentes y el recorte de la etiqueta JSX viven en
+        **`src/test/jsx-estatico.ts`**, compartidos con el guardián de nombres
+        accesibles (importar un spec desde otro registraría sus `describe` dos
+        veces).
     - **La rama de Radix se queda para las listas cortas** (< 8 opciones), que
       es lo que Radix hace bien: una lista sin campo de texto.
     - Tests: `components/Select.spec.tsx` (7). jsdom **no reproduce** el robo
@@ -2130,6 +2161,12 @@ El campo pedía un **%** y lo cortaba a enteros con `Math.round(t.discountPct *
       limpiarse al cerrar, 2 (ahí el modal queda imposible de cerrar con el
       teclado, el bug opuesto); y que cada desplegable deje de anotarse, 3
       cada uno.
+      **Verificado además en un Chrome real** el 2026-11-10, en «Registrar
+      compra» de `/filament/compras`, a 1280×900 y a 375×812: el primer Escape
+      cierra la lista y deja el diálogo abierto con el foco adentro, el segundo
+      cierra el diálogo. ⚠️ Lo que sigue **sin** verificar es un teléfono
+      FÍSICO con teclado virtual, que ninguna emulación cubre: es un límite
+      conocido, no un pendiente.
   - ⚠️ **`bg-popover` NO EXISTÍA como utilidad de Tailwind** (arreglado el
     2026-11-07). Las variables `--popover`/`--popover-foreground` están en
     `index.css` desde siempre y **nadie las mapeó en `tailwind.config.js`**:
