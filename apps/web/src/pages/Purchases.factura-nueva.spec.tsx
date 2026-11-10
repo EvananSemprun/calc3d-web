@@ -103,17 +103,16 @@ const campoPrecio = () =>
 /**
  * Escribe un valor NUEVO en un `Combobox`: abrir, tipear y tocar «Crear».
  *
- * ⚠️ Cada uno se busca por su PLACEHOLDER, que es su nombre accesible. Con el
- * default los tres se llamarían "Elegir o escribir…" y ni el test ni un lector
- * de pantalla podrían distinguirlos.
+ * ⚠️ **Cada uno se busca por la ETIQUETA de su `Field`** («Tipo», «Marca
+ * (opcional)», «Color (opcional)»). Hasta el 2026-11-10 había acá un `mapa`
+ * que la traducía al PLACEHOLDER, porque el `Combobox` hacía
+ * `useEtiquetaDeCampo(ariaLabel ?? placeholderProp)` y el placeholder le ganaba
+ * a la etiqueta: el lector decía «Elegir o escribir el tipo…» en vez de «Tipo»
+ * y se perdía el «(opcional)». Ese mapa no era un detalle del test — era este
+ * bug escrito como si fuera la regla.
  */
-const escribirEnCombobox = (placeholder: string, valor: string) => {
-  const mapa: Record<string, string> = {
-    Tipo: 'Elegir o escribir el tipo…',
-    'Marca (opcional)': 'Elegir o escribir la marca…',
-    'Color (opcional)': 'Elegir o escribir el color…',
-  };
-  fireEvent.click(screen.getByRole('combobox', { name: mapa[placeholder] }));
+const escribirEnCombobox = (etiqueta: string, valor: string) => {
+  fireEvent.click(screen.getByRole('combobox', { name: etiqueta }));
   fireEvent.change(screen.getByPlaceholderText('Buscar o escribir…'), { target: { value: valor } });
   fireEvent.click(screen.getByText(new RegExp(`Crear.*${valor}`)));
 };

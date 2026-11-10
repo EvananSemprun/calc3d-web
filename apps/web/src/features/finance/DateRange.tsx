@@ -152,6 +152,7 @@ export function DateRangePicker({ range }: { range: ReturnType<typeof useDateRan
       {range.preset === 'DAY' && (
         <Input
           type="date"
+          aria-label="Día"
           className="w-full sm:w-44"
           value={range.day}
           onChange={(e) => range.setDay(e.target.value)}
@@ -161,6 +162,7 @@ export function DateRangePicker({ range }: { range: ReturnType<typeof useDateRan
         <>
           <Input
             type="date"
+            aria-label="Desde"
             className="min-w-0 flex-1 sm:w-40 sm:flex-none"
             value={range.customFrom}
             onChange={(e) => range.setCustomFrom(e.target.value)}
@@ -168,6 +170,7 @@ export function DateRangePicker({ range }: { range: ReturnType<typeof useDateRan
           <span className="text-sm text-muted-foreground">a</span>
           <Input
             type="date"
+            aria-label="Hasta"
             className="min-w-0 flex-1 sm:w-40 sm:flex-none"
             value={range.customTo}
             onChange={(e) => range.setCustomTo(e.target.value)}

@@ -44,6 +44,7 @@ import {
   PageSkeleton,
   Select,
   Switch,
+  Textarea,
   FieldGrid,
 } from '@/components/ui';
 
@@ -448,8 +449,7 @@ export function StoreProductDetailPage() {
                 <Input value={form.summary} onChange={(e) => set('summary', e.target.value)} />
               </Field>
               <Field label="Descripción">
-                <textarea
-                  className="min-h-28 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                <Textarea
                   value={form.description}
                   onChange={(e) => set('description', e.target.value)}
                 />
@@ -497,7 +497,6 @@ export function StoreProductDetailPage() {
                 <div className="flex items-center gap-2">
                   <Select
                     className="flex-1"
-                    aria-label="Categoría"
                     value={form.categoryId}
                     onChange={(e) => set('categoryId', e.target.value)}
                   >
@@ -673,7 +672,6 @@ export function StoreProductDetailPage() {
                 <div key={i} className="flex items-end gap-2">
                   <Field label="Desde (cantidad)">
                     <NumberInput
-                      aria-label="Cantidad del tramo"
                       value={t.minQty}
                       onChange={(v) =>
                         setTramos((ts) => ts.map((x, xi) => (xi === i ? { ...x, minQty: v || 0 } : x)))
@@ -685,7 +683,6 @@ export function StoreProductDetailPage() {
                     hint={descuentoDelTramo(t) ?? undefined}
                   >
                     <NumberInput
-                      aria-label="Precio del tramo"
                       value={t.unitPriceUsd}
                       min={0}
                       step={0.05}
@@ -893,6 +890,7 @@ function OpcionesEditor({
                       className="w-full sm:w-44"
                       value={op.value}
                       placeholder="Rojo"
+                      aria-label="Nombre de la opción"
                       onChange={(e) => setOpcion(gi, oi, { value: e.target.value })}
                     />
                     <NumberInput

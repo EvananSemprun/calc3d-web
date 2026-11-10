@@ -14,6 +14,26 @@ y luego trae los cambios con `pnpm sync:shared` (copia shared desde calc3d-api) 
 sobrescribe al sincronizar. El front consume el build **ESM** (`dist/esm`) que
 Vite importa.
 
+⚠️ **`shared` no es solo el motor: también guarda LA LISTA DE FORMAS DEL VOSEO**
+(`packages/shared/src/idioma.ts`, `IMPERATIVOS_DE_VOSEO`, desde shared 0.73.2).
+Los dos guardianes de idioma —el de este repo y el de la API— declaraban cada
+uno que su lista «es IDÉNTICA en los dos repos (copiada, no importada)» y **nada
+lo comprobaba**: coincidían de casualidad (74 formas), y el día que una sumara
+una forma el otro repo perdía cobertura con todo en verde. La lista es del
+IDIOMA, no del corpus, así que vive en el único artefacto que `sync:shared` ya
+mantiene idéntico. `src/idioma.spec.ts` la importa de `@calc3d/shared` y la
+re-exporta como `FORMAS_DE_VOSEO`; **`PALABRAS_PERMITIDAS` se queda acá**,
+porque esa sí depende del corpus de este repo. El archivo de la lista está
+**exento del barrido** (se denunciaría a sí mismo) y es el único exento además
+del propio spec, con un test que lo fija.
+
+⚠️ **Al verificar algo de `shared` por mutación desde este repo: los specs
+importan del BUILD, no del `src`.** Vaciar una lista en el fuente y correr los
+tests da **verde** si no se recompila — el parche está en disco y el artefacto
+bajo prueba es el viejo. Hay que `pnpm --filter @calc3d/shared build` entre el
+parche y la corrida, y la mutación tiene que **compilar**: si el build falla, el
+`dist` se queda con la versión buena y pasa lo mismo.
+
 > ⚠️ **Si cambia la FORMA de una respuesta de la API, se despliega primero la
 > API y después el panel.** Se despliegan por separado: un panel nuevo leyendo
 > la respuesta vieja se cae al dibujar. Pasó en desarrollo el 2026-09-13 con la
@@ -211,6 +231,15 @@ al scrollear. Arreglado el 2026-10-05.
 - **`NumberInput`** — campo numérico con buffer de texto (arranca vacío en 0, se
   puede borrar). Úsalo para TODO input numérico; en formularios RHF (catálogos) se
   integra con `Controller`.
+- **`Textarea`** — área de texto de marca (2026-11-10). Existe por la misma
+  razón que `NumberInput`: el único `<textarea>` suelto del panel (la
+  descripción de una ficha de la tienda) vivía dentro de un `Field` y **no tenía
+  nombre accesible**, porque un `<textarea>` crudo no sabe nada del contexto.
+  Úsala para TODA área de texto.
+- ⚠️ **Los tres campos de texto (`Input`, `NumberInput`, `Textarea`) toman el
+  nombre de su `Field`**, igual que los desplegables: ver «Nombre accesible» en
+  la sección de Compras. Un control CRUDO (`<input>` a mano, como el de
+  `ProductionCard`) tiene que llamar a `useEtiquetaDeCampo()` él mismo.
 - **`Combobox`** (`components/Combobox.tsx`) — select con búsqueda + "Crear «X»",
   SIN deps nuevas (dropdown propio con outside-click). La marca, tipo y color del
   **filamento** lo usan; las opciones viven en una lista administrada aparte
@@ -1942,19 +1971,71 @@ El campo pedía un **%** y lo cortaba a enteros con `Math.round(t.discountPct *
         con `pasaTipo` en Gastos—. Prueban que el diálogo la llame con los tres
         números correctos, que el default sea silencioso y que el botón **no**
         se apague.
-      - ⚠️ **Nombre accesible de los desplegables (2026-11-10).** `Field` publica
-        el id de su etiqueta (`useId` + contexto) y `Select`, `SelectBuscable` y
-        `Combobox` lo toman como `aria-labelledby`: un control DENTRO de un
-        `Field` ya nace con nombre (un `<label>` no puede etiquetar un `<button>`,
-        por eso antes ninguno lo tenía). Orden: `aria-label` propio, luego (solo
-        `Combobox`) un `placeholder` pasado a propósito, luego la etiqueta del
-        `Field`. **Lo que sigue necesitando `aria-label` propio es todo control
-        FUERA de un `Field`** (filtros de `FilterBar`, selectores sueltos), y su
-        texto dice qué filtra o elige («Filtrar por estado»), no el tipo de
-        control. Lo exige `components/nombre-accesible.codigo.spec.ts`, que
-        recorre los fuentes: un `Select`/`Combobox` nuevo sin `Field` ni
-        `aria-label` rompe ahí. Un `Field` con DOS controles les daría el mismo
-        nombre a ambos: darle `aria-label` al que tenga que distinguirse.
+      - ⚠️ **Nombre accesible: lo da el `Field`, y vale para TODOS los controles**
+        (2026-11-10). `Field` publica el id de su etiqueta (`useId` + contexto) y
+        el control lo toma como `aria-labelledby`: un control DENTRO de un
+        `Field` ya nace con nombre (un `<label>` hermano sin `htmlFor` no
+        etiqueta a nadie, y menos a un `<button>`). **Orden del nombre:
+        `aria-label` propio, después la etiqueta del `Field`.** Lo que sigue
+        necesitando `aria-label` propio es todo control **FUERA** de un `Field`
+        (filtros de `FilterBar`, selectores sueltos), y su texto dice qué filtra
+        o elige («Filtrar por estado»), no el tipo de control.
+        - ⚠️ **EL MECANISMO NACIÓ A MEDIAS: solo lo consumían `Select` y
+          `Combobox`, y los 136 campos de TEXTO seguían sin nombre.** Medido en
+          `/login`: «Correo» y «Contraseña» daban `aria-label: null`,
+          `aria-labelledby: null`, `labels: []`. Y el guardián se llamaba «todo
+          **desplegable** tiene nombre accesible», así que nada se ponía rojo y
+          la suite verde se leía como «los formularios tienen nombre» — el modo
+          de falla de la casa, esta vez en el **ALCANCE** del test y no en su
+          aserción. Hoy lo consumen `Input` (y con él `NumberInput` y
+          `Textarea`, que lo dibujan), `Select`, `SelectBuscable` y `Combobox`.
+        - ⚠️ **`MiniField`** (la variante compacta de la calculadora) arrastraba
+          el mismo defecto y sus tres campos de «Insumos» se leían sin nombre.
+          Los dos envoltorios publican el ámbito con **`AmbitoDeCampo`**, una
+          sola definición: con dos providers escritos a mano, el día que el
+          contexto gane un campo se actualiza uno y se olvida el otro.
+        - ⚠️ **En el `Combobox` el `placeholder` le GANABA a la etiqueta**
+          (`useEtiquetaDeCampo(ariaLabel ?? placeholderProp)`): en los tres
+          combobox de una factura nueva el lector decía «Elegir o escribir el
+          tipo…» en vez de «Tipo», y se perdía el «(opcional)». Encima el
+          `Select` hacía lo contrario, así que los dos desplegables de la casa
+          no coincidían. **La etiqueta visible manda sobre una pista**; el
+          placeholder queda como respaldo solo cuando no hay `Field`.
+          ⚠️ El test que lo habría cazado se llamaba «un `Combobox` **sin
+          placeholder**…»: el caso quedó afuera **por el nombre del test**, el
+          mismo recorte que escondió seis formas de voseo.
+        - ⚠️ **`required` del `Field` ahora llega al control** (`aria-required`):
+          dibujaba la insignia «Obligatorio» y para un lector de pantalla el
+          campo era opcional.
+        - ⚠️ **Los 26 `aria-label` que duplicaban la etiqueta de su campo se
+          BORRARON.** Eran parches viejos que **se descartaban en silencio**, y
+          el arreglo del nombre los RESUCITÓ: ahora GANAN sobre la etiqueta
+          visible y van a quedar viejos el día que alguien edite el `label` —
+          el mismo caso que el `CLAUDE.md` global ya dejó escrito para los
+          `comboboxProps` sueltos de Mantine. Medido antes de borrar: los 26
+          eran el ÚNICO control de su campo, así que no se borró ninguno que
+          hiciera falta. **La excepción es un campo con DOS controles**: ahí los
+          dos heredarían el mismo nombre y el `aria-label` es lo que los
+          distingue. Hay un test que lo exige con esa excepción.
+        - Lo exige `components/nombre-accesible.codigo.spec.ts` (21 tests),
+          que recorre los fuentes. Dos cambios en cómo mide:
+          - ⚠️ **La exención es por ETIQUETA, no por archivo.** Antes se
+            saltaba `ui.tsx` y `Combobox.tsx` **enteros**, o sea que era ciego
+            justo donde se escribe el control siguiente. Un uso queda exento si
+            su etiqueta trae el nombre (en sus cuatro grafías) o si reenvía
+            **`{...props}`** — delegación: el nombre lo pone quien la llama, y
+            ese llamador se revisa en SU uso. La cláusula del spread es
+            LITERAL: un `{...register('x')}` de RHF no exime.
+          - ⚠️ **Y hay un test de BALANCE de `<Field>`**: uno sin cerrar
+            extiende su rango hasta el final del archivo, así que todo control
+            posterior pasaría como «dentro de un Field» y **el guardián se
+            apagaría solo**. Hoy el balance está parejo en los 28 archivos.
+        - Tests de DOM: `components/nombre-accesible.spec.tsx` (25). Por
+          mutación: que `Input` deje de tomar el nombre tumba 4; que el
+          placeholder le vuelva a ganar a la etiqueta tumba 2 (uno de pantalla
+          y uno de `Purchases`); dejar un control suelto sin `aria-label` tumba
+          1 en el guardián por código; y un `<Select>` sin nombre DENTRO de
+          `ui.tsx` —el archivo que estaba excluido— tumba 1.
     - En la lista de abonos, el que salió del saldo lleva la insignia **"Del
       saldo a favor"** en vez de "La caja": decir "la caja" ahí contaría la
       misma plata dos veces en el renglón que se lee para saber de dónde salió.
@@ -2055,12 +2136,20 @@ El campo pedía un **%** y lo cortaba a enteros con `Math.round(t.discountPct *
     - ⚠️ **DÓNDE SE DIBUJA LA LISTA SON DOS REGLAS OPUESTAS, y elegir una sola
       para toda la app es cómo este bug vuelve.** En una PÁGINA cuelga de
       `body` (las `Card` traen `overflow` y la recortarían); dentro de un
-      MODAL cuelga **del modal** (`closest('[role="dialog"]')`). Lo segundo
+      MODAL cuelga **del modal**
+      (`closest('[role="dialog"],[role="alertdialog"]')`). Lo segundo
       está medido: con el diálogo abierto, un `focus()` sobre un input colgado
       de `body` produce un `focusin` en el BOTÓN del select — el focus trap de
       Radix Dialog devuelve el foco a su ámbito, que es el mismo bug por la
       otra puerta. El cuerpo del modal scrollea pero su contenedor no recorta,
       así que ahí se ve entera igual.
+      ⚠️ **El selector lleva `alertdialog` TAMBIÉN** (2026-11-10): el
+      `AlertDialog` de Radix —el del `ConfirmProvider`— **no** declara
+      `role="dialog"`. Con el selector corto, el día que entre un desplegable
+      ahí su Escape queda cubierto (el registro no mira el rol) pero la lista se
+      portalea a `document.body`, **fuera de la trampa de foco**: el mismo bug
+      medido acá arriba, por la otra puerta. El «nace cubierto» del
+      `AlertDialog` era cierto a medias hasta ese día.
     - ⚠️ El contenido del diálogo tiene `transform`, y eso hace que `fixed` se
       mida contra ÉL: por eso dentro de un modal se posiciona en `absolute` con
       las coordenadas pasadas a su sistema.
@@ -2133,14 +2222,26 @@ El campo pedía un **%** y lo cortaba a enteros con `Math.round(t.discountPct *
         registrar es marcar algo que no es el problema, que es cómo se apaga un
         guardián. Y `aria-haspopup` SOLO tampoco, porque olvidárselo dejaría al
         guardián callado: para eso está la tercera clase.
+        ⚠️ **SE CUENTAN LOS DISPARADORES, no se pregunta si hay alguno**
+        (2026-11-10). La primera versión decidía por archivo
+        (`REGISTRA.test(src)`), y como `ui.tsx` ya contenía UN
+        `useCapaDescartable(` **pasaba por tener uno, tuviera los que tuviera**:
+        el guardián era ciego justo en el archivo donde se escribiría el
+        desplegable siguiente. Ahora se exige que la cantidad de
+        `aria-haspopup="listbox"` sea igual a la de llamadas al hook.
         El mismo archivo exige que **todo overlay de Radix con trampa de foco**
         (los `*Primitive.Content` de un paquete `*dialog`, derivados del
         `import`; el `Tooltip` queda afuera porque no atrapa el foco) pase
         `onEscapeKeyDown={capas.alEscape}` y publique el registro. Es lo único
         que cubre al `AlertDialog`, y hace que un tercer overlay nazca cubierto.
-        Por mutación: un desplegable que olvida registrar tumba 1; una lista sin
-        declarar qué es, 2; el `AlertDialog` sin el handler, 1; y sin publicar
-        el registro, 1.
+        Por mutación: un desplegable que olvida registrar tumba 1; **un TERCER
+        disparador en `ui.tsx` sin su hook**, 1 (con la regla vieja daba verde);
+        una lista sin declarar qué es, 2; el `AlertDialog` sin el handler, 1; y
+        sin publicar el registro, 1.
+        ⚠️ Su `DEFINICION` **no filtra nada hoy** y se deja escrita a propósito:
+        el barrido mira solo `.tsx` y la definición del hook vive en un `.ts`.
+        El día que se mueva a un `.tsx`, su `export function` entraría como un
+        uso.
       - El recorrido de fuentes y el recorte de la etiqueta JSX viven en
         **`src/test/jsx-estatico.ts`**, compartidos con el guardián de nombres
         accesibles (importar un spec desde otro registraría sus `describe` dos

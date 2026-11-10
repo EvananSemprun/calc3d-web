@@ -704,7 +704,7 @@ function Abonar({
           >
             {/* La etiqueta de `Field` no está asociada al control (no lleva
                 `htmlFor`), así que el nombre accesible va acá. */}
-            <NumberInput value={amount} onChange={setAmount} aria-label="Monto (USD)" />
+            <NumberInput value={amount} onChange={setAmount} />
           </Field>
         </FieldGrid>
         {/* ⚠️ **CON QUÉ SE PAGA**, y son dos cosas distintas: plata que sale
@@ -719,7 +719,6 @@ function Abonar({
             <Select
               value={tomadoDe}
               onChange={(e) => elegirOrigen(e.target.value)}
-              aria-label="¿Con qué lo pagas?"
             >
               <option value="">Con plata</option>
               {origenes.map((o) => (
@@ -1184,7 +1183,6 @@ function NuevaFactura({
               explícito el campo no tiene nombre accesible y el test no lo halla. */}
           <Field label="N.º del proveedor (opcional)">
             <Input
-              aria-label="N.º del proveedor"
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               placeholder="El de su factura o recibo: A-001, 0014…"
@@ -1199,7 +1197,6 @@ function NuevaFactura({
               <FieldGrid>
                 <Field label="Qué es">
                   <Select
-                    aria-label="Qué es"
                     value={l.tipo}
                     onChange={(e) =>
                       cambiar(i, {
@@ -1224,7 +1221,6 @@ function NuevaFactura({
                     <Select
                       value={l.nuevoTipo}
                       onChange={(e) => cambiar(i, { nuevoTipo: e.target.value as NuevoTipo })}
-                      aria-label="¿Filamento, impresora o insumo?"
                     >
                       <option value="MATERIAL">Un filamento</option>
                       <option value="PRINTER">Una impresora</option>
@@ -1246,9 +1242,6 @@ function NuevaFactura({
                     <Select
                       value={l.id}
                       onChange={(e) => cambiar(i, { id: e.target.value })}
-                      aria-label={
-                        l.tipo === 'material' ? 'Filamento' : l.tipo === 'printer' ? 'Impresora' : 'Insumo'
-                      }
                     >
                       <option value="">Elegir…</option>
                       {(l.tipo === 'material'
@@ -1280,7 +1273,6 @@ function NuevaFactura({
                   <Input
                     value={l.nombre}
                     onChange={(e) => cambiar(i, { nombre: e.target.value })}
-                    aria-label="Nombre"
                   />
                 </Field>
               )}
@@ -1343,7 +1335,6 @@ function NuevaFactura({
                     inputMode="decimal"
                     min={0}
                     placeholder="0"
-                    aria-label="Precio por unidad (USD)"
                     value={l.unitPrice ?? ''}
                     onChange={(e) => {
                       const t = e.target.value;
@@ -1362,7 +1353,6 @@ function NuevaFactura({
                   <Select
                     value={l.refill}
                     onChange={(e) => cambiar(i, { refill: e.target.value })}
-                    aria-label="¿Recarga o con carrete?"
                   >
                     {/* ⚠️ "No lo dice" viene puesto y NO es un olvido: se guarda
                         como `null`. Preseleccionar "Con carrete" porque es lo

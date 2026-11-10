@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronsUpDown, Plus, Trash2 } from 'lucide-react';
 import type { CatalogOptionKind } from '@calc3d/shared';
 import { cn } from '@/lib/utils';
-import { useEtiquetaDeCampo } from '@/components/ui';
+import { useCampoObligatorio, useEtiquetaDeCampo } from '@/components/ui';
 import { useConfirm } from '@/components/overlays';
 import { useCapaDescartable } from '@/components/capas-del-modal';
 import {
@@ -32,10 +32,20 @@ export function Combobox({
   'aria-label'?: string;
 }) {
   const placeholder = placeholderProp ?? 'Elegir o escribir…';
-  // Orden del nombre: `aria-label` propio, luego un placeholder descriptivo
-  // pasado a propósito, luego la etiqueta del `Field`. El default genérico
-  // nunca es un nombre si hay una etiqueta que lo reemplace.
-  const ariaLabelledBy = useEtiquetaDeCampo(ariaLabel ?? placeholderProp);
+  /**
+   * ⚠️ **LA ETIQUETA VISIBLE MANDA SOBRE UNA PISTA.** Hasta el 2026-11-10 acá
+   * decía `useEtiquetaDeCampo(ariaLabel ?? placeholderProp)`, así que pasar un
+   * placeholder **anulaba** la etiqueta del `Field`: en los tres combobox de
+   * una factura nueva el lector decía «Elegir o escribir el tipo…» en vez de
+   * «Tipo», y se perdía el «(opcional)». Encima el `Select` hacía lo
+   * contrario, así que los dos desplegables de la casa no coincidían.
+   *
+   * Orden correcto: `aria-label` propio, después la etiqueta del `Field`. El
+   * placeholder queda como respaldo SOLO cuando no hay `Field` — eso lo
+   * resuelve el `aria-label` del botón, más abajo.
+   */
+  const ariaLabelledBy = useEtiquetaDeCampo(ariaLabel);
+  const obligatorio = useCampoObligatorio();
   const { data: options = [] } = useCatalogOptions(kind);
   const createOption = useCreateOption();
   const deleteOption = useDeleteOption();
@@ -95,6 +105,7 @@ export function Combobox({
         aria-haspopup="listbox"
         aria-label={ariaLabelledBy ? undefined : (ariaLabel ?? placeholder)}
         aria-labelledby={ariaLabelledBy}
+        aria-required={obligatorio || undefined}
         className={cn(
           'flex h-10 w-full items-center justify-between rounded-lg border border-input bg-background/50 px-3 py-2 text-sm shadow-sm transition-all hover:border-brand-blue/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
         )}

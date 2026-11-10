@@ -215,7 +215,6 @@ export function EditarCompra({
           <Select
             value={refill}
             onChange={(e) => setRefill(e.target.value)}
-            aria-label="¿Recarga o con carrete?"
           >
             <option value="">No lo anoté</option>
             {OPCIONES_DE_RECARGA.map((o) => (

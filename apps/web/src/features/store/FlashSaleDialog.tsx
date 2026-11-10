@@ -82,7 +82,6 @@ export function FlashSaleDialog({
         </p>
         <Field label="Título">
           <Input
-            aria-label="Título"
             value={titulo}
             maxLength={80}
             placeholder="Oferta de octubre"
@@ -91,7 +90,6 @@ export function FlashSaleDialog({
         </Field>
         <Field label="Empieza">
           <Input
-            aria-label="Empieza"
             type="datetime-local"
             value={inicio}
             onChange={(e) => setInicio(e.target.value)}
@@ -99,7 +97,6 @@ export function FlashSaleDialog({
         </Field>
         <Field label="Termina">
           <Input
-            aria-label="Termina"
             type="datetime-local"
             value={fin}
             onChange={(e) => setFin(e.target.value)}

@@ -1,7 +1,16 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  X,
+} from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { useCapaDescartable } from '@/components/capas-del-modal';
@@ -55,19 +64,64 @@ export const Button = React.forwardRef<
 ));
 Button.displayName = 'Button';
 
-export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...props }, ref) => (
+export const Input = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ className, ...props }, ref) => {
+  /**
+   * ⚠️ El `<label>` de `Field` es su HERMANO y no lleva `htmlFor`, así que no
+   * etiqueta a nadie: hasta el 2026-11-10 los 136 campos de texto que viven
+   * dentro de un `Field` no tenían nombre accesible. Medido en `/login`:
+   * «Correo» y «Contraseña» daban `aria-label: null`, `labels: []`. El
+   * mecanismo existía —`Field` publica el id de su etiqueta— y solo lo
+   * consumían `Select` y `Combobox`.
+   *
+   * Una línea acá cubre los 136 usos sin tocar ninguna llamada, y de paso
+   * `NumberInput` y `Textarea`, que dibujan este mismo control.
+   */
+  const ariaLabelledBy = useEtiquetaDeCampo(props['aria-label']);
+  const obligatorio = useCampoObligatorio();
+  return (
     <input
       ref={ref}
       className={cn(
         'flex h-10 w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm tabular-nums shadow-sm transition-all placeholder:text-muted-foreground hover:border-brand-blue/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
+      aria-labelledby={ariaLabelledBy}
+      aria-required={obligatorio || undefined}
       {...props}
     />
-  ),
-);
+  );
+});
 Input.displayName = 'Input';
+
+/**
+ * Área de texto de marca. Existe por la misma razón que `NumberInput`: el único
+ * `<textarea>` suelto del panel (la descripción de una ficha de la tienda) vivía
+ * dentro de un `Field` y **no tenía nombre accesible**, porque un `<textarea>`
+ * crudo no sabe nada del contexto. Usala para TODA área de texto.
+ */
+export const Textarea = React.forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>
+>(({ className, ...props }, ref) => {
+  const ariaLabelledBy = useEtiquetaDeCampo(props['aria-label']);
+  const obligatorio = useCampoObligatorio();
+  return (
+    <textarea
+      ref={ref}
+      className={cn(
+        'flex min-h-28 w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm shadow-sm transition-all placeholder:text-muted-foreground hover:border-brand-blue/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
+      aria-labelledby={ariaLabelledBy}
+      aria-required={obligatorio || undefined}
+      {...props}
+    />
+  );
+});
+Textarea.displayName = 'Textarea';
 
 /**
  * Campo numérico con buffer de texto: arranca vacío cuando el valor es 0
@@ -139,14 +193,13 @@ function textoDe(node: React.ReactNode): string {
   if (node == null || typeof node === 'boolean') return '';
   if (typeof node === 'string' || typeof node === 'number') return String(node);
   if (Array.isArray(node)) return node.map(textoDe).join(' ');
-  if (React.isValidElement(node)) return textoDe((node.props as { children?: React.ReactNode }).children);
+  if (React.isValidElement(node))
+    return textoDe((node.props as { children?: React.ReactNode }).children);
   return '';
 }
 
 /** Sin acentos y en minúscula: buscar "diseno" tiene que encontrar "Diseño". */
-const normalizar = (s: string) =>
-  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-
+const normalizar = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 /**
  * EL SELECT CON BUSCADOR NO PUEDE SER UN RADIX SELECT (2026-11-07).
@@ -195,12 +248,14 @@ function SelectBuscable({
   name?: string;
   botonRef: React.RefObject<HTMLButtonElement>;
 }) {
+  const obligatorio = useCampoObligatorio();
   const [abierto, setAbierto] = React.useState(false);
   const [busqueda, setBusqueda] = React.useState('');
   const [activo, setActivo] = React.useState(0);
-  const [caja, setCaja] = React.useState<{ estilo: React.CSSProperties; anfitrion: HTMLElement } | null>(
-    null,
-  );
+  const [caja, setCaja] = React.useState<{
+    estilo: React.CSSProperties;
+    anfitrion: HTMLElement;
+  } | null>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const idLista = React.useId();
@@ -235,7 +290,12 @@ function SelectBuscable({
      * mida contra ÉL y no contra la ventana: por eso ahí se posiciona en
      * `absolute` y con las coordenadas pasadas a su sistema.
      */
-    const anfitrion = (b.closest('[role="dialog"]') as HTMLElement | null) ?? document.body;
+    // ⚠️ `alertdialog` TAMBIÉN: el `AlertDialog` de Radix (el `ConfirmProvider`)
+    // no declara `role="dialog"`, así que con el selector corto su Escape queda
+    // cubierto y la lista se portalea a `document.body`, FUERA de su trampa de
+    // foco — el bug medido acá arriba, por la otra puerta.
+    const anfitrion =
+      (b.closest('[role="dialog"],[role="alertdialog"]') as HTMLElement | null) ?? document.body;
     const margen = 8;
     const libreAbajo = window.innerHeight - r.bottom - margen;
     const libreArriba = r.top - margen;
@@ -382,6 +442,7 @@ function SelectBuscable({
         aria-controls={abierto ? idLista : undefined}
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
+        aria-required={obligatorio || undefined}
         name={name}
         disabled={disabled}
         onBlur={onBlur}
@@ -517,6 +578,7 @@ export const Select = React.forwardRef<
   ) => {
     // Sin `aria-label` propio, el nombre lo da la etiqueta del `Field` que lo envuelve.
     const ariaLabelledBy = useEtiquetaDeCampo(ariaLabel);
+    const obligatorio = useCampoObligatorio();
     const opts: SelectOpt[] = [];
     React.Children.forEach(children, (child) => {
       if (!React.isValidElement(child) || child.type !== 'option') return;
@@ -582,6 +644,7 @@ export const Select = React.forwardRef<
           onBlur={onBlur}
           aria-label={ariaLabel}
           aria-labelledby={ariaLabelledBy}
+          aria-required={obligatorio || undefined}
           className={cn(
             'flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background/50 px-3 py-2 text-sm shadow-sm transition-all hover:border-brand-blue/50 focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground [&>span]:line-clamp-1 [&>span]:text-left',
             className,
@@ -642,17 +705,59 @@ Select.displayName = 'Select';
  * publica el id de su etiqueta y los controles lo toman como `aria-labelledby`,
  * así el control nuevo nace con nombre sin que quien lo usa repita nada.
  */
-const EtiquetaDeCampo = React.createContext<string | undefined>(undefined);
+type DatosDelCampo = { id: string; obligatorio: boolean };
+const EtiquetaDeCampo = React.createContext<DatosDelCampo | undefined>(undefined);
 
 /** Id de la etiqueta del `Field` más cercano, salvo que el control traiga su `aria-label`. */
 export function useEtiquetaDeCampo(ariaLabel?: string): string | undefined {
-  const id = React.useContext(EtiquetaDeCampo);
-  return ariaLabel ? undefined : id;
+  const campo = React.useContext(EtiquetaDeCampo);
+  return ariaLabel ? undefined : campo?.id;
+}
+
+/**
+ * ¿El `Field` más cercano se declaró obligatorio?
+ *
+ * ⚠️ `required` dibujaba la insignia «Obligatorio» y **no llegaba al control**:
+ * para un lector de pantalla el campo era opcional. Con el contexto ya montado,
+ * publicar también ese dato es el mismo patrón que el nombre, y no hay que
+ * repetirlo en las llamadas.
+ */
+export function useCampoObligatorio(): boolean {
+  return React.useContext(EtiquetaDeCampo)?.obligatorio ?? false;
+}
+
+/**
+ * Publica la etiqueta de un campo a los controles de adentro. Lo usan `Field` y
+ * `MiniField` (la variante compacta de la calculadora): sin esto, `MiniField`
+ * tenía el mismo defecto que tenía `Field` —un `<label>` hermano sin `htmlFor`,
+ * que no etiqueta a nadie— y sus tres campos se leían sin nombre.
+ *
+ * Es UNA definición para los dos envoltorios: con dos providers escritos a
+ * mano, el día que el contexto gane un campo se actualiza uno y se olvida el
+ * otro.
+ */
+export function AmbitoDeCampo({
+  idEtiqueta,
+  obligatorio,
+  children,
+}: {
+  idEtiqueta: string;
+  obligatorio?: boolean;
+  children: React.ReactNode;
+}) {
+  const datos = React.useMemo(
+    () => ({ id: idEtiqueta, obligatorio: obligatorio === true }),
+    [idEtiqueta, obligatorio],
+  );
+  return <EtiquetaDeCampo.Provider value={datos}>{children}</EtiquetaDeCampo.Provider>;
 }
 
 export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
-    <label className={cn('text-sm font-medium leading-none text-foreground', className)} {...props} />
+    <label
+      className={cn('text-sm font-medium leading-none text-foreground', className)}
+      {...props}
+    />
   );
 }
 
@@ -681,7 +786,9 @@ export function Field({
         </Label>
         {required && <RequiredTag />}
       </div>
-      <EtiquetaDeCampo.Provider value={idEtiqueta}>{children}</EtiquetaDeCampo.Provider>
+      <AmbitoDeCampo idEtiqueta={idEtiqueta} obligatorio={required}>
+        {children}
+      </AmbitoDeCampo>
       {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
@@ -850,6 +957,9 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        // El buscador vive en una barra de filtros, sin `Field` que lo nombre:
+        // su nombre es su propio placeholder, que ya dice qué busca.
+        aria-label={placeholder}
         className="pl-9 pr-8"
       />
       {value && (
@@ -927,7 +1037,10 @@ export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHead
     />
   );
 }
-export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+export function CardDescription({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLParagraphElement>) {
   return <p className={cn('text-sm text-muted-foreground', className)} {...props} />;
 }
 export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -945,7 +1058,8 @@ export function Badge({
     default: 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/20',
     outline: 'border border-border text-muted-foreground',
     success: 'bg-success/15 text-success ring-1 ring-inset ring-success/25',
-    warning: 'bg-amber-400/15 text-amber-600 ring-1 ring-inset ring-amber-400/25 dark:text-amber-400',
+    warning:
+      'bg-amber-400/15 text-amber-600 ring-1 ring-inset ring-amber-400/25 dark:text-amber-400',
     brand: 'bg-brand-yellow/15 text-brand-yellow-ink ring-1 ring-brand-yellow/30',
   };
   return (
@@ -1061,7 +1175,10 @@ export function Stat({
         angosta) y 30 px (el `text-3xl` de siempre, cuando hay lugar).
       */}
       <div
-        className={cn('relative mt-1 whitespace-nowrap font-display font-bold leading-tight tabular', valueColor)}
+        className={cn(
+          'relative mt-1 whitespace-nowrap font-display font-bold leading-tight tabular',
+          valueColor,
+        )}
         style={{ fontSize: 'clamp(1.125rem, 13cqi, 1.875rem)' }}
       >
         {value}
@@ -1297,7 +1414,11 @@ export function Stepper({
               key={s.id}
               className={cn(
                 'h-1.5 flex-1 rounded-full transition-colors',
-                i < current ? 'bg-brand-blue-bright' : i === current ? 'bg-brand-yellow' : 'bg-border',
+                i < current
+                  ? 'bg-brand-blue-bright'
+                  : i === current
+                    ? 'bg-brand-yellow'
+                    : 'bg-border',
               )}
             />
           ))}

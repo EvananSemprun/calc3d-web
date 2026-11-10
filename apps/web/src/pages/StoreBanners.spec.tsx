@@ -50,7 +50,10 @@ const BANNERS = [
 function respuestaPorUrl(url: string) {
   if (url === '/store/banners') return { data: BANNERS };
   if (url === '/store/status') return { data: { storageReady: true } };
-  if (url === '/store/categories') return { data: [{ id: 'cat1', name: 'Navidad', slug: 'navidad', position: 0, parentId: null }] };
+  if (url === '/store/categories')
+    return {
+      data: [{ id: 'cat1', name: 'Navidad', slug: 'navidad', position: 0, parentId: null }],
+    };
   if (url === '/store/products') return { data: [] };
   return { data: null };
 }
@@ -140,7 +143,7 @@ describe('StoreBannersPage', () => {
     await screen.findByText('Promo de verano');
     fireEvent.click(screen.getByRole('button', { name: /nuevo banner/i }));
     expect(await screen.findByText('Subir imagen')).toBeInTheDocument();
-    await elegirEnSelect('Tipo de banner', /Franja de texto/);
+    await elegirEnSelect('Tipo', /Franja de texto/);
     await waitFor(() => expect(screen.queryByText('Subir imagen')).toBeNull());
   });
 
@@ -152,7 +155,7 @@ describe('StoreBannersPage', () => {
     // borrada, los 314 seguían verdes).
     fireEvent.click(screen.getAllByRole('button', { name: /editar/i })[0]);
     await screen.findByText('Cambiar imagen');
-    await elegirEnSelect('Tipo de banner', /Dentro de una categor/);
+    await elegirEnSelect('Tipo', /Dentro de una categor/);
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() =>
       expect(mocks.error).toHaveBeenCalledWith('Elige la categoría donde se muestra'),
@@ -167,7 +170,9 @@ describe('StoreBannersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /nuevo banner/i }));
     await screen.findByText('Subir imagen');
     expect(screen.queryByRole('combobox', { name: 'Categoría donde se muestra' })).toBeNull();
-    await elegirEnSelect('Tipo de banner', /Dentro de una categor/);
-    expect(await screen.findByRole('combobox', { name: 'Categoría donde se muestra' })).toBeInTheDocument();
+    await elegirEnSelect('Tipo', /Dentro de una categor/);
+    expect(
+      await screen.findByRole('combobox', { name: 'Categoría donde se muestra' }),
+    ).toBeInTheDocument();
   });
 });

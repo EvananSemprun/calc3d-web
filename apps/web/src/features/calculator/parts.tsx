@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Plus } from 'lucide-react';
-import { Button, RequiredTag, Select } from '@/components/ui';
+import { AmbitoDeCampo, Button, RequiredTag, Select } from '@/components/ui';
 
 export function MiniField({
   label,
@@ -11,15 +11,24 @@ export function MiniField({
   required?: boolean;
   children: React.ReactNode;
 }) {
+  const idEtiqueta = React.useId();
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1.5">
-        <label className={required ? 'text-xs font-semibold text-foreground' : 'text-xs font-medium text-muted-foreground'}>
+        <label
+          id={idEtiqueta}
+          className={required ? 'text-xs font-semibold text-foreground' : 'text-xs font-medium text-muted-foreground'}
+        >
           {label}
         </label>
         {required && <RequiredTag />}
       </div>
-      {children}
+      {/* El mismo ámbito que `Field`: un `<label>` hermano sin `htmlFor` no
+          etiqueta a nadie, así que los tres campos de «Insumos» se leían sin
+          nombre hasta el 2026-11-10. */}
+      <AmbitoDeCampo idEtiqueta={idEtiqueta} obligatorio={required}>
+        {children}
+      </AmbitoDeCampo>
     </div>
   );
 }

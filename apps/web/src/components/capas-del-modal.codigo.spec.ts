@@ -34,13 +34,25 @@ import { finDeEtiqueta, fuentesTsx } from '@/test/jsx-estatico';
  */
 
 const RAIZ = join(__dirname, '..');
-/** Define el hook: no es un uso. */
+/**
+ * Define el hook, no lo usa — pero el barrido solo mira `.tsx` y este archivo
+ * es `.ts`, así que hoy no aparece en la lista y la exclusión no filtra nada.
+ * Se deja escrita a propósito: el día que la definición se mueva a un `.tsx`,
+ * su `export function useCapaDescartable(` entraría como un uso.
+ */
 const DEFINICION = `components${sep}capas-del-modal.ts`;
 
 const LISTA = /role="listbox"/;
 const DISPARADOR = /aria-haspopup="listbox"/;
 const PROPIO_OVERLAY = /aria-modal/;
 const REGISTRA = /useCapaDescartable\s*\(/;
+
+/**
+ * Cuántas veces aparece el patrón. Se recompila con `g` en vez de guardar la
+ * constante global: un regex con `g` reusado en `.test()` arrastra `lastIndex`
+ * entre llamadas y empieza a devolver `false` en alternancia.
+ */
+const cuantas = (src: string, re: RegExp) => [...src.matchAll(new RegExp(re.source, 'g'))].length;
 
 type Clase = 'desplegable' | 'overlay-propio' | 'sin-clasificar';
 
@@ -62,15 +74,30 @@ function archivos() {
 }
 
 describe('Todo desplegable con lista propia registra su capa (guardián por código)', () => {
-  it('los dos conjuntos coinciden: el que abre una lista sobre otro contenido, registra', () => {
-    const faltan = archivos()
-      .filter((a) => claseDeLista(a.src) === 'desplegable' && !REGISTRA.test(a.src))
-      .map((a) => a.ruta);
+  /**
+   * ⚠️ **SE CUENTAN, NO SE PREGUNTA SI HAY ALGUNO** (2026-11-10). La versión
+   * anterior decidía por archivo (`REGISTRA.test(src)`), y como `ui.tsx` ya
+   * contenía UN `useCapaDescartable(`, pasaba **por tener uno** — tuviera los
+   * que tuviera. O sea que el guardián era ciego justo en el archivo donde se
+   * escribiría el desplegable siguiente: el tercero podía nacer ahí sin
+   * registrar y nada se ponía rojo.
+   *
+   * Ahora se exige que la cantidad de DISPARADORES (`aria-haspopup="listbox"`,
+   * uno por desplegable) sea igual a la de llamadas al hook.
+   */
+  it('cada disparador de lista tiene SU llamada al hook (se cuentan, no se pregunta)', () => {
+    const descuadrados = archivos()
+      .filter((a) => claseDeLista(a.src) === 'desplegable')
+      .map((a) => ({
+        ruta: a.ruta,
+        disparadores: cuantas(a.src, DISPARADOR),
+        registros: cuantas(a.src, REGISTRA),
+      }))
+      .filter((a) => a.disparadores !== a.registros);
     expect(
-      faltan,
-      'Estos abren una lista sobre otro contenido y NO llaman a useCapaDescartable,\n' +
-        'así que su Escape dentro de un modal va a cerrar el formulario entero:\n' +
-        faltan.join('\n'),
+      descuadrados.map((a) => `${a.ruta}: ${a.disparadores} listas, ${a.registros} registros`),
+      'Un desplegable que no registra su capa deja que el Escape, dentro de un\n' +
+        'modal, cierre el formulario entero.',
     ).toEqual([]);
   });
 
@@ -116,9 +143,7 @@ describe('Todo desplegable con lista propia registra su capa (guardián por cód
     const espacios = [
       ...src.matchAll(/import \* as (\w+) from '@radix-ui\/react-[\w-]*dialog'/g),
     ].map((m) => m[1]);
-    expect(espacios.length, 'No se encontró ningún overlay de diálogo de Radix').toBeGreaterThan(
-      1,
-    );
+    expect(espacios.length, 'No se encontró ningún overlay de diálogo de Radix').toBeGreaterThan(1);
 
     const sinCablear: string[] = [];
     let contenidos = 0;

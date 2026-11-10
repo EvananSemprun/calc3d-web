@@ -318,12 +318,10 @@ export function StoreCategoriesModal({
                 placeholder="Llaveros"
                 value={nueva}
                 onChange={(e) => setNueva(e.target.value)}
-                aria-label="Nombre de la categoría nueva"
               />
             </Field>
             <Field label="Categoría madre">
               <Select
-                aria-label="Categoría madre"
                 value={nuevaMadre}
                 onChange={(e) => setNuevaMadre(e.target.value)}
               >

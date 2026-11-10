@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { FilamentPurchase } from '@calc3d/shared';
 import { TooltipProvider } from '@/components/overlays';
-import { Field, Select } from '@/components/ui';
+import { Field, Input, NumberInput, Select, Textarea } from '@/components/ui';
+import { MiniField } from '@/features/calculator/parts';
 import { Combobox } from '@/components/Combobox';
 
 /**
@@ -146,6 +147,107 @@ describe('Nombre accesible de los desplegables', () => {
     );
     expect(screen.getByRole('combobox', { name: 'Uno' })).toBeTruthy();
     expect(screen.getByRole('combobox', { name: 'Dos' })).toBeTruthy();
+  });
+
+  /**
+   * ⚠️ **LOS CAMPOS DE TEXTO NO TOMABAN NADA, Y NADIE LO MIRABA** (corregido
+   * el 2026-11-10). El mecanismo de `Field` existía desde el día anterior y
+   * solo lo consumían `Select` y `Combobox`: medido en `/login`, «Correo» y
+   * «Contraseña» daban `aria-label: null`, `aria-labelledby: null`,
+   * `labels: []`. Eran 136 usos dentro de un `Field`.
+   */
+  it('un Input dentro de un Field toma el nombre de su etiqueta', () => {
+    envolver(
+      <Field label="Correo">
+        <Input value="" onChange={() => {}} />
+      </Field>,
+    );
+    expect(screen.getByRole('textbox', { name: 'Correo' })).toBeTruthy();
+  });
+
+  it('un NumberInput y un Textarea también lo heredan', () => {
+    envolver(
+      <>
+        <Field label="Rollos comprados">
+          <NumberInput value={0} onChange={() => {}} />
+        </Field>
+        <Field label="Descripción">
+          <Textarea value="" onChange={() => {}} />
+        </Field>
+      </>,
+    );
+    expect(screen.getByRole('spinbutton', { name: 'Rollos comprados' })).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Descripción' })).toBeTruthy();
+  });
+
+  it('un Input con aria-label propio conserva el suyo y no el del Field', () => {
+    envolver(
+      <Field label="Monto">
+        <Input aria-label="Monto en bolívares" value="" onChange={() => {}} />
+      </Field>,
+    );
+    expect(screen.getByRole('textbox', { name: 'Monto en bolívares' })).toBeTruthy();
+  });
+
+  /**
+   * `MiniField` (la variante compacta de la calculadora) arrastraba el MISMO
+   * defecto que tenía `Field`: un `<label>` hermano sin `htmlFor`. Sus tres
+   * campos de «Insumos» se leían sin nombre.
+   */
+  it('un control dentro de un MiniField toma el nombre de su etiqueta', () => {
+    envolver(
+      <MiniField label="Costo unitario">
+        <NumberInput value={0} onChange={() => {}} />
+      </MiniField>,
+    );
+    expect(screen.getByRole('spinbutton', { name: 'Costo unitario' })).toBeTruthy();
+  });
+
+  /**
+   * ⚠️ `required` dibujaba la insignia «Obligatorio» y **no llegaba al
+   * control**: para un lector de pantalla el campo era opcional.
+   */
+  it('el `required` del Field llega al control, no solo a la insignia', () => {
+    envolver(
+      <>
+        <Field label="Unidades" required>
+          <NumberInput value={0} onChange={() => {}} />
+        </Field>
+        <Field label="Nota">
+          <Input value="" onChange={() => {}} />
+        </Field>
+      </>,
+    );
+    expect(screen.getByRole('spinbutton', { name: 'Unidades' })).toHaveAttribute(
+      'aria-required',
+      'true',
+    );
+    // El hermano que NO es obligatorio no lo declara.
+    expect(screen.getByRole('textbox', { name: 'Nota' })).not.toHaveAttribute('aria-required');
+  });
+
+  /**
+   * ⚠️ **EL CASO QUE EL NOMBRE DEL TEST VIEJO DEJABA AFUERA.** Se llamaba «un
+   * Combobox SIN placeholder…», y el orden era
+   * `useEtiquetaDeCampo(ariaLabel ?? placeholderProp)`: pasar un placeholder
+   * **anulaba** la etiqueta del `Field`. Vivo en los tres combobox de una
+   * factura nueva — el lector decía «Elegir o escribir el tipo…» en vez de
+   * «Tipo», y se perdía el «(opcional)». La etiqueta visible manda sobre una
+   * pista.
+   */
+  it('un Combobox CON placeholder dentro de un Field igual se llama como la etiqueta', () => {
+    envolver(
+      <Field label="Tipo (opcional)">
+        <Combobox
+          kind="MATERIAL_TYPE"
+          value=""
+          onChange={() => {}}
+          placeholder="Elegir o escribir el tipo…"
+        />
+      </Field>,
+    );
+    expect(screen.getByRole('combobox', { name: 'Tipo (opcional)' })).toBeTruthy();
+    expect(screen.queryByRole('combobox', { name: 'Elegir o escribir el tipo…' })).toBeNull();
   });
 
   it('un Combobox sin placeholder dentro de un Field NO se llama «Elegir o escribir…»', () => {

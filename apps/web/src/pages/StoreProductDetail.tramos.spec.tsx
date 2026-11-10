@@ -73,8 +73,8 @@ describe('StoreProductDetail — precios por cantidad', () => {
     await montar();
     await screen.findByDisplayValue('Llavero');
     fireEvent.click(screen.getByRole('button', { name: /agregar tramo/i }));
-    fireEvent.change(screen.getByLabelText('Cantidad del tramo'), { target: { value: '10' } });
-    fireEvent.change(screen.getByLabelText('Precio del tramo'), { target: { value: '8.5' } });
+    fireEvent.change(screen.getByLabelText('Desde (cantidad)'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Precio por unidad'), { target: { value: '8.5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() =>
       expect(mocks.patch).toHaveBeenCalledWith(
@@ -91,7 +91,7 @@ describe('StoreProductDetail — precios por cantidad', () => {
     await montar();
     await screen.findByDisplayValue('Llavero');
     await waitFor(() =>
-      expect((screen.getByLabelText('Precio del tramo') as HTMLInputElement).value).toBe('7.34'),
+      expect((screen.getByLabelText('Precio por unidad') as HTMLInputElement).value).toBe('7.34'),
     );
   });
 
@@ -99,7 +99,7 @@ describe('StoreProductDetail — precios por cantidad', () => {
     await montar();
     await screen.findByDisplayValue('Llavero');
     fireEvent.click(screen.getByRole('button', { name: /agregar tramo/i }));
-    fireEvent.change(screen.getByLabelText('Cantidad del tramo'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Desde (cantidad)'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(mocks.patch).not.toHaveBeenCalled());
   });
@@ -108,8 +108,8 @@ describe('StoreProductDetail — precios por cantidad', () => {
     await montar();
     await screen.findByDisplayValue('Llavero');
     fireEvent.click(screen.getByRole('button', { name: /agregar tramo/i }));
-    fireEvent.change(screen.getByLabelText('Cantidad del tramo'), { target: { value: '10' } });
-    fireEvent.change(screen.getByLabelText('Precio del tramo'), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText('Desde (cantidad)'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Precio por unidad'), { target: { value: '12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(mocks.patch).not.toHaveBeenCalled());
   });

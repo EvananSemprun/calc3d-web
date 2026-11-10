@@ -65,7 +65,13 @@ const ENCARGO = {
 const TASAS = {
   rates: [
     { label: 'BCV Euro', currencyCode: 'VES', rate: 260, source: 'AUTO', updatedAt: '2026-11-07' },
-    { label: 'Binance / USDT', currencyCode: 'VES', rate: 700, source: 'MANUAL', updatedAt: '2026-11-07' },
+    {
+      label: 'Binance / USDT',
+      currencyCode: 'VES',
+      rate: 700,
+      source: 'MANUAL',
+      updatedAt: '2026-11-07',
+    },
   ],
 };
 
@@ -110,7 +116,7 @@ const cuerpoDelAbono = () => {
  * Enter para abrir y click en la opción.
  */
 const elegirMoneda = async (label: string) => {
-  fireEvent.keyDown(screen.getByRole('combobox', { name: 'Cómo pagó' }), { key: 'Enter' });
+  fireEvent.keyDown(screen.getByRole('combobox', { name: '¿Cómo pagó?' }), { key: 'Enter' });
   // ⚠️ `find` y no `get`: las tasas llegan por consulta, así que al abrir el
   // modal la lista todavía puede tener solo "En dólares".
   // ⚠️ Por ROL y no por texto: el trigger de Radix repite la etiqueta elegida,

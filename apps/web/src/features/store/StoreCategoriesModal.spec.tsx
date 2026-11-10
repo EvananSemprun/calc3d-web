@@ -96,7 +96,10 @@ describe('hooks de categoría', () => {
   it('crear con madre manda parentId en el POST', async () => {
     const { result } = renderHook(() => useCreateStoreCategory(), { wrapper: envoltura() });
     await result.current.mutateAsync({ name: 'Anime', parentId: 'madre' });
-    expect(mocks.post).toHaveBeenCalledWith('/store/categories', { name: 'Anime', parentId: 'madre' });
+    expect(mocks.post).toHaveBeenCalledWith('/store/categories', {
+      name: 'Anime',
+      parentId: 'madre',
+    });
   });
 });
 
@@ -109,7 +112,7 @@ describe('StoreCategoriesModal', () => {
   const abrirDesplegable = (nombre: string | RegExp) =>
     fireEvent.keyDown(screen.getByRole('combobox', { name: nombre }), { key: 'Enter' });
   const escribirNueva = (texto: string) =>
-    fireEvent.change(screen.getByLabelText('Nombre de la categoría nueva'), {
+    fireEvent.change(screen.getByLabelText('Nombre'), {
       target: { value: texto },
     });
 

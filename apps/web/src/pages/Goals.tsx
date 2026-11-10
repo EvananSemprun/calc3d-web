@@ -79,7 +79,6 @@ export function GoalsPage() {
                 type="month"
                 value={mes}
                 onChange={(e) => e.target.value && setMes(e.target.value)}
-                aria-label="Mes a mostrar"
               />
             </Field>
           </div>

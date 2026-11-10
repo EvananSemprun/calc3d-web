@@ -240,6 +240,7 @@ export function WholesaleTable() {
                       <NumberInput
                         className="h-9"
                         min={1}
+                        aria-label="Desde cuántas unidades"
                         value={t.minQty}
                         onChange={(n) =>
                           updateAt(c.setTiers, t.index, { minQty: Math.max(1, Math.round(n)) })
@@ -250,6 +251,7 @@ export function WholesaleTable() {
                       <label className="text-xs font-medium text-muted-foreground">Descuento %</label>
                       <NumberInput
                         className="h-9"
+                        aria-label="Descuento en porcentaje"
                         value={Math.round(t.discountPct * 1000) / 10}
                         onChange={(n) =>
                           updateAt(c.setTiers, t.index, { discountPct: Math.min(99, n) / 100 })

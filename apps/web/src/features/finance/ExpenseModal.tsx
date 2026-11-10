@@ -389,7 +389,6 @@ export function ExpenseModal({
               <Select
                 value={refill}
                 onChange={(e) => setRefill(e.target.value)}
-                aria-label="¿Recarga o con carrete?"
               >
                 {/* ⚠️ "No lo anoté" es una opción REAL y es la que viene puesta:
                     sin ella, guardar sin mirar afirmaría un carrete que nadie
@@ -462,7 +461,6 @@ export function ExpenseModal({
               <Select
                 value={refill}
                 onChange={(e) => setRefill(e.target.value)}
-                aria-label="¿Recarga o con carrete?"
               >
                 {/* ⚠️ "No lo anoté" es una opción REAL y es la que viene puesta:
                     sin ella, guardar sin mirar afirmaría un carrete que nadie

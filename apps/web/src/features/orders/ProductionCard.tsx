@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, CardContent, CardHeader, CardTitle, Field, Select } from '@/components/ui';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Field,
+  Select,
+  useEtiquetaDeCampo,
+} from '@/components/ui';
 import { api, apiErrorMessage } from '@/lib/api';
 import { notify } from '@/components/toast';
 import { useCatalogData } from '@/features/calculator/useCatalogData';
@@ -97,6 +106,10 @@ function NumberInputVacio({
   onChange: (v: string) => void;
   step?: string;
 }) {
+  // El nombre sale de la etiqueta del `Field` que lo envuelve: este input es
+  // crudo (no es `NumberInput`) y un `<input>` a mano no sabe nada del
+  // contexto, así que sin esto el campo se leía sin nombre.
+  const ariaLabelledBy = useEtiquetaDeCampo();
   return (
     <input
       type="number"
@@ -104,6 +117,7 @@ function NumberInputVacio({
       step={step ?? '1'}
       value={value}
       placeholder="Sin medir"
+      aria-labelledby={ariaLabelledBy}
       onChange={(e) => onChange(e.target.value)}
       className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     />

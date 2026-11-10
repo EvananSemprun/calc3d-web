@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { IMPERATIVOS_DE_VOSEO } from '@calc3d/shared';
 
 /**
  * Guardián de idioma: el panel habla de «tú», nunca de voseo.
@@ -17,29 +18,22 @@ import { describe, expect, it } from 'vitest';
  */
 /**
  * ⚠️ Dos listas, y SE TRATAN DISTINTO a propósito (no las «unifiques»):
- * - `FORMAS_DE_VOSEO` depende del IDIOMA: una forma que es voseo en la API lo es en
- *   el panel. Es IDÉNTICA en los dos repos (copiada de calc3d-api, no importada).
- * - `PALABRAS_PERMITIDAS` depende del CORPUS de cada repo (qué palabras legítimas
- *   usa): es DISTINTA en cada uno y cada entrada tiene que usarse en ESTE código.
- * Tratar las dos como «del corpus» dejó al panel con la lista corta.
+ * - La de IMPERATIVOS depende del IDIOMA: una forma que es voseo en el panel lo
+ *   es en la API. Por eso **ya no se copia**: vive en
+ *   `packages/shared/src/idioma.ts`, el único artefacto que `pnpm sync:shared`
+ *   mantiene idéntico entre los dos repos, y los dos guardianes la importan de
+ *   ahí. Hasta el 2026-11-10 los dos DECLARABAN que eran idénticas y **nada lo
+ *   comprobaba**: coincidían de casualidad (74 formas), y el día que una sumara
+ *   una forma el otro repo perdía cobertura con todo en verde — que es
+ *   literalmente el incidente que creó estos guardianes.
+ * - `PALABRAS_PERMITIDAS` depende del CORPUS de cada repo (qué palabras
+ *   legítimas usa): es DISTINTA en cada uno y cada entrada tiene que usarse en
+ *   ESTE código. Tratar las dos como «del corpus» dejó al panel con la lista
+ *   corta.
+ *
+ * Se re-exporta con el nombre viejo para no tocar a quien ya la importaba.
  */
-export const FORMAS_DE_VOSEO = [
-  'abonás', 'tenés', 'podés', 'tocá', 'mirá', 'dejalo', 'registrá', 'elegí',
-  'hacé', 'ingresá', 'avisá', 'sacá', 'pasá', 'verificá', 'poné', 'cargá',
-  'borrá', 'revisá', 'usá', 'sumá', 'decí', 'fijate', 'acordate', 'escribí',
-  'mandá', 'corregí', 'volvé', 'cargala', 'contá', 'llená', 'cerrá', 'anotá',
-  'publicá', 'cambiá', 'marcá', 'recargá',
-  // Medidas en este corpus:
-  'deshacé', 'generá', 'indicá', 'apuntá', 'bajá', 'probá', 'pedí', 'agregá',
-  // Con pronombre pegado (el acento se pierde: borrá + la = borrala):
-  'cargalo', 'borrala', 'borralas', 'desactivala', 'activala', 'anulala',
-  'descontinuala', 'corregila', 'reabrilo', 'anotalo', 'abonalo', 'elegilo',
-  'agregalo', 'agregale', 'cambiale', 'movelas', 'ponele', 'contanos',
-  'hacelo', 'anotala', 'contalo', 'revisalas', 'usalo', 'atribuilo', 'cambiala',
-  'cambialo', 'publicala', 'sacale', 'renombrala',
-  // El pronombre mismo:
-  'vos',
-] as const;
+export const FORMAS_DE_VOSEO = IMPERATIVOS_DE_VOSEO;
 
 /**
  * Presente de voseo POR PATRÓN: toda palabra terminada en `-ás`, `-és` o `-ís`
@@ -60,12 +54,20 @@ export const FORMAS_DE_VOSEO = [
  * es la forma lenta de desactivar el guardián.
  */
 export const PALABRAS_PERMITIDAS = [
-  'más', 'además', 'después', 'demás', 'revés', 'estás',
+  'más',
+  'además',
+  'después',
+  'demás',
+  'revés',
+  'estás',
   // Aparecen al barrer `shared` (jamás y arnés viven solo en la API): código de país y
   // «estar» en tú (subjuntivo).
-  'país', 'estés',
+  'país',
+  'estés',
   // `-rás/-rés`: futuro del tuteo y adverbios, medidos en este corpus.
-  'atrás', 'detrás', 'verás',
+  'atrás',
+  'detrás',
+  'verás',
 ] as const;
 
 const PATRON_PRESENTE = /(?<![\p{L}\p{N}_])[\p{L}]*(?:ás|és|ís)(?![\p{L}\p{N}_])/giu;
@@ -82,6 +84,15 @@ export function presentesDeVoseo(texto: string): string[] {
 const RAICES = [path.resolve(__dirname), path.resolve(__dirname, '../../../packages/shared/src')];
 const RAIZ = RAICES[0];
 const ESTE_ARCHIVO = path.resolve(__dirname, 'idioma.spec.ts');
+
+/**
+ * El ÚNICO archivo exento además de este spec: la lista de formas del voseo.
+ * Es la lista misma, no texto de cara al usuario, y sin la exención se
+ * denunciaría a sí misma. Hay un test que fija que la exención sea exactamente
+ * esa — una exención que crece es la forma lenta de apagar el guardián.
+ */
+const LISTA_DE_FORMAS = path.resolve(__dirname, '../../../packages/shared/src/idioma.ts');
+const EXENTOS = [ESTE_ARCHIVO, LISTA_DE_FORMAS];
 
 function archivos(dir: string): string[] {
   return readdirSync(dir).flatMap((nombre) => {
@@ -104,11 +115,13 @@ describe('idioma del panel', () => {
   it('ningún archivo del panel usa voseo', () => {
     const encontrados: string[] = [];
     for (const ruta of RAICES.flatMap(archivos)) {
-      if (ruta === ESTE_ARCHIVO) continue;
+      if (EXENTOS.includes(ruta)) continue;
       const texto = readFileSync(ruta, 'utf8');
       for (const forma of hallazgos(texto)) {
         const n = texto.match(regexDe(forma))?.length ?? 0;
-        encontrados.push(`${path.relative(path.resolve(RAIZ, '../../..'), ruta)}: «${forma}» x${n}`);
+        encontrados.push(
+          `${path.relative(path.resolve(RAIZ, '../../..'), ruta)}: «${forma}» x${n}`,
+        );
       }
     }
     expect(encontrados, `Voseo en el panel (usa «tú»):\n${encontrados.join('\n')}`).toEqual([]);
@@ -117,7 +130,7 @@ describe('idioma del panel', () => {
   it('ningún archivo del panel usa el presente de voseo (-ás/-és/-ís)', () => {
     const encontrados: string[] = [];
     for (const ruta of RAICES.flatMap(archivos)) {
-      if (ruta === ESTE_ARCHIVO) continue;
+      if (EXENTOS.includes(ruta)) continue;
       for (const palabra of new Set(presentesDeVoseo(readFileSync(ruta, 'utf8')))) {
         encontrados.push(`${path.relative(path.resolve(RAIZ, '../../..'), ruta)}: «${palabra}»`);
       }
@@ -131,7 +144,9 @@ describe('idioma del panel', () => {
 
   it('el patrón caza voseo que nadie enumeró y deja pasar lo legítimo', () => {
     expect(presentesDeVoseo('Si escribís o elegís algo')).toEqual(['escribís', 'elegís']);
-    expect(presentesDeVoseo('Después verás que estás además más aquí, atrás y detrás, el revés')).toEqual([]);
+    expect(
+      presentesDeVoseo('Después verás que estás además más aquí, atrás y detrás, el revés'),
+    ).toEqual([]);
     // El voseo de los verbos en -rar ya no se cuela por la excepción del futuro.
     expect(presentesDeVoseo('lo que comprás y declarás')).toEqual(['comprás', 'declarás']);
   });
@@ -139,13 +154,28 @@ describe('idioma del panel', () => {
   it('la lista blanca no está vacía y cada entrada sigue usándose en el código', () => {
     expect(PALABRAS_PERMITIDAS.length).toBeGreaterThan(0);
     const todo = RAICES.flatMap(archivos)
-      .filter((r) => r !== ESTE_ARCHIVO)
+      .filter((r) => !EXENTOS.includes(r))
       .map((r) => readFileSync(r, 'utf8').toLowerCase())
       .join('\n');
     const sinUso = PALABRAS_PERMITIDAS.filter(
       (p) => !new RegExp(String.raw`(?<![\p{L}\p{N}_])${p}(?![\p{L}\p{N}_])`, 'u').test(todo),
     );
-    expect(sinUso, `Entradas de la lista blanca que ya nadie usa: ${sinUso.join(', ')}`).toEqual([]);
+    expect(sinUso, `Entradas de la lista blanca que ya nadie usa: ${sinUso.join(', ')}`).toEqual(
+      [],
+    );
+  });
+
+  it('la lista de formas llega de shared y el barrido la exime (y nada más)', () => {
+    // Importando una lista vacía —o dejando de importarla— el guardián seguiría
+    // verde sin revisar un solo imperativo.
+    expect(FORMAS_DE_VOSEO.length).toBeGreaterThan(70);
+    expect(FORMAS_DE_VOSEO).toContain('tocá');
+    const barridos = RAICES.flatMap(archivos).filter((r) => !EXENTOS.includes(r));
+    // Barre `shared`, pero no el archivo de la lista…
+    expect(barridos.some((r) => r.includes(`shared`))).toBe(true);
+    expect(barridos).not.toContain(LISTA_DE_FORMAS);
+    // …y la exención no se amplió a nada más.
+    expect(EXENTOS).toHaveLength(2);
   });
 
   it('la lista cubre más que las diez formas del pedido original', () => {

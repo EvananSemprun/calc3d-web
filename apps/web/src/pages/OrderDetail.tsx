@@ -160,6 +160,7 @@ export function OrderDetailPage() {
           </Select>
           <Input
             type="date"
+            aria-label="Fecha de entrega"
             className="w-40"
             value={order.deliveryDate ? order.deliveryDate.slice(0, 10) : ''}
             onChange={(e) => patch.mutate({ deliveryDate: e.target.value || null })}
@@ -523,7 +524,6 @@ function AddPaymentModal({
           </Field>
           <Field label="¿Cómo pagó?">
             <Select
-              aria-label="Cómo pagó"
               value={moneda}
               onChange={(e) => elegirMoneda(e.target.value)}
             >
@@ -542,7 +542,6 @@ function AddPaymentModal({
             <NumberInput
               autoFocus
               step="0.01"
-              aria-label={elegida ? `Monto (${elegida.currencyCode})` : 'Monto (USD)'}
               value={monto}
               onChange={setMonto}
             />
@@ -554,7 +553,6 @@ function AddPaymentModal({
             >
               <NumberInput
                 step="0.0001"
-                aria-label={`Tasa (${elegida.currencyCode} por USD)`}
                 value={tasa}
                 onChange={setTasa}
                 min={0}

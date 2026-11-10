@@ -321,7 +321,6 @@ function BannerForm({
           hint="Dónde se muestra. No es lo mismo que el destino, que es adónde lleva."
         >
           <Select
-            aria-label="Tipo de banner"
             value={form.kind}
             onChange={(e) => set('kind', e.target.value as StoreBannerKind)}
           >
@@ -334,7 +333,6 @@ function BannerForm({
         {form.kind === 'CATEGORIA' && (
           <Field label="Categoría donde se muestra" required hint="Se ve en esa categoría y en las fichas de sus productos.">
             <Select
-              aria-label="Categoría donde se muestra"
               value={form.categoryId}
               onChange={(e) => set('categoryId', e.target.value)}
             >
