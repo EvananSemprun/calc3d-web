@@ -196,15 +196,6 @@ type LoansOverviewTotals = LoansOverview['totals'];
 type LoansOverviewSuppliers = LoansOverview['suppliers'];
 
 /**
- * El tercer bloque: lo que le debes a cada proveedor, derivado de sus facturas
- * (lo recibido − abonos no anulados, nunca negativo). Lo pedido y no recibido no es
- * deuda: va aparte como comprometido.
- *
- * ⚠️ **Acá no se gestiona nada.** Abonar, recibir y anular viven en Compras, y
- * duplicarlos sería tener dos puertas para la misma escritura. Esta pantalla
- * responde "cuánto" y lleva allá.
- */
-/**
  * Cuántas facturas pesan en cada cuenta, dicho para que no se lea como una
  * suma: una factura PARCIALMENTE recibida cuenta en las dos (lo recibido sin
  * pagar es deuda, lo que falta llegar es compromiso) y sigue siendo UNA.
@@ -220,6 +211,15 @@ function cuantasFacturas(conDeuda: number, comprometidas: number): string {
   return partes.join(' · ') + aviso;
 }
 
+/**
+ * El tercer bloque: lo que le debes a cada proveedor, derivado de sus facturas
+ * (lo recibido − abonos no anulados, nunca negativo). Lo pedido y no recibido no es
+ * deuda: va aparte como comprometido.
+ *
+ * ⚠️ **Acá no se gestiona nada.** Abonar, recibir y anular viven en Compras, y
+ * duplicarlos sería tener dos puertas para la misma escritura. Esta pantalla
+ * responde "cuánto" y lleva allá.
+ */
 function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers }) {
   const { money } = useMoney();
   const { groups, total, aFavor, comprometido } = suppliers;
