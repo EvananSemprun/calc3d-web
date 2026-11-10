@@ -387,6 +387,7 @@ function CurrencySettings() {
             calculadora la usa para decirte cuántos bolívares cobrar por un precio en dólares.
           </p>
           <Select
+            aria-label="Tu dólar real (tasa de referencia)"
             value={settings?.protectionRateLabel ?? ''}
             onChange={(e) => saveProtection.mutate(e.target.value || null)}
           >

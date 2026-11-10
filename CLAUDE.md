@@ -1942,10 +1942,19 @@ El campo pedía un **%** y lo cortaba a enteros con `Math.round(t.discountPct *
         con `pasaTipo` en Gastos—. Prueban que el diálogo la llame con los tres
         números correctos, que el default sea silencioso y que el botón **no**
         se apague.
-      - Los dos controles del diálogo llevan `aria-label`: la etiqueta de
-        `Field` no está asociada al control (no tiene `htmlFor`), así que sin eso
-        no tienen nombre accesible — ni para un lector de pantalla ni para un
-        test.
+      - ⚠️ **Nombre accesible de los desplegables (2026-11-10).** `Field` publica
+        el id de su etiqueta (`useId` + contexto) y `Select`, `SelectBuscable` y
+        `Combobox` lo toman como `aria-labelledby`: un control DENTRO de un
+        `Field` ya nace con nombre (un `<label>` no puede etiquetar un `<button>`,
+        por eso antes ninguno lo tenía). Orden: `aria-label` propio, luego (solo
+        `Combobox`) un `placeholder` pasado a propósito, luego la etiqueta del
+        `Field`. **Lo que sigue necesitando `aria-label` propio es todo control
+        FUERA de un `Field`** (filtros de `FilterBar`, selectores sueltos), y su
+        texto dice qué filtra o elige («Filtrar por estado»), no el tipo de
+        control. Lo exige `components/nombre-accesible.codigo.spec.ts`, que
+        recorre los fuentes: un `Select`/`Combobox` nuevo sin `Field` ni
+        `aria-label` rompe ahí. Un `Field` con DOS controles les daría el mismo
+        nombre a ambos: darle `aria-label` al que tenga que distinguirse.
     - En la lista de abonos, el que salió del saldo lleva la insignia **"Del
       saldo a favor"** en vez de "La caja": decir "la caja" ahí contaría la
       misma plata dos veces en el renglón que se lee para saber de dónde salió.

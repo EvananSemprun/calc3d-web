@@ -72,7 +72,7 @@ export function OrdersPage() {
       {orders.length > 0 && (
         <div className="space-y-2">
           <FilterBar>
-            <Select className="w-full sm:w-44" value={estadoSeguro} onChange={(e) => setEstadoF(e.target.value)}>
+            <Select aria-label="Filtrar por estado" className="w-full sm:w-44" value={estadoSeguro} onChange={(e) => setEstadoF(e.target.value)}>
               <option value="">Estado: todos</option>
               {ORDER_STATUS_OPTIONS.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -80,7 +80,7 @@ export function OrdersPage() {
                 </option>
               ))}
             </Select>
-            <Select className="w-full sm:w-52" value={clienteSeguro} onChange={(e) => setClienteF(e.target.value)}>
+            <Select aria-label="Filtrar por cliente" className="w-full sm:w-52" value={clienteSeguro} onChange={(e) => setClienteF(e.target.value)}>
               <option value="">Cliente: todos</option>
               {clientes.map((c) => (
                 <option key={c} value={c}>

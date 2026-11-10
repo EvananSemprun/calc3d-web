@@ -183,6 +183,7 @@ export function StorePage() {
           </Select>
         )}
         <Select
+          aria-label="Filtrar por estado de publicación"
           className="w-full sm:w-44"
           value={filtro}
           onChange={(e) => setFiltro(e.target.value as Filtro)}

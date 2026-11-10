@@ -118,7 +118,7 @@ export function CampaignsPage() {
 
       {campaigns.length > 0 && (
         <FilterBar>
-          <Select className="w-full sm:w-44" value={platformF} onChange={(e) => setPlatformF(e.target.value)}>
+          <Select aria-label="Filtrar por plataforma" className="w-full sm:w-44" value={platformF} onChange={(e) => setPlatformF(e.target.value)}>
             <option value="">Plataforma: todas</option>
             {PLATFORM_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -126,7 +126,7 @@ export function CampaignsPage() {
               </option>
             ))}
           </Select>
-          <Select className="w-full sm:w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
+          <Select aria-label="Filtrar por estado de la campaña" className="w-full sm:w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
             <option value="">Estado: todos</option>
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>

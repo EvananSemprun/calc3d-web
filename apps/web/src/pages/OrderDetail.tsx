@@ -147,6 +147,7 @@ export function OrderDetailPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select
+            aria-label="Estado del encargo"
             className="w-44"
             value={order.status}
             onChange={(e) => patch.mutate({ status: e.target.value })}

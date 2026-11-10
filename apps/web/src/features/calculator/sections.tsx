@@ -300,6 +300,7 @@ export function SectionInsumos() {
             <div className="flex items-center gap-1">
               <div className="w-36">
                 <CatalogSelect
+                  ariaLabel="Elegir insumo del catálogo"
                   items={c.catalogs.components.data}
                   onPick={(comp) =>
                     updateAt(c.setSupplies, i, {
@@ -340,6 +341,7 @@ export function SectionMaquina() {
       action={
         <div className="w-full sm:w-44">
           <CatalogSelect
+            ariaLabel="Elegir impresora del catálogo"
             items={c.catalogs.printers.data}
             onPick={(p) =>
               c.setPrinter((prev) => ({

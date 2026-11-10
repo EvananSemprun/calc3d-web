@@ -68,14 +68,18 @@ export function CatalogSelect<T extends { id: string; name: string }>({
   items,
   onPick,
   labelOf = (item) => item.name,
+  ariaLabel = 'Elegir del catálogo',
 }: {
   items: T[] | undefined;
   onPick: (item: T) => void;
   /** Texto de cada opción; por defecto, el nombre. */
   labelOf?: (item: T) => string;
+  /** Qué se elige: es el nombre accesible, y el desplegable no lleva etiqueta visible. */
+  ariaLabel?: string;
 }) {
   return (
     <Select
+      aria-label={ariaLabel}
       className="h-9"
       value=""
       onChange={(e) => {

@@ -99,7 +99,7 @@ export function ContactsPage() {
           placeholder="Buscar por nombre o teléfono…"
           className="col-span-full w-full sm:w-72"
         />
-        <Select className="w-full sm:w-44" value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
+        <Select aria-label="Filtrar por tipo de contacto" className="w-full sm:w-44" value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
           <option value="ALL">Tipo: todos</option>
           {CONTACT_TYPE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -107,7 +107,7 @@ export function ContactsPage() {
             </option>
           ))}
         </Select>
-        <Select className="w-full sm:w-48" value={ciudadSegura} onChange={(e) => setCiudadF(e.target.value)}>
+        <Select aria-label="Filtrar por ciudad" className="w-full sm:w-48" value={ciudadSegura} onChange={(e) => setCiudadF(e.target.value)}>
           <option value="">Ciudad: todas</option>
           {ciudades.map((c) => (
             <option key={c} value={c}>

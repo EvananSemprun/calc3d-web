@@ -122,7 +122,7 @@ function CatalogView({ config }: { config: CatalogConfig }) {
 
       {items.length > 0 && (
         <FilterBar>
-          <Select className="w-full sm:w-56" value={nombreSeguro} onChange={(e) => setNombreF(e.target.value)}>
+          <Select aria-label="Filtrar por nombre" className="w-full sm:w-56" value={nombreSeguro} onChange={(e) => setNombreF(e.target.value)}>
             <option value="">Nombre: todos</option>
             {nombres.map((n) => (
               <option key={n} value={n}>

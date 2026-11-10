@@ -27,6 +27,7 @@ export function AttributionPicker({
 
   const channel = (
     <Select
+      aria-label="Canal por el que llegó el cliente"
       value={value.originChannel ?? ''}
       onChange={(e) => onChange({ ...value, originChannel: (e.target.value || null) as AttributionChannel | null })}
     >
@@ -41,6 +42,7 @@ export function AttributionPicker({
 
   const campaign = (
     <Select
+      aria-label="Campaña que lo trajo"
       value={value.campaignId ?? ''}
       onChange={(e) => onChange({ ...value, campaignId: e.target.value || null })}
     >

@@ -452,7 +452,7 @@ export function StockTab() {
       {filas.length > 0 && (
         <div className="space-y-2">
           <FilterBar>
-            <Select className="w-full sm:w-48" value={colorSeguro} onChange={(e) => setColorF(e.target.value)}>
+            <Select aria-label="Filtrar por color" className="w-full sm:w-48" value={colorSeguro} onChange={(e) => setColorF(e.target.value)}>
               <option value="">Color: todos</option>
               {colores.map((c) => (
                 <option key={c} value={c}>
@@ -460,7 +460,7 @@ export function StockTab() {
                 </option>
               ))}
             </Select>
-            <Select className="w-full sm:w-44" value={marcaSegura} onChange={(e) => setMarcaF(e.target.value)}>
+            <Select aria-label="Filtrar por marca" className="w-full sm:w-44" value={marcaSegura} onChange={(e) => setMarcaF(e.target.value)}>
               <option value="">Marca: todas</option>
               {marcas.map((m) => (
                 <option key={m} value={m}>
@@ -469,6 +469,7 @@ export function StockTab() {
               ))}
             </Select>
             <Select
+              aria-label="Filtrar por tipo de filamento"
               className="w-full sm:w-40"
               value={tipoSeguro}
               onChange={(e) => setTipoF(e.target.value)}
@@ -480,7 +481,7 @@ export function StockTab() {
                 </option>
               ))}
             </Select>
-            <Select className="w-full sm:w-44" value={estadoF} onChange={(e) => setEstadoF(e.target.value)}>
+            <Select aria-label="Filtrar por estado de la ficha" className="w-full sm:w-44" value={estadoF} onChange={(e) => setEstadoF(e.target.value)}>
               <option value="">Estado: todas</option>
               <option value="ACTIVE">Activas</option>
               <option value="DISCONTINUED">Descontinuadas</option>

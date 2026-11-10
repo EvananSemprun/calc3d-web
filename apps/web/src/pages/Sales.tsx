@@ -180,6 +180,7 @@ export function SalesPage() {
           </div>
           {opClientes.length > 0 && (
             <SelectFiltro
+              etiqueta="Filtrar por cliente"
               todos="Cliente: todos"
               opciones={opClientes}
               value={clienteF}
@@ -188,6 +189,7 @@ export function SalesPage() {
           )}
           {opCanales.length > 0 && (
             <SelectFiltro
+              etiqueta="Filtrar por canal"
               todos="Canal: todos"
               opciones={opCanales}
               value={canalF}
@@ -196,6 +198,7 @@ export function SalesPage() {
           )}
           {opCampanas.length > 0 && (
             <SelectFiltro
+              etiqueta="Filtrar por campaña"
               todos="Campaña: todas"
               opciones={opCampanas}
               value={campanaF}
@@ -420,18 +423,21 @@ export function SalesPage() {
 
 /** Un select de filtro con su opción "todos" (valor vacío). */
 function SelectFiltro({
+  etiqueta,
   todos,
   opciones,
   value,
   onChange,
 }: {
+  /** Qué filtra: es el nombre accesible del desplegable. */
+  etiqueta: string;
   todos: string;
   opciones: OpcionFiltro[];
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
-    <Select className="w-full sm:w-44" value={value} onChange={(e) => onChange(e.target.value)}>
+    <Select aria-label={etiqueta} className="w-full sm:w-44" value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{todos}</option>
       {opciones.map((o) => (
         <option key={o.value} value={o.value}>

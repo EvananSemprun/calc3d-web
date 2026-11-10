@@ -19,7 +19,7 @@ export function CurrencyPicker({
   return (
     <div>
       <label className="mb-1 block text-sm font-medium">{label}</label>
-      <Select value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
+      <Select aria-label={label} value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
         <option value="">Solo USD</option>
         {rates.map((r) => (
           <option key={r.label} value={r.label}>
