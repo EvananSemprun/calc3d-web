@@ -27,10 +27,10 @@ import {
 /**
  * DEUDA — **las tres deudas del negocio**, que son cosas distintas:
  *
- *  - lo que le debés al **prestamista** (capital − pagos vigentes),
+ *  - lo que le debes al **prestamista** (capital − pagos vigentes),
  *  - lo que el negocio le debe a la **contraparte** por lo que puso (equipos,
  *    diseñador, aportes) — ahí caen los pagos por conciliación —, y
- *  - lo que le debés a los **proveedores**: las facturas de compra sin pagar.
+ *  - lo que le debes a los **proveedores**: las facturas de compra sin pagar.
  *
  * Todos los saldos **los deriva el servidor**: acá no se recalculan. Las
  * obligaciones salen del MISMO servicio que usa Caja y las facturas del MISMO
@@ -84,7 +84,7 @@ export function LoansPage() {
           <div>
             <h1 className="font-display text-2xl font-bold">Deuda</h1>
             <p className="text-sm text-muted-foreground">
-              Lo que debés y a qué ritmo lo estás pagando.
+              Lo que debes y a qué ritmo lo estás pagando.
             </p>
           </div>
         </div>
@@ -97,7 +97,7 @@ export function LoansPage() {
 
       <section className="space-y-4">
         <div>
-          <h2 className="font-display text-lg font-bold">Lo que le debés al prestamista</h2>
+          <h2 className="font-display text-lg font-bold">Lo que le debes al prestamista</h2>
           <p className="text-sm text-muted-foreground">
             Plata que te prestaron y se devuelve con cuotas.
           </p>
@@ -183,7 +183,7 @@ type LoansOverviewTotals = LoansOverview['totals'];
 type LoansOverviewSuppliers = LoansOverview['suppliers'];
 
 /**
- * El tercer bloque: lo que le debés a cada proveedor, derivado de sus facturas
+ * El tercer bloque: lo que le debes a cada proveedor, derivado de sus facturas
  * (total de las líneas − abonos no anulados).
  *
  * ⚠️ **Acá no se gestiona nada.** Abonar, recibir y anular viven en Compras, y
@@ -212,7 +212,7 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
     <section className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-bold">Lo que le debés a los proveedores</h2>
+          <h2 className="font-display text-lg font-bold">Lo que le debes a los proveedores</h2>
           <p className="text-sm text-muted-foreground">
             Las facturas de compra que todavía no pagaste. Se abonan, se reciben y se anulan en
             Compras.
@@ -233,7 +233,7 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
 
           {filas.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No le debés nada a ningún proveedor: todas las facturas están pagadas.
+              No le debes nada a ningún proveedor: todas las facturas están pagadas.
             </p>
           ) : (
             <>
@@ -262,7 +262,7 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
                     <th className="py-2 pr-3 font-semibold">Proveedor</th>
                     <th className="py-2 pr-3 font-semibold">Facturas</th>
                     <th className="py-2 pr-3 text-right font-semibold">Tiene a favor</th>
-                    <th className="py-2 text-right font-semibold">Le debés</th>
+                    <th className="py-2 text-right font-semibold">Le debes</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,14 +284,14 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
           )}
 
           {/* ⚠️ El saldo a favor va APARTE y se dice que no se compensa SOLO: si
-              se restara del total, el número diría que debés menos de lo que
-              debés mientras esa plata sigue en poder del proveedor. Lo que
+              se restara del total, el número diría que debes menos de lo que
+              debes mientras esa plata sigue en poder del proveedor. Lo que
               cambió con el saldo a favor es que ahora hay QUÉ HACER con ella, y
               el cartel lleva a la puerta donde se hace. */}
           {aFavor > 0 && (
             <p className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
               Tus proveedores te deben <strong className="tabular-nums">{money(aFavor)}</strong> de
-              facturas que pagaste de más. <strong>No se descuenta solo</strong> de lo que debés
+              facturas que pagaste de más. <strong>No se descuenta solo</strong> de lo que debes
               arriba: usalo abonando una factura de ese mismo proveedor y eligiendo{' '}
               <em>tomarlo del saldo a favor</em>, en Compras.
             </p>
@@ -468,7 +468,7 @@ function LoanCard({ loan }: { loan: Loan }) {
           <div>
             <h3 className="font-display text-lg font-bold">{loan.name}</h3>
             <p className="text-sm text-muted-foreground">
-              {loan.counterparty ? `Le debés a ${loan.counterparty.name} · ` : ''}
+              {loan.counterparty ? `Le debes a ${loan.counterparty.name} · ` : ''}
               {money(loan.principal)} de capital
               {loan.installmentTarget > 0 &&
                 ` · cuota objetivo de ${money(loan.installmentTarget)} ${CADA[loan.paymentFrequency]}`}
@@ -507,7 +507,7 @@ function LoanCard({ loan }: { loan: Loan }) {
                   disabled={debe}
                   title={
                     debe
-                      ? `Todavía debés ${money(loan.balance)}: registrá el pago que falta (o corregí el capital) antes de cerrarlo. Cerrarlo debiendo saca esa deuda del punto de equilibrio y de Caja como si estuviera pagada.`
+                      ? `Todavía debes ${money(loan.balance)}: registra el pago que falta (o corrige el capital) antes de cerrarlo. Cerrarlo debiendo saca esa deuda del punto de equilibrio y de Caja como si estuviera pagada.`
                       : 'Saca su cuota del punto de equilibrio. Se puede reabrir.'
                   }
                   onClick={() => void cambiarCierre(todayKey())}
@@ -578,7 +578,7 @@ function Estimacion({ estimate }: { estimate: Loan['estimate'] }) {
   if (atTarget == null && atActualPace == null) {
     return (
       <p className="mt-2 text-xs text-muted-foreground">
-        Sin cuota objetivo y sin pagos todavía no se puede estimar cuándo termina. Cargá la cuota
+        Sin cuota objetivo y sin pagos todavía no se puede estimar cuándo termina. Carga la cuota
         para que entre en el punto de equilibrio.
       </p>
     );
@@ -898,7 +898,7 @@ function NewLoanDialog({ open, onClose }: { open: boolean; onClose: () => void }
           <Field label="Capital">
             <NumberInput step="0.01" value={principal} onChange={setPrincipal} />
           </Field>
-          <Field label="Cuota objetivo" hint="Lo que te proponés pagar">
+          <Field label="Cuota objetivo" hint="Lo que te propones pagar">
             <NumberInput step="0.01" value={installment} onChange={setInstallment} />
           </Field>
           <Field label="Cada cuánto">

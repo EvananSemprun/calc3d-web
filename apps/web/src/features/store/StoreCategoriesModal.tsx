@@ -303,7 +303,7 @@ export function StoreCategoriesModal({
       description="Agrupan los productos en la vitrina, en dos niveles: categoría y subcategoría. El enlace se genera solo desde el nombre."
     >
       <div className="space-y-4 overflow-y-auto">
-        {/* Enter = crear: es el gesto natural cuando cargás varias seguidas. */}
+        {/* Enter = crear: es el gesto natural cuando cargas varias seguidas. */}
         <form
           className="space-y-3"
           onSubmit={(e) => {

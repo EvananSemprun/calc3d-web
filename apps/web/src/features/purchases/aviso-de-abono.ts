@@ -31,7 +31,7 @@ export interface AbonoAEvaluar {
   /**
    * Lo disponible en la factura de ORIGEN, o `null` cuando se paga con plata.
    *
-   * ⚠️ `null` y `0` son cosas distintas: `null` es "con plata" y 0 es "elegí
+   * ⚠️ `null` y `0` son cosas distintas: `null` es "con plata" y 0 es "elige
    * una factura de origen que no tiene nada". Con un solo valor para las dos,
    * un origen agotado se avisaría como si fuera un pago en efectivo.
    */

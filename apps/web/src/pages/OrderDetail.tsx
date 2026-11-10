@@ -571,7 +571,7 @@ function AddPaymentModal({
                 {elegida.currencyCode} {monto.toLocaleString('es-VE')} ÷ {tasa.toLocaleString('es-VE')}
               </>
             ) : (
-              <span className="text-destructive">Escribí la tasa a la que cobraste.</span>
+              <span className="text-destructive">Escribe la tasa a la que cobraste.</span>
             )}
           </p>
         )}

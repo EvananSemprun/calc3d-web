@@ -155,7 +155,7 @@ describe('StoreBannersPage', () => {
     await elegirEnSelect('Tipo de banner', /Dentro de una categor/);
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() =>
-      expect(mocks.error).toHaveBeenCalledWith('Elegí la categoría donde se muestra'),
+      expect(mocks.error).toHaveBeenCalledWith('Elige la categoría donde se muestra'),
     );
     expect(mocks.patch).not.toHaveBeenCalled();
     expect(mocks.post).not.toHaveBeenCalled();

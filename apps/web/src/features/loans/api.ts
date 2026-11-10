@@ -64,7 +64,7 @@ export interface Obligation {
   outstanding: number;
 }
 
-/** Lo que le debés a UN proveedor, derivado de sus facturas por el servidor. */
+/** Lo que le debes a UN proveedor, derivado de sus facturas por el servidor. */
 export interface DeudaConProveedor {
   /** `null` = facturas sin proveedor anotado. Se deben igual. */
   supplierId: string | null;
@@ -77,7 +77,7 @@ export interface DeudaConProveedor {
    * EL SALDO A FAVOR que todavía se puede usar con ese proveedor, aparte.
    *
    * ⚠️ **No está restado de `total` y no hay que restarlo acá.** Pagar de más
-   * en una factura no cancela por sí solo lo que debés en otra: para usarlo hay
+   * en una factura no cancela por sí solo lo que debes en otra: para usarlo hay
    * que **abonarlo** tomándolo del saldo, desde Compras, y entonces los dos
    * números bajan juntos.
    *
@@ -89,8 +89,8 @@ export interface DeudaConProveedor {
 }
 
 /**
- * LAS TRES DEUDAS. Lo que le debés al prestamista, lo que el negocio te debe a
- * vos y lo que le debés a los proveedores son cosas distintas.
+ * LAS TRES DEUDAS. Lo que le debes al prestamista, lo que el negocio te debe a
+ * vos y lo que le debes a los proveedores son cosas distintas.
  */
 export interface LoansOverview {
   loans: Loan[];

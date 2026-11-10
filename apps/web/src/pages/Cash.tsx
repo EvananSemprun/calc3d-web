@@ -116,7 +116,7 @@ export function CashPage() {
             <strong>Faltan {money(Math.abs(faltante.differenceUsd))}</strong> en la cuenta: el{' '}
             {fecha(faltante.date)} quedaban {money(faltante.businessActualUsd)} para el negocio y
             debería haber {money(faltante.expectedUsd)}. Se usó plata del negocio sin anotarla:
-            cargala como “Pago a {nombre}” o revisá qué gasto falta.
+            cárgala como “Pago a {nombre}” o revisa qué gasto falta.
           </p>
         </div>
       )}
@@ -235,7 +235,7 @@ function SaldoCard({ data }: { data: CashSummary }) {
         <div>
           <h2 className="font-display text-lg font-bold">De dónde sale el saldo</h2>
           <p className="text-sm text-muted-foreground">
-            Tocá una línea para ver de qué movimientos sale.
+            Toca una línea para ver de qué movimientos sale.
           </p>
         </div>
         <ul className="divide-y divide-border/50 text-sm">
@@ -503,7 +503,7 @@ function FinanciamientoCard({ data }: { data: CashSummary }) {
           </table>
         </div>
         <p className="text-xs text-muted-foreground">
-          Lo que sacás para vos se descuenta de las deudas, de la más antigua a la más reciente. Al
+          Lo que sacas para vos se descuenta de las deudas, de la más antigua a la más reciente. Al
           prestamista se le paga con las cuotas, no con la caja.
         </p>
         {/* ÁMBAR y no rojo: sacar más de lo que pusiste NO es un error, es
@@ -659,7 +659,7 @@ function ConciliacionesCard({ data, onNuevo }: { data: CashSummary; onNuevo: () 
         <div>
           <h2 className="font-display text-lg font-bold">Conciliaciones de caja</h2>
           <p className="text-sm text-muted-foreground">
-            Mirá la cuenta y anotá el total, y cuánto de eso es personal de {nombre}. Lo del
+            Mira la cuenta y anota el total, y cuánto de eso es personal de {nombre}. Lo del
             negocio se calcula a esa fecha. En rojo: hay MENOS de lo que debería haber.
           </p>
         </div>
@@ -800,7 +800,7 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
         <div>
           <h2 className="font-display text-lg font-bold">Movimientos con tu bolsillo</h2>
           <p className="text-sm text-muted-foreground">
-            Solo la plata pura: lo que sacás para vos o lo que metés sin comprar nada. Una compra que
+            Solo la plata pura: lo que sacas para vos o lo que metés sin comprar nada. Una compra que
             pagaste vos va en Gastos con “¿Quién lo pagó?”, no acá.
           </p>
         </div>

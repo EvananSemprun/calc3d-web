@@ -5,7 +5,7 @@ import { avisoDeAbono } from './aviso-de-abono';
  * EL AVISO DEL MONTO DE UN ABONO.
  *
  * El caso que trajo este archivo: tomás $15 del saldo a favor de una factura y
- * los aplicás a otra donde debés $5. **Se puede** —la plata no se pierde ni se
+ * los aplicás a otra donde debes $5. **Se puede** —la plata no se pierde ni se
  * inventa: paga los $5 y los otros $10 quedan a favor en la factura nueva—,
  * pero el saldo SALTA de una factura a la otra, y el dueño tiene que verlo
  * antes de confirmar. Hasta el 2026-10-10 esa combinación no caía en ninguno de

@@ -168,7 +168,7 @@ export function EditarCompra({
           </Field>
         </FieldGrid>
 
-        <Field label="Filamento" required hint="Podés moverla a otra ficha si se cargó en la equivocada.">
+        <Field label="Filamento" required hint="Puedes moverla a otra ficha si se cargó en la equivocada.">
           <Select value={materialId} onChange={(e) => setMaterialId(e.target.value)}>
             {materiales.map((m) => (
               <option key={m.id} value={m.id}>

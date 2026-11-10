@@ -58,7 +58,7 @@ type ExpenseType = {
    *
    * ⚠️ Es un PAR: el tipo que aparece acá **no** se ofrece en el desplegable
    * de Gastos, porque habría dos caminos para lo mismo. Si agregás un botón en
-   * una pantalla nueva, marcá su tipo acá; si sacás el botón, sacá la marca o
+   * una pantalla nueva, marca su tipo acá; si sacas el botón, saca la marca o
    * el tipo queda sin ninguna puerta.
    */
   zona?: string;

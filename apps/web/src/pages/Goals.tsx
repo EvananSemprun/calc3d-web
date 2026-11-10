@@ -56,7 +56,7 @@ export function GoalsPage() {
           <div>
             <h1 className="font-display text-2xl font-bold">Metas</h1>
             <p className="text-sm text-muted-foreground">
-              Lo que te proponés cada mes, contra lo que pasó de verdad.
+              Lo que te propones cada mes, contra lo que pasó de verdad.
             </p>
           </div>
         </div>
@@ -91,7 +91,7 @@ export function GoalsPage() {
         <EmptyState
           icon={Target}
           title="Sin metas cargadas"
-          description="Poné cuánto querés vender, cuántos encargos y cuántos clientes nuevos. El cumplimiento sale solo de lo que ya está registrado."
+          description="Pon cuánto quieres vender, cuántos encargos y cuántos clientes nuevos. El cumplimiento sale solo de lo que ya está registrado."
           action={<Button onClick={() => setEditando('nuevo')}>Cargar la primera</Button>}
         />
       ) : (
@@ -302,7 +302,7 @@ function GoalDialog({
     if (hayValores && !pedida) {
       const ok = await confirm({
         title: '¿Reemplazar lo que ya cargaste?',
-        description: 'La propuesta pisa los tres valores. Después los podés editar antes de guardar.',
+        description: 'La propuesta pisa los tres valores. Después los puedes editar antes de guardar.',
         confirmLabel: 'Reemplazar',
       });
       if (!ok) return;
@@ -315,7 +315,7 @@ function GoalDialog({
       open
       onOpenChange={(v) => !v && onClose()}
       title={meta ? `Meta de ${nombreDeMes(meta.month)}` : 'Nueva meta'}
-      description="Solo cargás la meta: lo cumplido lo calcula la app sola."
+      description="Solo cargas la meta: lo cumplido lo calcula la app sola."
     >
       <form
         className="space-y-4"
@@ -355,7 +355,7 @@ function GoalDialog({
             {propuesta.isFetching ? 'Calculando…' : 'Sugerir metas'}
           </Button>
           {!month && (
-            <p className="text-xs text-muted-foreground">Elegí primero el mes para poder sugerir.</p>
+            <p className="text-xs text-muted-foreground">Elige primero el mes para poder sugerir.</p>
           )}
           {pedida && propuesta.isError && (
             <p className="text-xs text-destructive">{apiErrorMessage(propuesta.error)}</p>

@@ -528,7 +528,7 @@ export function SectionMargen() {
       n={8}
       icon={Percent}
       title="Recargo y redondeo"
-      hint="Cuánto le sumás al costo, y cómo se redondea el precio."
+      hint="Cuánto le sumas al costo, y cómo se redondea el precio."
     >
       <FieldGrid>
         {/* NO es "margen": es RECARGO sobre el costo. 100 % = el doble del

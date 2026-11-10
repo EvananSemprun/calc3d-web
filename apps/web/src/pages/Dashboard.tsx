@@ -389,7 +389,7 @@ export function DashboardPage() {
    * El monto es `totals.proveedores` del MISMO endpoint que dibuja la pantalla
    * Deuda: no hay una segunda forma de contar lo que se le debe a los
    * proveedores. Y lo pagado de más no se resta, igual que allá — pagar de más
-   * en una factura no cancela lo que debés en otra.
+   * en una factura no cancela lo que debes en otra.
    */
   const deuda = useLoansOverview();
   const equilibrio = equilibrioYCompromiso({
@@ -671,7 +671,7 @@ export function DashboardPage() {
                     tratamiento que el "pagado de más" de la pantalla Deuda. */}
                 {equilibrio.mostrar && (
                   <p className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
-                    Además debés{' '}
+                    Además debes{' '}
                     <strong className="tabular-nums text-foreground">
                       {money(equilibrio.compromiso)}
                     </strong>{' '}

@@ -90,7 +90,7 @@ export function ProductionPage() {
         <EmptyState
           icon={Activity}
           title="Sin impresoras cargadas"
-          description="Cargá tus equipos en Catálogos para poder medir sus horas."
+          description="Carga tus equipos en Catálogos para poder medir sus horas."
         />
       ) : (
         <div className="space-y-4">

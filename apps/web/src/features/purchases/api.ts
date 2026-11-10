@@ -240,7 +240,7 @@ export const ETIQUETA_PAGO = {
   PAGADA_DE_MAS: 'Pagada de más',
 } as const;
 
-/** Qué va a nacer al recibir una línea de "algo que todavía no tenés". */
+/** Qué va a nacer al recibir una línea de "algo que todavía no tienes". */
 export const ETIQUETA_NUEVO: Record<NuevoTipo, string> = {
   MATERIAL: 'filamento nuevo',
   PRINTER: 'impresora nueva',

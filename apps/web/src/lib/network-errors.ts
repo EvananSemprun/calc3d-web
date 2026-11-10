@@ -32,10 +32,10 @@ export interface EstadoDeRed {
  */
 export function mensajeDeRed({ enDesarrollo, enLinea, codigo }: EstadoDeRed): string {
   if (!enLinea) {
-    return 'Parece que no tenés conexión a internet. Revisá tu red y volvé a intentar.';
+    return 'Parece que no tienes conexión a internet. Revisa tu red y vuelve a intentar.';
   }
   if (codigo === CODIGO_TIMEOUT || codigo === CODIGO_CANCELADA) {
-    return 'El servidor tardó demasiado en responder. Volvé a intentar en unos segundos.';
+    return 'El servidor tardó demasiado en responder. Vuelve a intentar en unos segundos.';
   }
   if (enDesarrollo) {
     return 'No se pudo conectar con el servidor. ¿Está corriendo el backend (pnpm dev)?';

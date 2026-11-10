@@ -208,5 +208,5 @@ export function materialLabel(m: MaterialItem): string {
 export function avisoSinPrecio(ops: OpcionesDeFilamento, key: string): string | null {
   const o = buscarOpcion(ops, key);
   if (!o || !o.sinPrecio) return null;
-  return `${o.name} no tiene precio: su compra fue en $0 (un regalo), así que el material te va a salir GRATIS. Escribí el precio del rollo a mano o elegí otra opción.`;
+  return `${o.name} no tiene precio: su compra fue en $0 (un regalo), así que el material te va a salir GRATIS. Escribe el precio del rollo a mano o elige otra opción.`;
 }

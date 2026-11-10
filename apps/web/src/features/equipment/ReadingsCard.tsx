@@ -31,7 +31,7 @@ export function ReadingsCard() {
           <div>
             <h2 className="font-display text-base font-bold">Lectura del mes</h2>
             <p className="text-xs text-muted-foreground">
-              Anotá las horas que muestra cada máquina. Cuenta todo lo que imprimiste, sea del
+              Anota las horas que muestra cada máquina. Cuenta todo lo que imprimiste, sea del
               negocio o no.
             </p>
           </div>
@@ -125,7 +125,7 @@ function Fila({ fila, month }: { fila: PrinterReadingRow; month: string }) {
       {retrocede && (
         <p className="text-xs text-warning sm:col-span-3">
           Estás anotando menos horas que el mes anterior ({fila.previous!.hours} h). El contador
-          solo sube: revisá el número antes de salir del campo.
+          solo sube: revisa el número antes de salir del campo.
         </p>
       )}
     </div>

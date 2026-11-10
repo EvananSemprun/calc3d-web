@@ -135,7 +135,7 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
           <Field label="Marca (opcional)" hint="Agrupa el análisis: corregirla reacomoda el histórico.">
             <Combobox kind="MATERIAL_BRAND" value={brand} onChange={setBrand} />
           </Field>
-          <Field label="Tipo (PLA, PETG…) (opcional)" hint="Escribí uno nuevo y queda en la lista.">
+          <Field label="Tipo (PLA, PETG…) (opcional)" hint="Escribe uno nuevo y queda en la lista.">
             <Combobox kind="MATERIAL_TYPE" value={type} onChange={setType} />
           </Field>
           <Field label="Color (opcional)">

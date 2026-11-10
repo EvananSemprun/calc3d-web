@@ -106,7 +106,7 @@ export function PurchasesTab() {
           title="Sin compras de filamento"
           description={
             compras.length === 0
-              ? 'Todavía no registraste ninguna. Usá "Registrar compra" acá arriba.'
+              ? 'Todavía no registraste ninguna. Usa "Registrar compra" acá arriba.'
               : 'Ninguna compra coincide con los filtros.'
           }
         />
@@ -236,7 +236,7 @@ export function PurchasesTab() {
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-xs text-brand-blue-bright">
-                        <Pencil className="h-3 w-3" /> Tocá para corregir
+                        <Pencil className="h-3 w-3" /> Toca para corregir
                       </span>
                     )}
                   </button>

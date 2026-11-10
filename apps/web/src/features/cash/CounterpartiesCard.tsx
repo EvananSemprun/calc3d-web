@@ -159,7 +159,7 @@ export function CounterpartiesCard() {
           <EmptyState
             icon={Users}
             title="Todavía no hay contrapartes"
-            description="Anotá al menos al propietario: es a quien la caja le debe lo que pagó de su bolsillo."
+            description="Anota al menos al propietario: es a quien la caja le debe lo que pagó de su bolsillo."
             action={botonNueva}
           />
         ) : (

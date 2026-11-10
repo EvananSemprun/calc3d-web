@@ -283,7 +283,7 @@ export function SalesPage() {
                 description={
                   hayFiltros
                     ? 'Ninguna venta con esos filtros. Probá quitando alguno.'
-                    : 'Sin ventas de mostrador en este periodo. Registrá la primera con «Registrar venta de mostrador».'
+                    : 'Sin ventas de mostrador en este periodo. Registra la primera con «Registrar venta de mostrador».'
                 }
                 action={
                   hayFiltros ? undefined : (

@@ -250,7 +250,7 @@ export function StockTab() {
     for (const f of conAnterior) next[f.materialId] = { ...(f.previous as Partes) };
     setDraft(next);
     guardarBorrador(claveBorrador, next, estado?.reopenedAt ?? null);
-    notify.success(`Copiado lo de ${mesAnterior}: corregí lo que cambió`);
+    notify.success(`Copiado lo de ${mesAnterior}: corrige lo que cambió`);
   };
 
   const cerrarMes = async () => {
@@ -338,7 +338,7 @@ export function StockTab() {
         <div className="space-y-1">
           <MonthPicker month={month} onChange={setMonth} />
           <p className="max-w-md text-sm text-muted-foreground">
-            El último día del mes contá los rollos, llená las casillas y cerrá el mes. Tocá una
+            El último día del mes cuenta los rollos, llena las casillas y cierra el mes. Toca una
             marca para corregir o descontinuar su ficha.
           </p>
         </div>
@@ -531,7 +531,7 @@ export function StockTab() {
       )}
 
       {(stockFallo && !stockQuery.data) || (estadoFallo && !estado) ? (
-        <p className="text-sm text-destructive">No se pudo cargar el conteo del mes. Recargá la página.</p>
+        <p className="text-sm text-destructive">No se pudo cargar el conteo del mes. Recarga la página.</p>
       ) : !stockQuery.data || !estado ? (
         // Esqueleto solo sin datos: si falla un refetch en segundo plano, la grilla
         // sigue a la vista (el botón de cerrar igual queda bloqueado por `listo`).
@@ -662,7 +662,7 @@ export function StockTab() {
                                 onClick={() => usarRecibidos(f)}
                                 disabled={!editable}
                                 aria-label={`Usar ${f.received} sin abrir · ${ficha}`}
-                                title={`Sale de las compras recibidas en ${mesDelConteo}. No se escribe solo: el conteo lo hacés mirando el estante.`}
+                                title={`Sale de las compras recibidas en ${mesDelConteo}. No se escribe solo: el conteo lo haces mirando el estante.`}
                                 className="rounded font-medium text-foreground underline underline-offset-4 hover:text-brand-yellow-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                               >
                                 Usar {f.received} sin abrir

@@ -204,7 +204,7 @@ export function PurchasesPage() {
         <EmptyState
           icon={FileText}
           title="Sin facturas de compra"
-          description="Cargá un encargo cuando lo pidas: podés abonarlo antes de que llegue, y meterlo al inventario cuando llegue."
+          description="Carga un encargo cuando lo pidas: puedes abonarlo antes de que llegue, y meterlo al inventario cuando llegue."
         />
       ) : (
         <ul className="space-y-3">
@@ -362,7 +362,7 @@ function FacturaCard({
           </div>
 
           {/* ⚠️ Dice HACE CUÁNTO y CUÁNTO falta, no solo que está atrasada: con
-              un "revisá esta factura" a secas hay que abrirla para saber si
+              un "revisa esta factura" a secas hay que abrirla para saber si
               son dos días o tres semanas, y un aviso que obliga a investigar se
               deja para después. */}
           {atraso && (
@@ -396,7 +396,7 @@ function FacturaCard({
             </span>
             {/* ÁMBAR y no rojo: pagar de más NO es un error. Genera saldo a
                 favor, que es una función que la app soporta a propósito (se
-                usa desde "Abonar"). Es un hecho consumado y legítimo: "mirá
+                usa desde "Abonar"). Es un hecho consumado y legítimo: "mira
                 esto", no "algo se rompió".
                 ⚠️ **Y va en PÍLDORA, no en texto suelto como los otros avisos
                 ámbar.** Medido en pantalla el 2026-10-11: en este renglón el
@@ -431,7 +431,7 @@ function FacturaCard({
               que pagaste de más.{' '}
               <span className="text-muted-foreground">
                 {f.saldo > 0
-                  ? 'Podés usarlo al abonar esta factura: en “Abonar”, elegí tomarlo del saldo a favor.'
+                  ? 'Puedes usarlo al abonar esta factura: en “Abonar”, elige tomarlo del saldo a favor.'
                   : 'Usalo al abonar otra factura de este proveedor: la plata ya salió, así que no vuelve a mover la caja.'}
               </span>
             </p>
@@ -757,7 +757,7 @@ function Abonar({
         {conSaldo && (
           <p className="rounded-lg border border-border/70 bg-muted/30 p-2 text-xs">
             Esto <strong>no mueve la caja</strong>: esa plata ya salió cuando pagaste esa factura de
-            más. Baja lo que le debés a {saldo?.supplierName} y baja su saldo a favor.
+            más. Baja lo que le debes a {saldo?.supplierName} y baja su saldo a favor.
           </p>
         )}
         {/* Lo único que NO se puede: el servidor lo rechaza igual. Es el aviso
@@ -777,7 +777,7 @@ function Abonar({
           </p>
         )}
         {/* ⚠️ **EL SALDO QUE SALTA DE UNA FACTURA A LA OTRA.** Tomás $15 de
-            saldo y los aplicás donde debés $5: paga los $5 y los $10 quedan a
+            saldo y los aplicás donde debes $5: paga los $5 y los $10 quedan a
             favor en ESTA factura. Se puede —la plata ni se pierde ni se
             inventa— y por eso NO bloquea; lo que no puede pasar es que ocurra
             sin que el dueño vea cuánto va a quedar a favor en la factura nueva.
@@ -904,7 +904,7 @@ function Recibir({
           </Field>
           <Field
             label="¿A cuánto te lo cobraron? (USD)"
-            hint={`Pediste a ${money(l.unitPrice)} por unidad. Si llegó a ese precio, dejalo así.`}
+            hint={`Pediste a ${money(l.unitPrice)} por unidad. Si llegó a ese precio, déjalo así.`}
           >
             {/* ⚠️ Acá NO va `NumberInput`: mapea el campo vacío a 0 y la entrega
                 quedaría registrada como regalada. Vacío = no informo nada. */}
@@ -1156,7 +1156,7 @@ function NuevaFactura({
                 `Sin rollos: ${faltantes.map((l) => l.label).join(', ')}. `}
               {porAcabarse.length > 0 &&
                 `Por acabarse: ${porAcabarse.map((l) => l.label).join(', ')}. `}
-              Sacá las líneas que no quieras y cambiá las cantidades: nada se guarda hasta que
+              Saca las líneas que no quieras y cambia las cantidades: nada se guarda hasta que
               toques Guardar.
             </span>
           </p>
@@ -1213,7 +1213,7 @@ function NuevaFactura({
                     <option value="material">Filamento del catálogo</option>
                     <option value="printer">Impresora del catálogo</option>
                     <option value="component">Insumo del catálogo</option>
-                    <option value="nuevo">Algo que todavía no tenés</option>
+                    <option value="nuevo">Algo que todavía no tienes</option>
                   </Select>
                 </Field>
                 {l.tipo === 'nuevo' ? (
@@ -1329,7 +1329,7 @@ function NuevaFactura({
                   required
                   hint={
                     l.unitPrice == null
-                      ? 'No hay compra previa de esta ficha: poné lo que te va a costar.'
+                      ? 'No hay compra previa de esta ficha: pon lo que te va a costar.'
                       : undefined
                   }
                 >
@@ -1398,7 +1398,7 @@ function NuevaFactura({
         <p className="rounded-lg border border-border/70 bg-background/30 p-2 text-sm">
           Total de la factura: <strong className="tabular-nums">{money(total)}</strong>
           <span className="block text-xs text-muted-foreground">
-            Cargarla no mueve la Caja. El saldo baja cuando abonás.
+            Cargarla no mueve la Caja. El saldo baja cuando abonas.
           </span>
           {sinPrecio > 0 && (
             /* El total de arriba cuenta esas líneas como 0, así que decir por

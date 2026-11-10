@@ -964,7 +964,7 @@ function FixedCostsSettings() {
 
         <Field
           label="Reserva mensual para equipos"
-          hint="Lo que querés apartar cada mes para reponer las impresoras. Es el tercer nivel del punto de equilibrio; la cuota del préstamo NO va acá, sale sola de Deuda."
+          hint="Lo que quieres apartar cada mes para reponer las impresoras. Es el tercer nivel del punto de equilibrio; la cuota del préstamo NO va acá, sale sola de Deuda."
         >
           <div className="w-36">
             <NumberInput step="0.01" value={reserve} onChange={setReserve} />

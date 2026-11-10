@@ -133,7 +133,7 @@ export function StorePage() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <p>
               <strong>Las fotos están deshabilitadas.</strong> Faltan las credenciales del
-              almacenamiento en el servidor (las variables <code>R2_*</code>). Podés cargar
+              almacenamiento en el servidor (las variables <code>R2_*</code>). Puedes cargar
               productos igual; las fotos se suben cuando estén configuradas.
             </p>
           </CardContent>
@@ -201,7 +201,7 @@ export function StorePage() {
           title={products.length === 0 ? 'Todavía no hay nada en la tienda' : 'Sin resultados'}
           description={
             products.length === 0
-              ? 'Cargá un producto a mano, o publicá uno desde un producto costeado o una cotización.'
+              ? 'Carga un producto a mano, o publica uno desde un producto costeado o una cotización.'
               : 'Ningún producto coincide con los filtros.'
           }
         />

@@ -252,7 +252,7 @@ function BannerForm({
 
   const guardar = async () => {
     if (!form.title.trim()) {
-      notify.error('Poné un título');
+      notify.error('Pon un título');
       return;
     }
     // Cada tipo pide lo suyo. Se valida ANTES de subir: si no, el servidor rechaza
@@ -262,19 +262,19 @@ function BannerForm({
       return;
     }
     if (form.kind === 'CATEGORIA' && !form.categoryId) {
-      notify.error('Elegí la categoría donde se muestra');
+      notify.error('Elige la categoría donde se muestra');
       return;
     }
     // Validar el destino ANTES de subir la imagen: si no, el servidor rechaza
     // (400) recién después del upload y queda una imagen huérfana en R2.
     const destino = form.linkValue.trim();
     if ((form.linkType === 'CATEGORY' || form.linkType === 'PRODUCT') && !destino) {
-      notify.error('Elegí el destino del enlace');
+      notify.error('Elige el destino del enlace');
       return;
     }
     if (form.linkType === 'URL') {
       if (!destino) {
-        notify.error('Poné el enlace (tiene que empezar con http:// o https://)');
+        notify.error('Pon el enlace (tiene que empezar con http:// o https://)');
         return;
       }
       if (!/^https?:\/\//i.test(destino)) {
@@ -338,7 +338,7 @@ function BannerForm({
               value={form.categoryId}
               onChange={(e) => set('categoryId', e.target.value)}
             >
-              <option value="">Elegí una…</option>
+              <option value="">Elige una…</option>
               {(categorias ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

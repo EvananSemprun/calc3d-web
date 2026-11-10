@@ -198,7 +198,7 @@ export function StoreProductDetailPage() {
     // contrato la rechaza igual; se avisa acá para no esperar un 400 y para explicar
     // POR QUÉ, que es lo que un 400 no hace.
     if (form.badge.trim().toLowerCase() === 'nuevo') {
-      notify.error('«Nuevo» se pone solo en los productos recién publicados: elegí otra palabra');
+      notify.error('«Nuevo» se pone solo en los productos recién publicados: elige otra palabra');
       return;
     }
     // Validar los tramos ANTES de mandar: el servidor también los valida, pero
@@ -754,7 +754,7 @@ export function StoreProductDetailPage() {
                   {!margen?.convertido && (
                     <p className="text-xs text-muted-foreground">
                       Falta una de las dos tasas, así que este margen compara el precio en BCV
-                      contra un costo en USDT: queda más alto de lo real. Cargá la tasa en
+                      contra un costo en USDT: queda más alto de lo real. Carga la tasa en
                       Configuración para verlo bien.
                     </p>
                   )}

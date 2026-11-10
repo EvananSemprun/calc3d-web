@@ -214,7 +214,7 @@ function AccountsCard() {
           <EmptyState
             icon={Wallet}
             title="Todavía no hay cuentas"
-            description="Anotá al menos una: es la que la conciliación compara contra el saldo esperado."
+            description="Anota al menos una: es la que la conciliación compara contra el saldo esperado."
             action={botonNueva}
           />
         ) : (
@@ -339,7 +339,7 @@ function AccountsCard() {
                       value={form.sharedWithId}
                       onChange={(e) => set({ sharedWithId: e.target.value })}
                     >
-                      <option value="">Elegí una contraparte…</option>
+                      <option value="">Elige una contraparte…</option>
                       {elegibles.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.active ? c.name : `${c.name} (inactiva)`}
@@ -370,7 +370,7 @@ function AccountsCard() {
                     )}
                     <p>
                       Convierte un faltante que no sabés explicar en una deuda saldada. Siempre
-                      vas a ver el reparto antes de confirmar, y podés escribir otra explicación.
+                      vas a ver el reparto antes de confirmar, y puedes escribir otra explicación.
                     </p>
                   </div>
                 </div>
@@ -498,7 +498,7 @@ function ReconciliationRulesCard() {
         <FieldGrid>
           <Field
             label="Frecuencia de conciliación"
-            hint="Es un recordatorio: podés conciliar cualquier día."
+            hint="Es un recordatorio: puedes conciliar cualquier día."
           >
             <Select
               value={frecuencia}

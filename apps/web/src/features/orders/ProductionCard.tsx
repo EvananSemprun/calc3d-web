@@ -71,7 +71,7 @@ export function ProductionCard({ order }: { order: Order }) {
         </Field>
         <Field
           label="Piezas reimpresas por fallo"
-          hint="0 si salió todo bien. Dejalo vacío si no lo contaste."
+          hint="0 si salió todo bien. Déjalo vacío si no lo contaste."
         >
           <NumberInputVacio value={reprints} onChange={setReprints} />
         </Field>

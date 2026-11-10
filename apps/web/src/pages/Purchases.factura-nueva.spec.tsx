@@ -195,10 +195,10 @@ describe('Nueva factura: una línea puede ser un insumo', () => {
     expect(l.printerId).toBeNull();
   });
 
-  it('un insumo que todavía no tenés se puede pedir por su nombre', async () => {
+  it('un insumo que todavía no tienes se puede pedir por su nombre', async () => {
     montar();
     await abrir();
-    elegir('Qué es', 'Algo que todavía no tenés');
+    elegir('Qué es', 'Algo que todavía no tienes');
     elegir('¿Filamento, impresora o insumo?', 'Un insumo (placa, boquilla, empaque)');
     expect(
       screen.getByRole('combobox', { name: '¿Filamento, impresora o insumo?' }).textContent,
@@ -218,7 +218,7 @@ describe('Nueva factura: una línea puede ser un insumo', () => {
  */
 describe('Nueva factura: la ficha de filamento nueva trae su tipo', () => {
   const pedirFilamentoNuevo = () => {
-    elegir('Qué es', 'Algo que todavía no tenés');
+    elegir('Qué es', 'Algo que todavía no tienes');
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre' }), {
       target: { value: 'PLA Basic Bambu Lab Magenta' },
     });
@@ -283,7 +283,7 @@ describe('Nueva factura: la ficha de filamento nueva trae su tipo', () => {
   it('una impresora nueva tampoco los pide: no tiene tipo de filamento', async () => {
     montar();
     await abrir();
-    elegir('Qué es', 'Algo que todavía no tenés');
+    elegir('Qué es', 'Algo que todavía no tienes');
     elegir('¿Filamento, impresora o insumo?', 'Una impresora');
 
     expect(screen.queryByText('Tipo')).toBeNull();
