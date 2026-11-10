@@ -1014,6 +1014,14 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
       categoría que se puede abrir vale ≠ 0 y **un detalle vacío es siempre un
       BUG**: se dice con esas palabras, no con un "sin movimientos"
       tranquilizador.
+    - ⚠️ **Las líneas son DOCE desde la fase B** (2026-11-10): `CashCategory`
+      ganó `consumables`, `services` y `supplierAdvances` («Anticipos a
+      proveedores (pagado y sin recibir)»). **Acá no hubo que tocar nada más que
+      `etiquetasSaldo`**: las filas se recorren desde `CASH_SIGN`, que es la
+      única lista, y una categoría nueva aparece sola — pero su etiqueta en
+      español es obligatoria (`Record<CashCategory, string>` no compila sin
+      ella). `services` vale 0 en todos los datos de hoy (nada la alimenta
+      todavía), así que su fila no se dibuja.
     - Badge **"Importado"** solo donde `source === 'EXCEL_IMPORT'`.
       `MIGRATION` y `RECONCILIATION` no son importaciones y una insignia de más
       vuelve ruido a todas.
@@ -1022,7 +1030,7 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
 
 > ⚠️ **Verificar Caja en local es difícil y el modo honesto está acotado.** Los
 > datos locales **no tienen** ninguna conciliación ajustada, ninguna fila
-> `EXCEL_IMPORT` ni ningún retiro parcialmente aplicado, y **cuatro de las nueve
+> `EXCEL_IMPORT` ni ningún retiro parcialmente aplicado, y **varias de las doce
 > categorías valen 0**, así que no se dibujan. Para medir esos casos: inyectar
 > el dato **en el render** con un bloque temporal, medir, revertir y confirmar
 > con `grep`. **Nunca escribirlo en la base del dueño.**

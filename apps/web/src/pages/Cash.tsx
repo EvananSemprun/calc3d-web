@@ -182,7 +182,7 @@ function tocaConciliar(data: CashSummary, frecuencia: string) {
 }
 
 /**
- * Las nueve líneas de "De dónde sale el saldo", en el orden de `CASH_SIGN`.
+ * Las líneas de "De dónde sale el saldo", en el orden de `CASH_SIGN`.
  *
  * ⚠️ El texto sale del nombre DINÁMICO de la contraparte (fase 2): nunca un
  * nombre propio escrito a mano. Y las categorías se recorren desde `CASH_SIGN`,
@@ -195,6 +195,14 @@ function etiquetasSaldo(nombre: string): Record<CashCategory, string> {
     expenses: 'Gastos generales',
     filament: 'Filamento comprado',
     equipment: 'Equipos pagados por la caja',
+    consumables: 'Insumos comprados',
+    services: 'Servicios pagados',
+    /**
+     * ⚠️ Dice «pagado y sin recibir» a propósito: es plata que YA salió, no una
+     * deuda. «Anticipos» a secas se lee como algo que todavía no se pagó, que es
+     * justo lo contrario, y esta línea RESTA del saldo.
+     */
+    supplierAdvances: 'Anticipos a proveedores (pagado y sin recibir)',
     contributionsRefundable: `Aportes de ${nombre} (se devuelven)`,
     contributionsCapital: `Aportes de capital de ${nombre}`,
     debtRepayments: `Devoluciones a ${nombre}`,
