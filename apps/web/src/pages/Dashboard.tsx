@@ -386,10 +386,12 @@ export function DashboardPage() {
    * precios. Quien sostiene esa regla es `equilibrioYCompromiso`, que calcula
    * los niveles SIN el compromiso y lo devuelve aparte; acá no se suma nada.
    *
-   * El monto es `totals.proveedores` del MISMO endpoint que dibuja la pantalla
-   * Deuda: no hay una segunda forma de contar lo que se le debe a los
-   * proveedores. Y lo pagado de más no se resta, igual que allá — pagar de más
-   * en una factura no cancela lo que debes en otra.
+   * El monto es `totals.comprometido` del MISMO endpoint que dibuja la pantalla
+   * Deuda: lo pedido y no recibido. ⚠️ **Ya NO es `totals.proveedores`**: esa
+   * es solo la mercadería que llegó y no se pagó, y desde la fase B vale 0
+   * mientras no llegue nada. Leer el campo viejo haría desaparecer esta línea
+   * sin que nadie lo notara. Y lo pagado de más no se resta, igual que allá —
+   * pagar de más en una factura no cancela lo que debes en otra.
    */
   const deuda = useLoansOverview();
   const equilibrio = equilibrioYCompromiso({
@@ -397,11 +399,12 @@ export function DashboardPage() {
     marginPct: settings?.breakEvenMarginPct ?? 0,
     loanPayment: monthlyLoanPayments(paraEquilibrio(loans)),
     equipmentReserve: settings?.equipmentReserve ?? 0,
-    compromiso: deuda.data?.totals.proveedores ?? 0,
-    // Cuántas facturas lo componen. Es un CONTEO, no plata: los grupos que solo
-    // tienen pagado de más traen `facturas: 0`, así que la cuenta sigue siendo
-    // la de las facturas con saldo, las mismas que suman el total.
-    facturas: (deuda.data?.suppliers.groups ?? []).reduce((n, g) => n + g.facturas, 0),
+    compromiso: deuda.data?.totals.comprometido ?? 0,
+    // Cuántas facturas lo componen. Es un CONTEO, no plata, y sale de SU PROPIA
+    // cuenta (`facturasComprometidas`): `facturas` cuenta las que tienen DEUDA,
+    // que con todo pedido y nada recibido son 0 — y el aviso diría «$334 en 0
+    // facturas». Las dos cuentas ya no son las mismas facturas.
+    facturas: deuda.data?.suppliers.facturasComprometidas ?? 0,
   });
   const niveles = equilibrio.niveles;
   const breakEven = niveles.survive;
@@ -671,16 +674,16 @@ export function DashboardPage() {
                     tratamiento que el "pagado de más" de la pantalla Deuda. */}
                 {equilibrio.mostrar && (
                   <p className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
-                    Además debes{' '}
+                    Además tienes comprometidos{' '}
                     <strong className="tabular-nums text-foreground">
                       {money(equilibrio.compromiso)}
                     </strong>{' '}
-                    de facturas de compra
+                    en pedidos a proveedores que todavía no llegan
                     {equilibrio.facturas > 0 && (
                       <>
                         {' '}
                         ({equilibrio.facturas}{' '}
-                        {equilibrio.facturas === 1 ? 'factura' : 'facturas'} con saldo)
+                        {equilibrio.facturas === 1 ? 'factura' : 'facturas'})
                       </>
                     )}
                     . <strong>Es un compromiso puntual, no un costo mensual</strong>: se paga

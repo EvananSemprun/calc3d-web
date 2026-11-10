@@ -174,6 +174,18 @@ function TotalDeLaPantalla({ totals }: { totals: LoansOverviewTotals }) {
             </div>
           ))}
         </dl>
+        {/* ⚠️ Lo comprometido va FUERA de la suma y con su propia línea: es lo
+            pedido que todavía no llegó, no una deuda. Meterlo en el total
+            volvería a decir «debes $334» de facturas sin una caja recibida. */}
+        <div className="flex items-baseline justify-between gap-2 rounded-xl border border-dashed border-border/70 px-3 py-2 text-sm">
+          <dt className="text-muted-foreground">Comprometido</dt>
+          <dd className="text-right">
+            <span className="font-semibold tabular-nums">{money(totals.comprometido)}</span>
+            <span className="ml-2 text-xs text-muted-foreground">
+              pedido y sin recibir: no se debe todavía, no está sumado arriba
+            </span>
+          </dd>
+        </div>
       </CardContent>
     </Card>
   );
@@ -192,7 +204,7 @@ type LoansOverviewSuppliers = LoansOverview['suppliers'];
  */
 function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers }) {
   const { money } = useMoney();
-  const { groups, total, aFavor } = suppliers;
+  const { groups, total, aFavor, comprometido } = suppliers;
 
   // Una sola fuente de filas: los `money()` y las decisiones se resuelven acá
   // una vez, y las dos vistas solo dibujan.
@@ -201,10 +213,18 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
     nombre: g.supplierName,
     sinNombre: g.supplierId == null,
     debe: money(g.total),
+    comprometido: g.comprometido > 0 ? money(g.comprometido) : null,
+    // Cada cuenta con su propio conteo: las facturas con deuda no son las
+    // comprometidas, y un proveedor solo con compromiso no tiene «0 sin pagar».
     cuantas:
-      g.facturas === 0
-        ? 'Sin facturas pendientes'
-        : `${g.facturas} factura${g.facturas === 1 ? '' : 's'} sin pagar`,
+      [
+        g.facturas > 0 &&
+          `${g.facturas} factura${g.facturas === 1 ? '' : 's'} con mercadería sin pagar`,
+        g.facturasComprometidas > 0 &&
+          `${g.facturasComprometidas} factura${g.facturasComprometidas === 1 ? '' : 's'} pedida${g.facturasComprometidas === 1 ? '' : 's'} sin recibir`,
+      ]
+        .filter(Boolean)
+        .join(' · ') || 'Sin facturas pendientes',
     aFavor: g.aFavor > 0 ? money(g.aFavor) : null,
   }));
 
@@ -214,7 +234,8 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
         <div>
           <h2 className="font-display text-lg font-bold">Lo que le debes a los proveedores</h2>
           <p className="text-sm text-muted-foreground">
-            Las facturas de compra que todavía no pagaste. Se abonan, se reciben y se anulan en
+            La mercadería que ya te llegó y todavía no pagaste. Lo pedido que todavía no llegó
+            es un compromiso, no una deuda: va aparte. Se abona, se recibe y se anula en
             Compras.
           </p>
         </div>
@@ -230,6 +251,11 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
       <Card>
         <CardContent className="space-y-4 p-4 sm:p-5">
           <Stat label="Total por pagar" value={money(total)} accent="yellow" />
+          <p className="text-sm text-muted-foreground">
+            Comprometido (pedido y sin recibir):{' '}
+            <strong className="tabular-nums text-foreground">{money(comprometido)}</strong>. No se
+            debe todavía, así que no está en el total.
+          </p>
 
           {filas.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -247,6 +273,11 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
                       <span className="font-semibold tabular-nums">{f.debe}</span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{f.cuantas}</p>
+                    {f.comprometido && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Comprometido: {f.comprometido}
+                      </p>
+                    )}
                     {f.aFavor && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         Y te debe {f.aFavor}: se usa en el próximo pedido
@@ -261,6 +292,7 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
                   <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="py-2 pr-3 font-semibold">Proveedor</th>
                     <th className="py-2 pr-3 font-semibold">Facturas</th>
+                    <th className="py-2 pr-3 text-right font-semibold">Comprometido</th>
                     <th className="py-2 pr-3 text-right font-semibold">Tiene a favor</th>
                     <th className="py-2 text-right font-semibold">Le debes</th>
                   </tr>
@@ -272,6 +304,9 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
                         {f.nombre}
                       </td>
                       <td className="py-2 pr-3 text-xs text-muted-foreground">{f.cuantas}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
+                        {f.comprometido ?? '—'}
+                      </td>
                       <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
                         {f.aFavor ?? '—'}
                       </td>

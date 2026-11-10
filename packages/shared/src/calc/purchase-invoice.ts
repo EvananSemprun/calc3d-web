@@ -90,11 +90,55 @@ export interface InvoiceTotals {
   recibido: number;
   /** Unidades que faltan llegar. */
   porRecibir: number;
+  /**
+   * Lo que vale la mercadería que YA llegó: las recepciones a su precio real y
+   * lo recibido sin recepción registrada al precio pedido.
+   */
+  valorRecibido: number;
+  /**
+   * Lo que te llegó y todavía no pagaste: `máx(0, valorRecibido − pagado)`.
+   *
+   * ⚠️ **No es `saldo`.** `saldo` es lo que falta pagar de TODA la factura
+   * (incluida la mercadería que no llegó); esto es solo lo que ya recibiste.
+   * Son dos preguntas distintas y las dos hacen falta.
+   */
+  deuda: number;
+  /**
+   * Lo que pagaste y todavía no te llegó: `máx(0, pagado − valorRecibido)`.
+   * Plata ya salida a cambio de mercadería pendiente.
+   */
+  anticipo: number;
+  /**
+   * Lo que falta pagar de mercadería que tampoco llegó:
+   * `máx(0, total − máx(pagado, valorRecibido))`.
+   *
+   * ⚠️ Se recorta en 0: un compromiso negativo no significa nada, y el
+   * excedente de una factura pagada de más ya lo cuenta `aFavor`.
+   */
+  comprometido: number;
 }
 
 /** Lo recibido de una línea, acotado: ni negativo ni mayor que lo pedido. */
 const recibidoDe = (l: InvoiceLineInput): number =>
   Math.min(Math.max(Math.trunc(l.received ?? 0), 0), Math.max(Math.trunc(l.quantity), 0));
+
+/** Lo que cuestan las recepciones de una línea y cuántas unidades cubren. */
+const dineroDeRecepciones = (l: InvoiceLineInput): { cubiertos: number; dinero: Decimal } => {
+  const recibido = recibidoDe(l);
+
+  let cubiertos = 0;
+  let dinero = D(0);
+  for (const r of l.recepciones ?? []) {
+    // `received` sigue siendo la única definición de cuántos llegaron: una
+    // recepción que diga más se recorta, no agranda lo recibido.
+    const unidades = Math.min(Math.max(Math.trunc(r.quantity), 0), recibido - cubiertos);
+    if (unidades <= 0) continue;
+    dinero = dinero.plus(D(unidades).times(Math.max(r.unitPrice, 0)));
+    cubiertos += unidades;
+  }
+
+  return { cubiertos, dinero };
+};
 
 /**
  * LO QUE CUESTA UNA LÍNEA: el precio REAL de lo que ya llegó y el PEDIDO para
@@ -111,20 +155,23 @@ const recibidoDe = (l: InvoiceLineInput): number =>
  */
 const dineroDeLinea = (l: InvoiceLineInput): Decimal => {
   const pedido = Math.max(l.quantity, 0);
-  const recibido = recibidoDe(l);
-
-  let cubiertos = 0;
-  let dinero = D(0);
-  for (const r of l.recepciones ?? []) {
-    // `received` sigue siendo la única definición de cuántos llegaron: una
-    // recepción que diga más se recorta, no agranda lo recibido.
-    const unidades = Math.min(Math.max(Math.trunc(r.quantity), 0), recibido - cubiertos);
-    if (unidades <= 0) continue;
-    dinero = dinero.plus(D(unidades).times(Math.max(r.unitPrice, 0)));
-    cubiertos += unidades;
-  }
+  const { cubiertos, dinero } = dineroDeRecepciones(l);
 
   return dinero.plus(D(pedido - cubiertos).times(Math.max(l.unitPrice, 0)));
+};
+
+/**
+ * LO QUE VALE LO YA RECIBIDO de una línea: hermano de `dineroDeLinea` que corta
+ * en `recibido` en vez de en `pedido`.
+ *
+ * Las recepciones valen a su precio REAL y lo recibido **sin** recepción
+ * registrada, al precio PEDIDO. Lo que todavía no llegó no cuenta: no es
+ * mercadería que se pueda deber, es un compromiso (ver `comprometido`).
+ */
+const valorRecibidoDeLinea = (l: InvoiceLineInput): Decimal => {
+  const { cubiertos, dinero } = dineroDeRecepciones(l);
+
+  return dinero.plus(D(recibidoDe(l) - cubiertos).times(Math.max(l.unitPrice, 0)));
 };
 
 /**
@@ -152,6 +199,7 @@ export function invoiceTotals(
   const aFavor = Decimal.max(diferencia.negated(), 0);
   const pedido = lines.reduce((s, l) => s + Math.max(Math.trunc(l.quantity), 0), 0);
   const recibido = lines.reduce((s, l) => s + recibidoDe(l), 0);
+  const valorRecibido = lines.reduce((s, l) => s.plus(valorRecibidoDeLinea(l)), D(0));
 
   return {
     total: toCents(total),
@@ -162,6 +210,10 @@ export function invoiceTotals(
     pedido,
     recibido,
     porRecibir: pedido - recibido,
+    valorRecibido: toCents(valorRecibido),
+    deuda: toCents(Decimal.max(valorRecibido.minus(pagado), 0)),
+    anticipo: toCents(Decimal.max(pagado.minus(valorRecibido), 0)),
+    comprometido: toCents(Decimal.max(total.minus(Decimal.max(pagado, valorRecibido)), 0)),
   };
 }
 

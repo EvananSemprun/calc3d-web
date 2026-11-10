@@ -786,7 +786,7 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
     equilibrio saltaría cada vez que llega una compra grande, justo el número
     con el que se ponen precios. El cálculo es `equilibrioYCompromiso` de shared
     —los niveles salen de ahí ya calculados SIN el compromiso, el JSX no suma
-    nada— y el monto es `totals.proveedores` de `useLoansOverview()`, el **mismo
+    nada— y el monto es `totals.comprometido` (fase B: lo pedido y no recibido; `totals.proveedores` ya es solo la mercadería recibida sin pagar) de `useLoansOverview()`, el **mismo
     endpoint** que dibuja la pantalla Deuda. Lo pagado de más no se resta.
     Estilo: la misma nota en caja gris que usa Deuda para "pagado de más", a
     propósito — es la misma idea ("este número no está en el de arriba").

@@ -60,11 +60,12 @@ const overview = (loans: Record<string, unknown>[]) => ({
     total: 0,
     applicationOrder: 'OLDEST_FIRST',
   },
-  suppliers: { groups: [], total: 0, aFavor: 0 },
+  suppliers: { groups: [], total: 0, aFavor: 0, comprometido: 0, facturasComprometidas: 0 },
   totals: {
     prestamista: loans.reduce((s, l) => s + (l.balance as number), 0),
     propietario: 0,
     proveedores: 0,
+    comprometido: 0,
     total: loans.reduce((s, l) => s + (l.balance as number), 0),
   },
 });

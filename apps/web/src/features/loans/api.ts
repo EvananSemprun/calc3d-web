@@ -69,10 +69,17 @@ export interface DeudaConProveedor {
   /** `null` = facturas sin proveedor anotado. Se deben igual. */
   supplierId: string | null;
   supplierName: string;
-  /** Σ saldos de sus facturas vigentes. */
+  /** Σ deuda de sus facturas vigentes: mercadería que YA llegó y no se pagó. */
   total: number;
-  /** Cuántas de sus facturas tienen saldo. */
+  /** Cuántas de sus facturas tienen deuda. */
   facturas: number;
+  /**
+   * Lo pedido a ese proveedor que todavía no llegó y no se pagó. ⚠️ **No es
+   * deuda ni suma a `total`**: es un compromiso a futuro.
+   */
+  comprometido: number;
+  /** Cuántas de sus facturas tienen algo comprometido. Su propia cuenta: no es `facturas`. */
+  facturasComprometidas: number;
   /**
    * EL SALDO A FAVOR que todavía se puede usar con ese proveedor, aparte.
    *
@@ -105,6 +112,10 @@ export interface LoansOverview {
     groups: DeudaConProveedor[];
     total: number;
     aFavor: number;
+    /** Σ de lo comprometido. Va aparte: no es deuda. */
+    comprometido: number;
+    /** Cuántas facturas lo componen (el conteo que acompaña a `comprometido`). */
+    facturasComprometidas: number;
   };
   /**
    * Los tres bloques y su suma, **derivados por el servidor**.
@@ -117,7 +128,13 @@ export interface LoansOverview {
   totals: {
     prestamista: number;
     propietario: number;
+    /** Mercadería recibida y no pagada. Ya NO incluye lo pedido y no recibido. */
     proveedores: number;
+    /**
+     * Lo pedido y no recibido. ⚠️ **NO entra en `total`**: no se debe todavía.
+     * Es lo que el Dashboard muestra al lado del punto de equilibrio.
+     */
+    comprometido: number;
     total: number;
   };
 }
