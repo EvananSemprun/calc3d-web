@@ -161,7 +161,7 @@ function TotalDeLaPantalla({ totals }: { totals: LoansOverviewTotals }) {
           label="Lo que debe el negocio"
           value={money(totals.total)}
           accent="yellow"
-          sub="La suma de los tres bloques de abajo"
+          sub="La suma de los tres bloques de abajo; lo comprometido no entra"
         />
         <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
           {partes.map((p) => (
@@ -173,19 +173,20 @@ function TotalDeLaPantalla({ totals }: { totals: LoansOverviewTotals }) {
               <dd className="font-semibold tabular-nums">{money(p.value)}</dd>
             </div>
           ))}
+          {/* ⚠️ Lo comprometido va FUERA de la suma y con su propia línea: es lo
+              pedido que todavía no llegó, no una deuda. Meterlo en el total
+              volvería a decir «debes $334» de facturas sin una caja recibida.
+              Va DENTRO del `dl`: un `dt`/`dd` suelto pierde su rol. */}
+          <div className="flex items-baseline justify-between gap-2 rounded-xl border border-dashed border-border/70 px-3 py-2 sm:col-span-3">
+            <dt className="text-muted-foreground">Comprometido</dt>
+            <dd className="text-right">
+              <span className="font-semibold tabular-nums">{money(totals.comprometido ?? 0)}</span>
+              <span className="ml-2 text-xs text-muted-foreground">
+                pedido y sin recibir: no se debe todavía, no está sumado arriba
+              </span>
+            </dd>
+          </div>
         </dl>
-        {/* ⚠️ Lo comprometido va FUERA de la suma y con su propia línea: es lo
-            pedido que todavía no llegó, no una deuda. Meterlo en el total
-            volvería a decir «debes $334» de facturas sin una caja recibida. */}
-        <div className="flex items-baseline justify-between gap-2 rounded-xl border border-dashed border-border/70 px-3 py-2 text-sm">
-          <dt className="text-muted-foreground">Comprometido</dt>
-          <dd className="text-right">
-            <span className="font-semibold tabular-nums">{money(totals.comprometido)}</span>
-            <span className="ml-2 text-xs text-muted-foreground">
-              pedido y sin recibir: no se debe todavía, no está sumado arriba
-            </span>
-          </dd>
-        </div>
       </CardContent>
     </Card>
   );
@@ -196,12 +197,29 @@ type LoansOverviewSuppliers = LoansOverview['suppliers'];
 
 /**
  * El tercer bloque: lo que le debes a cada proveedor, derivado de sus facturas
- * (total de las líneas − abonos no anulados).
+ * (lo recibido − abonos no anulados, nunca negativo). Lo pedido y no recibido no es
+ * deuda: va aparte como comprometido.
  *
  * ⚠️ **Acá no se gestiona nada.** Abonar, recibir y anular viven en Compras, y
  * duplicarlos sería tener dos puertas para la misma escritura. Esta pantalla
  * responde "cuánto" y lleva allá.
  */
+/**
+ * Cuántas facturas pesan en cada cuenta, dicho para que no se lea como una
+ * suma: una factura PARCIALMENTE recibida cuenta en las dos (lo recibido sin
+ * pagar es deuda, lo que falta llegar es compromiso) y sigue siendo UNA.
+ */
+function cuantasFacturas(conDeuda: number, comprometidas: number): string {
+  const plural = (n: number) => `${n} factura${n === 1 ? '' : 's'}`;
+  const partes = [
+    conDeuda > 0 && `${plural(conDeuda)} con lo recibido sin pagar`,
+    comprometidas > 0 && `${plural(comprometidas)} con pedido por recibir`,
+  ].filter(Boolean);
+  if (partes.length === 0) return 'Sin facturas pendientes';
+  const aviso = partes.length === 2 ? ' (una misma factura puede estar en las dos)' : '';
+  return partes.join(' · ') + aviso;
+}
+
 function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers }) {
   const { money } = useMoney();
   const { groups, total, aFavor, comprometido } = suppliers;
@@ -213,18 +231,10 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
     nombre: g.supplierName,
     sinNombre: g.supplierId == null,
     debe: money(g.total),
-    comprometido: g.comprometido > 0 ? money(g.comprometido) : null,
+    comprometido: (g.comprometido ?? 0) > 0 ? money(g.comprometido) : null,
     // Cada cuenta con su propio conteo: las facturas con deuda no son las
     // comprometidas, y un proveedor solo con compromiso no tiene «0 sin pagar».
-    cuantas:
-      [
-        g.facturas > 0 &&
-          `${g.facturas} factura${g.facturas === 1 ? '' : 's'} con mercadería sin pagar`,
-        g.facturasComprometidas > 0 &&
-          `${g.facturasComprometidas} factura${g.facturasComprometidas === 1 ? '' : 's'} pedida${g.facturasComprometidas === 1 ? '' : 's'} sin recibir`,
-      ]
-        .filter(Boolean)
-        .join(' · ') || 'Sin facturas pendientes',
+    cuantas: cuantasFacturas(g.facturas, g.facturasComprometidas ?? 0),
     aFavor: g.aFavor > 0 ? money(g.aFavor) : null,
   }));
 
@@ -250,10 +260,10 @@ function DeudaConProveedores({ suppliers }: { suppliers: LoansOverviewSuppliers 
 
       <Card>
         <CardContent className="space-y-4 p-4 sm:p-5">
-          <Stat label="Total por pagar" value={money(total)} accent="yellow" />
+          <Stat label="Recibido y sin pagar" value={money(total)} accent="yellow" />
           <p className="text-sm text-muted-foreground">
             Comprometido (pedido y sin recibir):{' '}
-            <strong className="tabular-nums text-foreground">{money(comprometido)}</strong>. No se
+            <strong className="tabular-nums text-foreground">{money(comprometido ?? 0)}</strong>. No se
             debe todavía, así que no está en el total.
           </p>
 

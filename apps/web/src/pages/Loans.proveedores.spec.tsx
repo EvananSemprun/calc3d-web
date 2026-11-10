@@ -110,10 +110,42 @@ describe('Deuda: «A proveedores» y «Comprometido»', () => {
     expect(filas[0]!.textContent).not.toMatch(/sin facturas pendientes/i);
   });
 
-  it('el bloque dice que lo comprometido no es deuda', async () => {
+  it('el bloque dice que lo comprometido no es deuda, con su monto, y el total lo repite', async () => {
     montar();
 
     await screen.findByText('Lo que le debes a los proveedores');
-    expect(screen.getAllByText(/todavía no llegó|no se debe/i).length).toBeGreaterThan(0);
+    // Anclado al párrafo del bloque, no a un texto que también está en la cabecera.
+    const linea = screen.getByText(/Comprometido \(pedido y sin recibir\)/);
+    expect(linea.tagName).toBe('P');
+    expect(linea.textContent).toMatch(/334/);
+    expect(linea.textContent).toMatch(/No se debe todavía/);
+    // El bloque rotula la deuda real como lo recibido y sin pagar.
+    expect(screen.getByText('Recibido y sin pagar')).toBeTruthy();
+  });
+
+  it('una factura parcialmente recibida avisa que cuenta en las dos cuentas', async () => {
+    mocks.get.mockImplementation(async (url: string) => {
+      if (url === '/loans/overview') {
+        const o = overview();
+        o.suppliers.groups = [
+          grupo({ total: 12, facturas: 1, comprometido: 30, facturasComprometidas: 1 }),
+        ];
+        return { data: o };
+      }
+      return { data: url === '/counterparties' ? [] : null };
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={qc}>
+          <ConfirmProvider>
+            <LoansPage />
+          </ConfirmProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    const fila = (await screen.findAllByText('StratoFill')).map((n) => n.closest('tr')).find(Boolean)!;
+    expect(fila.textContent).toMatch(/una misma factura puede estar en las dos/);
   });
 });
