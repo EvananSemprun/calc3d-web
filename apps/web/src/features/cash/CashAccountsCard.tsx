@@ -334,7 +334,7 @@ function AccountsCard() {
 
               {form.shared && (
                 <div className="space-y-3">
-                  <Field label="¿Con quién la compartís?" required>
+                  <Field label="¿Con quién la compartes?" required>
                     <Select
                       value={form.sharedWithId}
                       onChange={(e) => set({ sharedWithId: e.target.value })}
@@ -369,7 +369,7 @@ function AccountsCard() {
                       <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
                     )}
                     <p>
-                      Convierte un faltante que no sabés explicar en una deuda saldada. Siempre
+                      Convierte un faltante que no sabes explicar en una deuda saldada. Siempre
                       vas a ver el reparto antes de confirmar, y puedes escribir otra explicación.
                     </p>
                   </div>

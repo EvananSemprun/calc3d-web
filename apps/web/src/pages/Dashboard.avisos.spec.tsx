@@ -311,14 +311,14 @@ describe('Aviso: falta contar el stock del mes anterior', () => {
   });
 });
 
-describe('Aviso: hace mucho que no leés el contador de horas', () => {
+describe('Aviso: hace mucho que no lees el contador de horas', () => {
   it('con la última lectura de hace más de un mes avisa y dice cuánto hace', async () => {
     mocks.hoy.valor = '2026-11-20';
     const { cargar } = montar({ lecturas: ['2026-09'] });
     await cargar();
 
     expect(
-      screen.getByText('Hace 51 días que no anotás las horas de tus impresoras.'),
+      screen.getByText('Hace 51 días que no anotas las horas de tus impresoras.'),
     ).toBeInTheDocument();
     expect(screen.getByText(/Hace 51 días/).closest('a')).toHaveAttribute('href', '/production');
   });
@@ -329,7 +329,7 @@ describe('Aviso: hace mucho que no leés el contador de horas', () => {
     const { cargar } = montar({ lecturas: ['2026-09'] });
     await cargar();
 
-    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anotas las horas/)).not.toBeInTheDocument();
   });
 
   it('si NUNCA se leyó un contador, el aviso NO dice "hace N días"', async () => {
@@ -346,7 +346,7 @@ describe('Aviso: hace mucho que no leés el contador de horas', () => {
     const { cargar } = montar({ lecturas: [] });
     await cargar();
 
-    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anotas las horas/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Nunca anotaste/)).not.toBeInTheDocument();
   });
 
@@ -356,14 +356,14 @@ describe('Aviso: hace mucho que no leés el contador de horas', () => {
     await primera.cargar();
 
     fireEvent.click(screen.getByLabelText('Descartar el aviso de las lecturas de horas'));
-    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anotas las horas/)).not.toBeInTheDocument();
 
     primera.unmount();
     mocks.hoy.valor = '2026-12-01';
     const segunda = montar({ lecturas: ['2026-09'] });
     await segunda.cargar();
 
-    expect(screen.getByText(/anotás las horas/)).toBeInTheDocument();
+    expect(screen.getByText(/anotas las horas/)).toBeInTheDocument();
   });
 });
 
@@ -396,7 +396,7 @@ describe('Los dos recordatorios se colapsan en un renglón', () => {
     // Y los dos avisos NO están dibujados: si estuvieran, el renglón sería un
     // adorno que suma alto en vez de recuperarlo.
     expect(screen.queryByText(SIN_CONTEO)).not.toBeInTheDocument();
-    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anotas las horas/)).not.toBeInTheDocument();
   });
 
   it('al tocarlo se despliegan los dos, con sus textos y enlaces intactos', async () => {
@@ -414,9 +414,9 @@ describe('Los dos recordatorios se colapsan en un renglón', () => {
       '/filament/stock?mes=2026-10',
     );
     expect(
-      screen.getByText('Hace 51 días que no anotás las horas de tus impresoras.'),
+      screen.getByText('Hace 51 días que no anotas las horas de tus impresoras.'),
     ).toBeInTheDocument();
-    expect(screen.getByText(/anotás las horas/).closest('a')).toHaveAttribute(
+    expect(screen.getByText(/anotas las horas/).closest('a')).toHaveAttribute(
       'href',
       '/production',
     );
@@ -457,7 +457,7 @@ describe('Los dos recordatorios se colapsan en un renglón', () => {
 
     expect(renglon()).not.toBeInTheDocument();
     expect(screen.queryByText(SIN_CONTEO)).not.toBeInTheDocument();
-    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anotas las horas/)).not.toBeInTheDocument();
   });
 
   /**
@@ -474,7 +474,7 @@ describe('Los dos recordatorios se colapsan en un renglón', () => {
     fireEvent.click(screen.getByLabelText('Descartar el aviso del conteo de octubre de 2026'));
 
     expect(screen.queryByText(SIN_CONTEO)).not.toBeInTheDocument();
-    expect(screen.getByText(/anotás las horas/)).toBeInTheDocument();
+    expect(screen.getByText(/anotas las horas/)).toBeInTheDocument();
     expect(renglon()).not.toBeInTheDocument();
   });
 
@@ -493,7 +493,7 @@ describe('Los dos recordatorios se colapsan en un renglón', () => {
     desplegar();
     fireEvent.click(screen.getByLabelText('Descartar el aviso de las lecturas de horas'));
 
-    expect(screen.queryByText(/anotás las horas/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anotas las horas/)).not.toBeInTheDocument();
     expect(screen.getByText(SIN_CONTEO)).toBeInTheDocument();
   });
 
@@ -541,7 +541,7 @@ describe('Los avisos conviven', () => {
       'href',
       '/filament/stock?mes=2026-10',
     );
-    expect(screen.getByText(/anotás las horas/).closest('a')).toHaveAttribute(
+    expect(screen.getByText(/anotas las horas/).closest('a')).toHaveAttribute(
       'href',
       '/production',
     );
@@ -549,7 +549,7 @@ describe('Los avisos conviven', () => {
     fireEvent.click(screen.getByLabelText('Descartar el aviso del conteo de octubre de 2026'));
 
     expect(screen.queryByText(SIN_CONTEO)).not.toBeInTheDocument();
-    expect(screen.getByText(/anotás las horas/)).toBeInTheDocument();
+    expect(screen.getByText(/anotas las horas/)).toBeInTheDocument();
   });
 
   /**

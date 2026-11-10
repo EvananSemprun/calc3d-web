@@ -79,7 +79,7 @@ const elegir = (nombre: string | RegExp, opcion: string) => {
  * El cuerpo del POST **de la factura**.
  *
  * ⚠️ No alcanza con `calls[0]`: el `Combobox` guarda cada opción nueva con su
- * propio `POST /catalog-options` apenas la creás —es optimista—, así que
+ * propio `POST /catalog-options` apenas la creas —es optimista—, así que
  * escribir marca, tipo y color manda tres pedidos ANTES del de la factura.
  */
 const cuerpo = () => {

@@ -800,7 +800,7 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
         <div>
           <h2 className="font-display text-lg font-bold">Movimientos con tu bolsillo</h2>
           <p className="text-sm text-muted-foreground">
-            Solo la plata pura: lo que sacas para vos o lo que metés sin comprar nada. Una compra que
+            Solo la plata pura: lo que sacas para vos o lo que metes sin comprar nada. Una compra que
             pagaste vos va en Gastos con “¿Quién lo pagó?”, no acá.
           </p>
         </div>

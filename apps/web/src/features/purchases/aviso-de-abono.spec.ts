@@ -4,8 +4,8 @@ import { avisoDeAbono } from './aviso-de-abono';
 /**
  * EL AVISO DEL MONTO DE UN ABONO.
  *
- * El caso que trajo este archivo: tomás $15 del saldo a favor de una factura y
- * los aplicás a otra donde debes $5. **Se puede** —la plata no se pierde ni se
+ * El caso que trajo este archivo: tomas $15 del saldo a favor de una factura y
+ * los aplicas a otra donde debes $5. **Se puede** —la plata no se pierde ni se
  * inventa: paga los $5 y los otros $10 quedan a favor en la factura nueva—,
  * pero el saldo SALTA de una factura a la otra, y el dueño tiene que verlo
  * antes de confirmar. Hasta el 2026-10-10 esa combinación no caía en ninguno de
@@ -83,7 +83,7 @@ describe('avisoDeAbono', () => {
 
     it('un origen sin nada disponible NO se confunde con pagar con plata', () => {
       // `disponible: 0` es "elegiste una factura que no tiene saldo"; `null` es
-      // "pagás con plata". Con un solo valor para las dos, un origen agotado
+      // "pagas con plata". Con un solo valor para las dos, un origen agotado
       // avisaría "queda pagada de más" en vez de "no hay saldo".
       expect(avisoDeAbono({ monto: 5, falta: 5, disponible: 0 })).toEqual({
         clase: 'SIN_SALDO',

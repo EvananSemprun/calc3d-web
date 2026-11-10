@@ -57,7 +57,7 @@ type ExpenseType = {
    * Dónde se registra este tipo, si tiene un área propia.
    *
    * ⚠️ Es un PAR: el tipo que aparece acá **no** se ofrece en el desplegable
-   * de Gastos, porque habría dos caminos para lo mismo. Si agregás un botón en
+   * de Gastos, porque habría dos caminos para lo mismo. Si agregas un botón en
    * una pantalla nueva, marca su tipo acá; si sacas el botón, saca la marca o
    * el tipo queda sin ninguna puerta.
    */

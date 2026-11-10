@@ -1173,7 +1173,7 @@ function useRecordatorioDeLecturas(): Recordatorio | null {
       pendiente.dias == null ? (
         <>Nunca anotaste las horas de tus impresoras.</>
       ) : (
-        <>Hace {pendiente.dias} días que no anotás las horas de tus impresoras.</>
+        <>Hace {pendiente.dias} días que no anotas las horas de tus impresoras.</>
       ),
     detalle: (
       <>
@@ -1251,7 +1251,7 @@ const ID_RECORDATORIOS = 'dashboard-recordatorios';
  * mes es exactamente su ritmo. Un encargo vencido no es una tarea del mes: es
  * una fila concreta. Si se callara por un mes, un encargo nuevo que se venza
  * mañana quedaría tapado por el descarte del de hoy. Por eso el descarte se
- * guarda contra **la lista de encargos afectados**: callás lo que estás
+ * guarda contra **la lista de encargos afectados**: callas lo que estás
  * viendo, y en cuanto entra otro el aviso vuelve.
  *
  * ⚠️ **Son cuatro recordatorios y no uno.** Cada uno pide una acción distinta

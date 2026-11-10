@@ -75,7 +75,7 @@ const tonoMercaderia = (m: PurchaseInvoice['status']['mercaderia']) =>
  *
  * ⚠️ **Los abonos son la plata; la recepción es la mercadería.** La pantalla
  * los muestra como DOS estados separados a propósito: una factura puede estar
- * pagada entera y sin llegar, que es lo normal cuando encargás algo.
+ * pagada entera y sin llegar, que es lo normal cuando encargas algo.
  */
 export function PurchasesPage() {
   const { money } = useMoney();
@@ -713,13 +713,13 @@ function Abonar({
             opción es ruido. */}
         {origenes.length > 0 && (
           <Field
-            label="¿Con qué lo pagás?"
+            label="¿Con qué lo pagas?"
             hint={`${saldo?.supplierName} te debe ${money(saldo?.disponible ?? 0)}.`}
           >
             <Select
               value={tomadoDe}
               onChange={(e) => elegirOrigen(e.target.value)}
-              aria-label="¿Con qué lo pagás?"
+              aria-label="¿Con qué lo pagas?"
             >
               <option value="">Con plata</option>
               {origenes.map((o) => (
@@ -776,8 +776,8 @@ function Abonar({
             salió— y queda marcado como pagado de más.
           </p>
         )}
-        {/* ⚠️ **EL SALDO QUE SALTA DE UNA FACTURA A LA OTRA.** Tomás $15 de
-            saldo y los aplicás donde debes $5: paga los $5 y los $10 quedan a
+        {/* ⚠️ **EL SALDO QUE SALTA DE UNA FACTURA A LA OTRA.** Tomas $15 de
+            saldo y los aplicas donde debes $5: paga los $5 y los $10 quedan a
             favor en ESTA factura. Se puede —la plata ni se pierde ni se
             inventa— y por eso NO bloquea; lo que no puede pasar es que ocurra
             sin que el dueño vea cuánto va a quedar a favor en la factura nueva.
@@ -941,7 +941,7 @@ function Recibir({
         {nacerollo && (
           <Field
             label="Gramos del rollo"
-            hint="La ficha se crea ahora. Marca, tipo y color los corregís después desde Stock del mes."
+            hint="La ficha se crea ahora. Marca, tipo y color los corriges después desde Stock del mes."
           >
             <NumberInput value={rollGrams} onChange={(n) => setRollGrams(Math.max(1, Math.floor(n)))} />
           </Field>
@@ -949,7 +949,7 @@ function Recibir({
         {fichaNueva && l.nuevoTipo === 'PRINTER' && (
           <p className="rounded-lg border border-border/70 bg-background/30 p-2 text-xs text-muted-foreground">
             La impresora se crea ahora con el precio de la compra. Las horas de vida útil y el
-            consumo los corregís después desde Catálogos → Impresoras.
+            consumo los corriges después desde Catálogos → Impresoras.
           </p>
         )}
         <p className="rounded-lg border border-border/70 bg-background/30 p-2 text-xs text-muted-foreground">

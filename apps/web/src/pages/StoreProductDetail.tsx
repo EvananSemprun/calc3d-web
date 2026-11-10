@@ -470,7 +470,7 @@ export function StoreProductDetailPage() {
                 </Field>
                 <Field
                   label="Insignia"
-                  hint='Esquina de la tarjeta: "Más vendido", "Edición limitada". «Nuevo» se pone solo durante los primeros 15 días desde que lo publicás.'
+                  hint='Esquina de la tarjeta: "Más vendido", "Edición limitada". «Nuevo» se pone solo durante los primeros 15 días desde que lo publicas.'
                 >
                   <Input
                     maxLength={24}
@@ -747,7 +747,7 @@ export function StoreProductDetailPage() {
                   {margen != null && margen.real < 0 && (
                     <p className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs font-medium text-destructive">
                       {margen.convertido && margen.nominal >= 0
-                        ? `En BCV parece que ganás, pero en USDT no: entran ${money(margen.precioUsdt)} contra un costo de ${money(costo)}. Cada unidad pierde ${money(costo - margen.precioUsdt)}.`
+                        ? `En BCV parece que ganas, pero en USDT no: entran ${money(margen.precioUsdt)} contra un costo de ${money(costo)}. Cada unidad pierde ${money(costo - margen.precioUsdt)}.`
                         : `El precio de venta está por debajo del costo: cada unidad vendida pierde ${money(costo - margen.precioUsdt)}.`}
                     </p>
                   )}

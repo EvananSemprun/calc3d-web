@@ -19,8 +19,35 @@ export const FORMAS_DE_VOSEO = [
   'abonás', 'tenés', 'podés', 'tocá', 'mirá', 'dejalo', 'registrá', 'elegí',
   'hacé', 'ingresá', 'avisá', 'sacá', 'pasá', 'verificá', 'poné', 'cargá',
   'borrá', 'revisá', 'usá', 'sumá', 'decí', 'fijate', 'acordate', 'escribí',
-  'mandá',
+  'mandá', 'corregí', 'volvé', 'cargala', 'contá', 'llená', 'cerrá', 'anotá',
+  'publicá', 'cambiá', 'marcá', 'recargá',
 ] as const;
+
+/**
+ * Presente de voseo POR PATRÓN: toda palabra terminada en `-ás`, `-és` o `-ís`
+ * (anotás, pagás, elegís...) se marca sin que nadie la enumere. Se excluyen las
+ * terminadas en `-rás`/`-rés`/`-rís`: es el futuro del tuteo (verás, tendrás).
+ *
+ * Los imperativos (`cargá`, `volvé`) NO se pueden cazar por patrón (`está`,
+ * `acá`, `todavía`...), por eso para ellos queda la lista explícita de arriba.
+ *
+ * ⚠️ Si el guardián marca una palabra LEGÍTIMA (no es voseo), agrégala a
+ * `PALABRAS_PERMITIDAS` en minúscula. Cada entrada tiene que seguir apareciendo
+ * en el código (hay un test): una lista blanca con palabras que ya nadie usa
+ * es la forma lenta de desactivar el guardián.
+ */
+export const PALABRAS_PERMITIDAS = [
+  'más', 'además', 'después', 'demás', 'revés', 'estás',
+] as const;
+
+const PATRON_PRESENTE = /(?<![\p{L}\p{N}_])[\p{L}]*(?<!r)(?:ás|és|ís)(?![\p{L}\p{N}_])/giu;
+
+export function presentesDeVoseo(texto: string): string[] {
+  const permitidas: readonly string[] = PALABRAS_PERMITIDAS;
+  return (texto.match(PATRON_PRESENTE) ?? [])
+    .map((p) => p.toLowerCase())
+    .filter((p) => !permitidas.includes(p));
+}
 
 const RAIZ = path.resolve(__dirname);
 const ESTE_ARCHIVO = path.resolve(__dirname, 'idioma.spec.ts');
@@ -54,6 +81,38 @@ describe('idioma del panel', () => {
       }
     }
     expect(encontrados, `Voseo en el panel (usa «tú»):\n${encontrados.join('\n')}`).toEqual([]);
+  });
+
+  it('ningún archivo del panel usa el presente de voseo (-ás/-és/-ís)', () => {
+    const encontrados: string[] = [];
+    for (const ruta of archivos(RAIZ)) {
+      if (ruta === ESTE_ARCHIVO) continue;
+      for (const palabra of new Set(presentesDeVoseo(readFileSync(ruta, 'utf8')))) {
+        encontrados.push(`${path.relative(RAIZ, ruta)}: «${palabra}»`);
+      }
+    }
+    expect(
+      encontrados,
+      `Voseo en el panel (usa «tú»):\n${encontrados.join('\n')}\n` +
+        'Si la palabra es legítima (no es voseo), agrégala a PALABRAS_PERMITIDAS en idioma.spec.ts.',
+    ).toEqual([]);
+  });
+
+  it('el patrón caza voseo que nadie enumeró y deja pasar lo legítimo', () => {
+    expect(presentesDeVoseo('Si escribís o elegís algo')).toEqual(['escribís', 'elegís']);
+    expect(presentesDeVoseo('Después verás que estás además más aquí, tendrás el revés')).toEqual([]);
+  });
+
+  it('la lista blanca no está vacía y cada entrada sigue usándose en el código', () => {
+    expect(PALABRAS_PERMITIDAS.length).toBeGreaterThan(0);
+    const todo = archivos(RAIZ)
+      .filter((r) => r !== ESTE_ARCHIVO)
+      .map((r) => readFileSync(r, 'utf8').toLowerCase())
+      .join('\n');
+    const sinUso = PALABRAS_PERMITIDAS.filter(
+      (p) => !new RegExp(String.raw`(?<![\p{L}\p{N}_])${p}(?![\p{L}\p{N}_])`, 'u').test(todo),
+    );
+    expect(sinUso, `Entradas de la lista blanca que ya nadie usa: ${sinUso.join(', ')}`).toEqual([]);
   });
 
   it('la lista cubre más que las diez formas del pedido original', () => {

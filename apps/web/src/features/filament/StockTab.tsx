@@ -1127,7 +1127,7 @@ function RestockCard({
           comprás más que el promedio ({promedio.toLocaleString('es', { maximumFractionDigits: 1 })}{' '}
           rollos por color, hasta el cierre del mes) y a los que les queda 1 rollo o menos. Los
           colores descontinuados no entran. El pedido se arma solo
-          con los dos primeros grupos: lo que conviene reponer lo decidís vos.
+          con los dos primeros grupos: lo que conviene reponer lo decides vos.
         </p>
       </CardContent>
     </Card>

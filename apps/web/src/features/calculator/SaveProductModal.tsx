@@ -153,7 +153,7 @@ export function SaveProductModal({ onClose }: { onClose: () => void }) {
         ) : (
           <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             Falta una de las dos tasas, así que este precio va <strong>sin convertir</strong>. La
-            vitrina publica en dólares BCV y vos costeás en USDT: tal cual, se publica más barato
+            vitrina publica en dólares BCV y vos costeas en USDT: tal cual, se publica más barato
             de lo costeado. Carga las tasas en Configuración.
           </p>
         )}

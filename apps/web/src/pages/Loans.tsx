@@ -875,7 +875,7 @@ function NewLoanDialog({ open, onClose }: { open: boolean; onClose: () => void }
           );
         }}
       >
-        <Field label="Nombre" hint="Cómo lo reconocés vos: “Deuda impresora P2S”">
+        <Field label="Nombre" hint="Cómo lo reconoces vos: “Deuda impresora P2S”">
           <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </Field>
 

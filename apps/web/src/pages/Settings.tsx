@@ -940,7 +940,7 @@ function FixedCostsSettings() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Margen de contribución"
-            hint={`De cada $100 que vendés, lo que queda después del material: ${marginPct} % (o sea, ${100 - marginPct} % de costo variable)`}
+            hint={`De cada $100 que vendes, lo que queda después del material: ${marginPct} % (o sea, ${100 - marginPct} % de costo variable)`}
           >
             <div className="relative w-28">
               <NumberInput className="pr-7" value={marginPct} onChange={setMarginPct} />

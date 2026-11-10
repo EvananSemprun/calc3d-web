@@ -221,7 +221,7 @@ async function abrirAbonar(ref = 'FAC-0002') {
  * sintetiza desde un `click`. Con el teclado, el `click` del ítem alcanza.
  */
 function tomarDelSaldo() {
-  fireEvent.keyDown(screen.getByLabelText('¿Con qué lo pagás?'), { key: 'ArrowDown' });
+  fireEvent.keyDown(screen.getByLabelText('¿Con qué lo pagas?'), { key: 'ArrowDown' });
   fireEvent.click(screen.getByText(/^Del saldo a favor de la factura del/));
 }
 
