@@ -21,12 +21,16 @@ export interface StoreBanner {
   subtitle: string | null;
   /** DONDE se muestra. No confundir con `linkType`, que es adonde lleva. */
   kind: StoreBannerKind;
-  /** null en los de TEXTO: no llevan imagen. */
+  /** El arte al costado del texto. null en los de TEXTO: no llevan imagen. */
   imageKey: string | null;
+  /** EL FONDO del hero, a todo el ancho detrás del texto. Solo en HERO. */
+  backgroundKey: string | null;
   /** Solo en CATEGORIA: la categoria donde se muestra. */
   categoryId: string | null;
   /** null en los de TEXTO. */
   imageUrl: string | null;
+  /** null si el banner no lleva fondo (todos los que existían antes de 2026-11-12). */
+  backgroundUrl: string | null;
   linkType: StoreBannerLinkType;
   linkValue: string | null;
   position: number;

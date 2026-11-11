@@ -40,6 +40,9 @@ interface FormState {
   subtitle: string;
   kind: StoreBannerKind;
   imageKey: string;
+  /** EL FONDO del hero: otra imagen que `imageKey`, que es el arte de al lado. */
+  backgroundKey: string;
+  backgroundUrl: string;
   /** Solo en CATEGORIA: dónde se MUESTRA (no confundir con el destino del enlace). */
   categoryId: string;
   imageUrl: string;
@@ -54,6 +57,8 @@ const VACIO: FormState = {
   subtitle: '',
   kind: 'HERO',
   imageKey: '',
+  backgroundKey: '',
+  backgroundUrl: '',
   categoryId: '',
   imageUrl: '',
   linkType: 'NONE',
@@ -92,6 +97,8 @@ export function StoreBannersPage() {
       subtitle: b.subtitle ?? '',
       kind: b.kind,
       imageKey: b.imageKey ?? '',
+      backgroundKey: b.backgroundKey ?? '',
+      backgroundUrl: b.backgroundUrl ?? '',
       categoryId: b.categoryId ?? '',
       imageUrl: b.imageUrl ?? '',
       linkType: b.linkType,
@@ -232,22 +239,41 @@ function BannerForm({
   const fileRef = React.useRef<HTMLInputElement>(null);
   const [file, setFile] = React.useState<File | null>(null);
   const [previa, setPrevia] = React.useState<string>(form.imageUrl);
+  // EL FONDO del hero: su propio archivo y su propia vista previa. Es otra imagen que el
+  // arte de al lado, no una variante de la misma.
+  const fondoRef = React.useRef<HTMLInputElement>(null);
+  const [fileFondo, setFileFondo] = React.useState<File | null>(null);
+  const [previaFondo, setPreviaFondo] = React.useState<string>(form.backgroundUrl);
   const [guardando, setGuardando] = React.useState(false);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  const elegirArchivo = (f: File | undefined) => {
-    if (!f) return;
+  /** Tipo y tamaño, las mismas reglas que exige el servidor. `null` = no sirve. */
+  const archivoValido = (f: File | undefined): File | null => {
+    if (!f) return null;
     if (!(STORE_IMAGE_MIME_TYPES as readonly string[]).includes(f.type)) {
       notify.error('La imagen debe ser PNG, JPEG o WebP');
-      return;
+      return null;
     }
     if (f.size > STORE_IMAGE_MAX_BYTES) {
       notify.error('La imagen no puede pesar más de 5 MB');
-      return;
+      return null;
     }
-    setFile(f);
-    setPrevia(URL.createObjectURL(f));
+    return f;
+  };
+
+  const elegirArchivo = (f: File | undefined) => {
+    const ok = archivoValido(f);
+    if (!ok) return;
+    setFile(ok);
+    setPrevia(URL.createObjectURL(ok));
+  };
+
+  const elegirFondo = (f: File | undefined) => {
+    const ok = archivoValido(f);
+    if (!ok) return;
+    setFileFondo(ok);
+    setPreviaFondo(URL.createObjectURL(ok));
   };
 
   const guardar = async () => {
@@ -257,8 +283,17 @@ function BannerForm({
     }
     // Cada tipo pide lo suyo. Se valida ANTES de subir: si no, el servidor rechaza
     // (400) recién después del upload y queda una imagen huérfana en R2.
-    if (form.kind !== 'TEXTO' && !file && !form.imageKey) {
-      notify.error('Subí una imagen');
+    // ⚠️ El HERO admite el fondo, el arte de al lado, o los dos — pero alguna imagen
+    // tiene que haber, que es lo que exige el contrato. La CATEGORIA sigue pidiendo su
+    // imagen, que ahí ES el banner entero.
+    const hayFondo = !!fileFondo || !!form.backgroundKey;
+    const hayArte = !!file || !!form.imageKey;
+    if (form.kind === 'HERO' && !hayArte && !hayFondo) {
+      notify.error('Sube el fondo, la imagen de al lado, o las dos');
+      return;
+    }
+    if (form.kind === 'CATEGORIA' && !hayArte) {
+      notify.error('Sube una imagen');
       return;
     }
     if (form.kind === 'CATEGORIA' && !form.categoryId) {
@@ -286,12 +321,21 @@ function BannerForm({
     try {
       // Un banner de TEXTO no sube ni manda imagen: el contrato la PROHÍBE.
       const imageKey =
-        form.kind === 'TEXTO' ? null : file ? (await uploadBannerImage(file)).key : form.imageKey;
+        form.kind === 'TEXTO' ? null : file ? (await uploadBannerImage(file)).key : form.imageKey || null;
+      // El fondo es SOLO del hero: el contrato lo prohíbe en los otros dos tipos, así que
+      // mandarlo igual sería un 400 después de haber subido el archivo.
+      const backgroundKey =
+        form.kind !== 'HERO'
+          ? null
+          : fileFondo
+            ? (await uploadBannerImage(fileFondo)).key
+            : form.backgroundKey || null;
       const dto = {
         kind: form.kind,
         title: form.title,
         subtitle: form.subtitle || null,
         imageKey,
+        backgroundKey,
         categoryId: form.kind === 'CATEGORIA' ? form.categoryId : null,
         linkType: form.linkType,
         linkValue: form.linkType === 'NONE' ? null : form.linkValue || null,
@@ -346,8 +390,70 @@ function BannerForm({
           </Field>
         )}
 
+        {/* ⚠️ EL FONDO va PRIMERO, y es a propósito: es la pieza grande de la campaña, y
+            la de al lado es el complemento. Solo existe en el hero — el contrato lo
+            prohíbe en los otros dos tipos. */}
+        {form.kind === 'HERO' && (
+          <Field
+            label="Fondo de la portada"
+            hint="Opcional. Se ve a todo el ancho detrás del texto, con un velo oscuro encima para que el título se lea. PNG, JPEG o WebP, hasta 5 MB. Apaisada y ancha (21:9 o 16:9)."
+          >
+            <div className="space-y-2">
+              {previaFondo ? (
+                <img src={previaFondo} alt="" className="aspect-[21/9] w-full rounded-lg object-cover" />
+              ) : (
+                <div className="flex aspect-[21/9] w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <ImageOff className="h-6 w-6" />
+                </div>
+              )}
+              <input
+                ref={fondoRef}
+                type="file"
+                accept={STORE_IMAGE_MIME_TYPES.join(',')}
+                className="hidden"
+                onChange={(e) => {
+                  elegirFondo(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fondoRef.current?.click()}
+                  disabled={!storageReady}
+                >
+                  <Upload className="h-4 w-4" /> {previaFondo ? 'Cambiar fondo' : 'Subir fondo'}
+                </Button>
+                {previaFondo && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setFileFondo(null);
+                      setPreviaFondo('');
+                      set('backgroundKey', '');
+                      set('backgroundUrl', '');
+                    }}
+                  >
+                    Quitar fondo
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Field>
+        )}
+
         {form.kind !== 'TEXTO' && (
-        <Field label="Imagen" required hint="PNG, JPEG o WebP, hasta 5 MB. Se recomienda horizontal (16:9).">
+        <Field
+          label={form.kind === 'HERO' ? 'Imagen de al lado' : 'Imagen'}
+          required={form.kind === 'CATEGORIA'}
+          hint={
+            form.kind === 'HERO'
+              ? 'Opcional si pusiste un fondo. Es la que va al costado del texto, donde hoy está el banano. Horizontal (16:9).'
+              : 'PNG, JPEG o WebP, hasta 5 MB. Se recomienda horizontal (16:9).'
+          }
+        >
           <div className="space-y-2">
             {previa ? (
               <img src={previa} alt="" className="aspect-[16/9] w-full rounded-lg object-cover" />
