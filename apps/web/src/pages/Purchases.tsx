@@ -35,7 +35,7 @@ import { api, apiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useMoney } from '@/features/settings/useSettings';
 import { todayKey } from '@/lib/today';
-import { useCounterparties } from '@/features/cash/api';
+import { useCashAccounts, useCounterparties } from '@/features/cash/api';
 import { useContacts } from '@/features/contacts/api';
 import {
   ETIQUETA_MERCADERIA,
@@ -610,10 +610,13 @@ function Abonar({
 }) {
   const { money } = useMoney();
   const { data: contrapartes = [] } = useCounterparties();
+  const { data: cuentas = [] } = useCashAccounts();
   const abonar = useAddInvoicePayment();
   const [date, setDate] = useState(hoyIso());
   const [amount, setAmount] = useState(f.saldo);
   const [counterpartyId, setCounterpartyId] = useState('');
+  /** `''` = sin decir de qué cuenta salió (no se inventa una por defecto). */
+  const [accountId, setAccountId] = useState('');
   const [note, setNote] = useState('');
   /** `''` = con plata. Si no, la factura de la que sale el saldo a favor. */
   const [tomadoDe, setTomadoDe] = useState('');
@@ -674,6 +677,9 @@ function Abonar({
         // junto con el origen es 400 (el schema lo rechaza), y con razón —la
         // Caja le quedaría debiendo plata que no puso.
         counterpartyId: conSaldo ? null : counterpartyId || null,
+        // ⚠️ Mismo criterio: con el saldo a favor no salió de ninguna cuenta
+        // (el schema lo rechaza con 400).
+        accountId: conSaldo ? null : accountId || null,
         note: note.trim() || null,
         tomadoDeFacturaId: tomadoDe || null,
       },
@@ -744,6 +750,23 @@ function Abonar({
                   {c.kind === 'EXTERNAL_LENDER' ? c.name : `${c.name}, de su bolsillo`}
                 </option>
               ))}
+            </Select>
+          </Field>
+        )}
+        {/* La cuenta de la que salió la plata. Con el saldo a favor no hay
+            cuenta: esa plata ya salió cuando se pagó de más. Solo aparece si
+            hay cuentas: un desplegable vacío es ruido. */}
+        {!conSaldo && cuentas.some((c) => c.active) && (
+          <Field label="¿De qué cuenta salió?" hint="Opcional. Antes lo anotabas en la nota.">
+            <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              <option value="">Sin decir</option>
+              {cuentas
+                .filter((c) => c.active)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
             </Select>
           </Field>
         )}

@@ -69,6 +69,12 @@ export interface InvoicePayment {
   counterpartyId: string | null;
   counterparty: { id: string; name: string } | null;
   accountId: string | null;
+  /** Moneda y tasa CONGELADAS al pagar (null = USD o anterior a la fase B). Nunca se recalculan. */
+  rate?: number | null;
+  currencyCode?: string | null;
+  currencyLabel?: string | null;
+  amountForeign?: number | null;
+  refundable?: boolean;
   note: string | null;
   /**
    * TOMADO DEL SALDO A FAVOR: de qué factura del mismo proveedor salió.
