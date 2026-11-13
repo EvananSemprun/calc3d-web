@@ -222,6 +222,7 @@ function PreviaDialog({ coleccion, onClose }: { coleccion: Coleccion; onClose: (
         {isError && <p className="text-sm text-destructive">No se pudo cargar la vista previa.</p>}
         {data && (
           <>
+            <p className="text-xs text-muted-foreground">Se previsualiza lo último guardado, no los cambios sin guardar.</p>
             <p className="text-sm text-muted-foreground">
               {data.vigente
                 ? 'Esta colección es la que muestra la portada hoy.'
