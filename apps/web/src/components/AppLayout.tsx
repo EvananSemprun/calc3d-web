@@ -30,6 +30,7 @@ import {
   Menu,
   ChevronDown,
   X,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/auth/AuthContext';
@@ -119,6 +120,7 @@ const navGroups: {
       // `end` para que "Tienda" no quede resaltada también en /store/banners y /store/requests.
       { to: '/store', label: 'Tienda', icon: Store, end: true },
       { to: '/store/banners', label: 'Banners', icon: GalleryHorizontalEnd },
+      { to: '/store/colecciones', label: 'Colecciones', icon: Layers },
       { to: '/store/requests', label: 'Bandeja de tienda', icon: Inbox, badge: 'store-requests' },
     ],
   },
