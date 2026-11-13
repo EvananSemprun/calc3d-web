@@ -4,7 +4,7 @@
  * Gemelo del de `calc3d-api` (`common/estado-de-ficha.inventario.spec.ts`), por
  * la misma razón: `MaterialStatus` tiene tres valores y la pregunta «¿esta
  * ficha entra acá?» se contesta SOLO con los predicados de shared
- * (`entraEnReposicion`, `entraEnCalculadora`, `entraEnCompras`, `entraEnConteo`,
+ * (`entraEnReposicion`, `entraEnCalculadora`, `entraEnConteo`,
  * `estadoTrasComprar`) y los rótulos con `ETIQUETA_DE_ESTADO`/`SUFIJO_DE_ESTADO`.
  * Una comparación contra texto (`status === 'DISCONTINUED'`) compila igual con
  * el valor nuevo y trata el tercer estado como si fuera ACTIVE: nada la avisa.
