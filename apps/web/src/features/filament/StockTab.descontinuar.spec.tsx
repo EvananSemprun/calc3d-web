@@ -185,7 +185,7 @@ describe('StockTab — las fichas fuera del conteo', () => {
     expect(screen.queryByLabelText('PLA Dorado Eryone')).toBeNull();
     expect(screen.queryByLabelText('PLA Verde Eryone')).toBeNull();
     expect(screen.getByLabelText('PLA Rojo Eryone')).toBeInTheDocument();
-    expect(screen.getByText(/2 ficha\(s\) descontinuadas o solo para pedido especial/)).toBeInTheDocument();
+    expect(screen.getByText(/2 fichas descontinuadas o solo para pedido especial no se muestran/)).toBeInTheDocument();
   });
 
   it('«Mostrarlas» las trae a la grilla y «Ocultarlas» las vuelve a sacar', async () => {
@@ -275,7 +275,7 @@ describe('StockTab — selección múltiple para descontinuar', () => {
     await cargar();
     marcar('PLA Rojo Eryone');
     marcar('PLA Negro Sinco');
-    expect(screen.getByText(/2 ficha\(s\) seleccionadas/)).toBeInTheDocument();
+    expect(screen.getByText(/2 fichas seleccionadas/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Descontinuar seleccionadas' }));
     const dialogo = await screen.findByRole('alertdialog');
@@ -312,5 +312,50 @@ describe('StockTab — selección múltiple para descontinuar', () => {
 
     expect(screen.getByLabelText('Seleccionar PLA Rojo Eryone')).not.toBeChecked();
     expect(screen.queryByRole('button', { name: 'Descontinuar seleccionadas' })).toBeNull();
+  });
+});
+
+describe('StockTab — los avisos cuentan lo que se ve y concuerdan en número', () => {
+  // Eryone tiene 2 fuera del conteo; Sinco, 1 más. En total son 3, pero con la marca Eryone puesta se ven 2.
+  const CON_OTRA_FUERA = [...FILAS, fila('s2', 'Plata', 'Sinco', 'DISCONTINUED')];
+
+  it('«Se ven también…» cuenta las de la vista con los filtros puestos, no las de todas las marcas', async () => {
+    montar(CON_OTRA_FUERA);
+    await cargar();
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrarlas' }));
+    expect(screen.getByText(/Se ven también 3 fichas descontinuadas/)).toBeInTheDocument();
+
+    elegirMarca('Eryone');
+
+    expect(screen.getByText(/Se ven también 2 fichas descontinuadas/)).toBeInTheDocument();
+    expect(screen.queryByText(/Se ven también 3 fichas/)).toBeNull();
+    expect(screen.getAllByRole('article').length).toBe(4); // lo que se ve: 2 activas + 2 fuera
+  });
+
+  it('si ninguna de las de fuera coincide con los filtros, lo dice en vez de contar 0', async () => {
+    montar(FILAS);
+    await cargar();
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrarlas' }));
+
+    elegirMarca('Sinco');
+
+    expect(screen.getByText(/Ninguna ficha descontinuada o solo para pedido especial coincide con los filtros/)).toBeInTheDocument();
+  });
+
+  it('el plural concuerda: «esta ficha» con 1 y «estas fichas» con 2, sin «(s)»', async () => {
+    montar(FILAS);
+    await cargar();
+
+    elegirMarca('Sinco');
+    fireEvent.click(screen.getByRole('button', { name: /Descontinuar toda la marca Sinco/ }));
+    let dialogo = await screen.findByRole('alertdialog');
+    expect(within(dialogo).getByText(/Se van a descontinuar esta ficha: PLA Negro/)).toBeInTheDocument();
+    expect(dialogo.textContent).not.toMatch(/\(s\)/);
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Cancelar' }));
+
+    elegirMarca('Eryone');
+    fireEvent.click(screen.getByRole('button', { name: /Descontinuar toda la marca Eryone/ }));
+    dialogo = await screen.findByRole('alertdialog');
+    expect(within(dialogo).getByText(/Se van a descontinuar estas 2 fichas: /)).toBeInTheDocument();
   });
 });

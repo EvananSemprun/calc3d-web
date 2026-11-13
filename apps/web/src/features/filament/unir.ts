@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UnionVista } from '@calc3d/shared';
 import { api } from '@/lib/api';
+import { plural } from '@/lib/plural';
 
 /**
  * UNIR dos fichas duplicadas (13/11): filamentos (desde su ficha) e insumos (desde
@@ -22,8 +23,6 @@ const PALABRAS: Record<TipoDeFicha, { unidad: string; ficha: string }> = {
   insumo: { unidad: 'unidad', ficha: 'insumo' },
 };
 
-/** «1 compra» / «2 compras». */
-const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 /**
  * LO QUE LA UNIÓN VA A HACER, ya resuelto en filas de texto.

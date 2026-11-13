@@ -3,7 +3,7 @@ import { Navigate, useParams } from 'react-router-dom';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Inbox, Merge, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Inbox, Merge, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
 import { uniqueSorted } from '@/lib/utils';
 import { useMoney } from '@/features/settings/useSettings';
@@ -65,6 +65,7 @@ function CatalogView({ config }: { config: CatalogConfig }) {
   const [editing, setEditing] = useState<Row | null>(null);
   const [open, setOpen] = useState(false);
   const confirm = useConfirm();
+  const [rechazo, setRechazo] = useState<string | null>(null);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: [config.endpoint],
@@ -73,13 +74,16 @@ function CatalogView({ config }: { config: CatalogConfig }) {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/${config.endpoint}/${id}`),
+    onMutate: () => setRechazo(null),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [config.endpoint] });
       notify.success('Elemento eliminado');
     },
-    // El rechazo de borrar con historial trae la salida («Unir con otro insumo»): se deja
-    // más tiempo en pantalla, porque un aviso que se va solo no se alcanza a leer.
-    onError: (error) => notify.error('No se pudo eliminar', apiErrorMessage(error), { duration: 15000 }),
+    // ⚠️ El rechazo de borrar con historial trae la SALIDA («Unir con otro insumo»): son
+    // ~50 palabras y el dueño tiene que poder leerlas y decidir. Medido a 375 px: un toast de
+    // 15 s no deja margen (12,5-15 s de lectura) y en el celular no hay hover que lo pause.
+    // Va en un cartel que NO se va por tiempo: se cierra con la X o al hacer otra cosa.
+    onError: (error) => setRechazo(apiErrorMessage(error)),
   });
 
   const startCreate = () => {
@@ -87,6 +91,7 @@ function CatalogView({ config }: { config: CatalogConfig }) {
     setOpen(true);
   };
   const startEdit = (row: Row) => {
+    setRechazo(null);
     setEditing(row);
     setOpen(true);
   };
@@ -127,6 +132,22 @@ function CatalogView({ config }: { config: CatalogConfig }) {
           </Button>
         )}
       </div>
+
+      {rechazo && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-sm"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="font-semibold">No se pudo eliminar</p>
+            <p>{rechazo}</p>
+          </div>
+          <Button variant="ghost" size="icon" aria-label="Cerrar el aviso" onClick={() => setRechazo(null)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {items.length > 0 && (
         <FilterBar>
@@ -211,7 +232,10 @@ function CatalogView({ config }: { config: CatalogConfig }) {
                                 variant="ghost"
                                 size="icon"
                                 aria-label={`Unir ${nombreDe(row, config.singular)} con otro insumo`}
-                                onClick={() => setUniendo(row)}
+                                onClick={() => {
+                                  setRechazo(null);
+                                  setUniendo(row);
+                                }}
                               >
                                 <Merge className="h-4 w-4" />
                               </Button>

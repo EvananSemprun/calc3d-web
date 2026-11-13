@@ -44,6 +44,7 @@ import { useConfirm } from '@/components/overlays';
 import { useMoney } from '@/features/settings/useSettings';
 import { notify } from '@/components/toast';
 import { apiErrorMessage } from '@/lib/api';
+import { plural } from '@/lib/plural';
 import { currentMonthKey } from '@/lib/today';
 import { usePersistentState } from '@/lib/usePersistentState';
 import { cn, uniqueSorted } from '@/lib/utils';
@@ -206,6 +207,19 @@ export function StockTab() {
       ),
     [filasBase, tipoSeguro, colorSeguro, marcaSegura, estadoF],
   );
+  // ⚠️ Lo que el aviso CUENTA tiene que coincidir con lo que se ve. Mostradas, son las de
+  // `filasVisibles` (con la marca/tipo/color filtrados, las de otras marcas no están en
+  // pantalla); escondidas, son todas (ninguna se ve). Contar siempre `fueraDeConteo` decía
+  // «Se ven también las 3» con 1 en pantalla.
+  const textoFueraDeConteo = (() => {
+    const total = fueraDeConteo.length;
+    if (!verFueraDeConteo) {
+      return `${plural(total, 'ficha descontinuada o solo para pedido especial no se muestra', 'fichas descontinuadas o solo para pedido especial no se muestran')} porque no se ${total === 1 ? 'cuenta' : 'cuentan'}. Al cerrar el mes se guardan igual.`;
+    }
+    const visibles = filasVisibles.filter((f) => !entraEnConteo(f.status)).length;
+    if (visibles === 0) return 'Ninguna ficha descontinuada o solo para pedido especial coincide con los filtros.';
+    return `Se ${visibles === 1 ? 've también' : 'ven también'} ${plural(visibles, 'ficha descontinuada o solo para pedido especial', 'fichas descontinuadas o solo para pedido especial')}.`;
+  })();
   // SELECCIÓN MÚLTIPLE para descontinuar varias fichas a mano (13/11).
   // ⚠️ Se LIMPIA al cambiar cualquier filtro: si no, quedarían marcadas fichas que
   // ya no se ven y se descontinuaría a ciegas. Además se cruza con lo visible al
@@ -305,7 +319,7 @@ export function StockTab() {
       (hayOcultas ? ' Se guardan TODAS las fichas, también las que ocultan los filtros.' : '') +
       (escondidas > 0 ? ` Las ${escondidas} que no había el mes pasado quedan en 0.` : '') +
       (sinMostrar > 0
-        ? ` Se guardan también las ${sinMostrar} ficha(s) descontinuadas o solo para pedido especial que no se muestran, con 0 rollos.`
+        ? ` Se guardan también ${plural(sinMostrar, 'la ficha descontinuada o solo para pedido especial que no se muestra', 'las fichas descontinuadas o solo para pedido especial que no se muestran')}, con 0 rollos.`
         : '');
     const ok = await confirm(
       rollos === 0
@@ -361,7 +375,7 @@ export function StockTab() {
         : '';
     const ok = await confirm({
       title: `¿Descontinuar toda la marca ${marcaSegura}?`,
-      description: `Se van a descontinuar estas ${fichasDeLaMarca.length} ficha(s): ${nombres}. Dejan de aparecer al cotizar, en la reposición y en el conteo.${avisoEscondidas} Sus compras y conteos no se tocan; se reactivan de a una desde su ficha.`,
+      description: `Se van a descontinuar ${fichasDeLaMarca.length === 1 ? 'esta ficha' : `estas ${fichasDeLaMarca.length} fichas`}: ${nombres}. Dejan de aparecer al cotizar, en la reposición y en el conteo.${avisoEscondidas} Sus compras y conteos no se tocan; se reactivan de a una desde su ficha.`,
       confirmLabel: 'Descontinuar',
       tone: 'destructive',
     });
@@ -369,7 +383,7 @@ export function StockTab() {
     descontinuarLote.mutate(
       { ids: fichasDeLaMarca.map((f) => f.materialId), status: 'DISCONTINUED' },
       {
-        onSuccess: () => notify.success(`${marcaSegura}: ${fichasDeLaMarca.length} ficha(s) descontinuadas`),
+        onSuccess: () => notify.success(`${marcaSegura}: ${plural(fichasDeLaMarca.length, 'ficha descontinuada', 'fichas descontinuadas')}`),
         onError: (e) => notify.error('No se pudo descontinuar la marca', apiErrorMessage(e)),
       },
     );
@@ -379,7 +393,7 @@ export function StockTab() {
   const descontinuarElegidas = async () => {
     const lista = fichasElegidas.map((f) => `${f.name} (${f.brand ?? 'Sin marca'})`).join(', ');
     const ok = await confirm({
-      title: `¿Descontinuar ${fichasElegidas.length} ficha(s) elegidas?`,
+      title: fichasElegidas.length === 1 ? '¿Descontinuar la ficha elegida?' : `¿Descontinuar las ${fichasElegidas.length} fichas elegidas?`,
       description: `Se van a descontinuar: ${lista}. Dejan de aparecer al cotizar, en la reposición y en el conteo. Sus compras y conteos no se tocan; se reactivan de a una desde su ficha.`,
       confirmLabel: 'Descontinuar',
       tone: 'destructive',
@@ -390,7 +404,7 @@ export function StockTab() {
       {
         onSuccess: () => {
           setSeleccion([]);
-          notify.success(`${fichasElegidas.length} ficha(s) descontinuadas`);
+          notify.success(plural(fichasElegidas.length, 'ficha descontinuada', 'fichas descontinuadas'));
         },
         onError: (e) => notify.error('No se pudieron descontinuar las fichas', apiErrorMessage(e)),
       },
@@ -595,7 +609,7 @@ export function StockTab() {
           </FilterBar>
           {fichasElegidas.length > 0 && (
             <p className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-              {fichasElegidas.length} ficha(s) seleccionadas.
+              {plural(fichasElegidas.length, 'ficha seleccionada', 'fichas seleccionadas')}.
               <button
                 type="button"
                 onClick={descontinuarElegidas}
@@ -615,7 +629,7 @@ export function StockTab() {
           )}
           {fichasDeLaMarca.length > 0 && (
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-              {marcaSegura} tiene {fichasDeLaMarca.length} ficha(s) en circulación.
+              {marcaSegura} tiene {plural(fichasDeLaMarca.length, 'ficha', 'fichas')} en circulación.
               <button
                 type="button"
                 onClick={descontinuarMarca}
@@ -654,9 +668,7 @@ export function StockTab() {
           )}
           {fueraDeConteo.length > 0 && (
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-              {verFueraDeConteo
-                ? `Se ven también las ${fueraDeConteo.length} ficha(s) descontinuadas o solo para pedido especial.`
-                : `${fueraDeConteo.length} ficha(s) descontinuadas o solo para pedido especial no se muestran porque no se cuentan. Al cerrar el mes se guardan igual.`}
+              {textoFueraDeConteo}
               <button
                 type="button"
                 onClick={() => setVerFueraDeConteo((v) => !v)}
