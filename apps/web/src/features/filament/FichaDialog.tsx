@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, Tag, Trash2, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, Merge, Tag, Trash2, type LucideIcon } from 'lucide-react';
 import { accionesDeEstado, type AccionDeEstado, type MaterialStatus, type StockCountRow } from '@calc3d/shared';
 import { Button, Field, Input } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
@@ -7,6 +7,7 @@ import { Combobox } from '@/components/Combobox';
 import { notify } from '@/components/toast';
 import { apiErrorMessage } from '@/lib/api';
 import { useCorrectMaterial, useDeleteMaterial, useSetMaterialStatus } from '@/features/filament/api';
+import { UnirFichaDialog } from '@/features/filament/UnirFichaDialog';
 
 /**
  * LA FICHA DE UN ROLLO, desde Stock del mes. Reemplaza a la página Materiales
@@ -40,6 +41,7 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
   const cambiarEstado = useSetMaterialStatus();
   const borrar = useDeleteMaterial();
   const confirm = useConfirm();
+  const [uniendo, setUniendo] = useState(false);
 
   const ocupado = corregir.isPending || cambiarEstado.isPending || borrar.isPending;
   // Las acciones salen de un `switch` EXHAUSTIVO en shared (`accionesDeEstado`), no de
@@ -168,6 +170,11 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
               </Button>
             );
           })}
+          {/* Unir sirve justo cuando la ficha TIENE historial: es la salida para un duplicado
+              que no se puede borrar. Pasa todo a la otra y la borra (no se puede deshacer). */}
+          <Button type="button" variant="outline" className="w-full" onClick={() => setUniendo(true)} disabled={ocupado}>
+            <Merge className="h-4 w-4" /> Unir con otra ficha…
+          </Button>
           {fila.canDelete ? (
             <Button
               type="button"
@@ -185,6 +192,13 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
           )}
         </section>
       </div>
+      {uniendo && (
+        <UnirFichaDialog
+          tipo="material"
+          origen={{ id: fila.materialId, name: fila.name }}
+          onClose={() => setUniendo(false)}
+        />
+      )}
     </Dialog>
   );
 }

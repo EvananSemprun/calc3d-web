@@ -3,7 +3,7 @@ import { Navigate, useParams } from 'react-router-dom';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Inbox, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Inbox, Merge, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, apiErrorMessage } from '@/lib/api';
 import { uniqueSorted } from '@/lib/utils';
 import { useMoney } from '@/features/settings/useSettings';
@@ -24,6 +24,7 @@ import { Combobox } from '@/components/Combobox';
 import { notify } from '@/components/toast';
 import { catalogs, type CatalogConfig, type CatalogField } from '@/features/catalogs/config';
 import { ExpenseModal } from '@/features/finance/ExpenseModal';
+import { UnirFichaDialog } from '@/features/filament/UnirFichaDialog';
 
 /**
  * El tipo de gasto que corresponde a este catálogo, si comprarlo es un gasto.
@@ -55,6 +56,8 @@ function CatalogView({ config }: { config: CatalogConfig }) {
   const qc = useQueryClient();
   const tipoDeGasto = TIPO_DE_GASTO[config.route];
   const [comprando, setComprando] = useState(false);
+  // Unir dos insumos duplicados (solo el catálogo de insumos).
+  const [uniendo, setUniendo] = useState<Row | null>(null);
   const { money } = useMoney();
   const [editing, setEditing] = useState<Row | null>(null);
   const [open, setOpen] = useState(false);
@@ -192,6 +195,18 @@ function CatalogView({ config }: { config: CatalogConfig }) {
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Tooltip>
+                          {config.route === 'components' && (
+                            <Tooltip label="Unir con otro insumo">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Unir ${String(row.name)} con otro insumo`}
+                                onClick={() => setUniendo(row)}
+                              >
+                                <Merge className="h-4 w-4" />
+                              </Button>
+                            </Tooltip>
+                          )}
                           <Tooltip label="Eliminar">
                             <Button
                               variant="ghost"
@@ -233,6 +248,10 @@ function CatalogView({ config }: { config: CatalogConfig }) {
             qc.invalidateQueries({ queryKey: [config.endpoint] });
           }}
         />
+      )}
+
+      {uniendo && (
+        <UnirFichaDialog tipo="insumo" origen={{ id: uniendo.id, name: String(uniendo.name) }} onClose={() => setUniendo(null)} />
       )}
 
       {comprando && tipoDeGasto && (

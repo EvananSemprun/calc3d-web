@@ -2902,3 +2902,7 @@ gastos reales. La columna sigue en la base con lo ya cargado; nadie la lee.
   USDT en `StoreProductDetail`: quedó debajo de `if (isLoading || !product) return
   <PageSkeleton />` y React tiró «Rendered more hooks than during the previous render»,
   con 6 tests en rojo. Los hooks van ARRIBA de ese return.
+
+#### Unir fichas duplicadas (2026-11-13, shared 0.89.0)
+
+`UnirFichaDialog` (`features/filament/`) se abre desde `FichaDialog` («Unir con otra ficha…», también con historial) y desde la tabla de Insumos. Elegir destino pide la vista previa al servidor y la dibuja ENTERA (`filasDeLaUnion`, una sola lista de filas): compras, líneas de factura, conteos (y cuáles se suman), costeos de la tienda que cambian de nombre, el precio que queda y que unir NO se puede deshacer. El botón solo se habilita con la vista cargada. Filamentos: solo se ofrecen fichas del mismo peso de rollo. Tests: `UnirFicha.spec.tsx`.
