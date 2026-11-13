@@ -181,6 +181,20 @@ describe('opcionesDeFilamento', () => {
     expect(porFicha.map((o) => o.key)).toEqual(['ficha:a']);
   });
 
+  it('«solo pedido especial» SÍ se ofrece como ficha exacta del filamento', () => {
+    const { porFicha } = opcionesDeFilamento(
+      [],
+      [
+        ficha({ id: 'a' }),
+        ficha({ id: 'b', name: 'PLA SILK Dorado', status: 'SOLO_PEDIDO_ESPECIAL' }),
+        ficha({ id: 'c', name: 'PLA Negro', status: 'DISCONTINUED' }),
+      ],
+      money,
+    );
+
+    expect(porFicha.map((o) => o.key)).toEqual(['ficha:a', 'ficha:b']);
+  });
+
   it('la ficha que cerró el mes en 0 va AL FINAL y conserva su aviso', () => {
     const { porFicha } = opcionesDeFilamento(
       [],
@@ -278,6 +292,18 @@ describe('quotableMaterials y materialLabel', () => {
     ]);
 
     expect(r?.map((m) => m.id)).toEqual(['hay', 'cero']);
+  });
+
+  // ⚠️ Tercer estado: la ficha «solo pedido especial» existe justo para cotizar ese
+  // pedido, así que DEBE ofrecerse. Su hermano (DISCONTINUED, que no) ya está arriba.
+  it('«solo pedido especial» SÍ se ofrece al cotizar; la descontinuada no', () => {
+    const r = quotableMaterials([
+      ficha({ id: 'baja', status: 'DISCONTINUED' }),
+      ficha({ id: 'especial', status: 'SOLO_PEDIDO_ESPECIAL' }),
+      ficha({ id: 'hay' }),
+    ]);
+
+    expect(r?.map((m) => m.id)).toEqual(['especial', 'hay']);
   });
 
   it('sin fichas cargadas devuelve undefined (sigue cargando)', () => {

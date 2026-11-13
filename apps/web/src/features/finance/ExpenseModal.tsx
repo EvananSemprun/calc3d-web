@@ -19,7 +19,13 @@ import { useCampaigns } from '@/features/campaigns/api';
 import { useCounterparties } from '@/features/cash/api';
 import { useContacts } from '@/features/contacts/api';
 import { useExchangeRates } from '@/features/settings/useExchangeRates';
-import { OPCIONES_DE_RECARGA, recargaDesdeValor } from '@calc3d/shared';
+import {
+  MaterialStatusSchema,
+  OPCIONES_DE_RECARGA,
+  SUFIJO_DE_ESTADO,
+  estadoTrasComprar,
+  recargaDesdeValor,
+} from '@calc3d/shared';
 
 /**
  * EL FORMULARIO DE UNA COMPRA O UN GASTO, en un solo lugar.
@@ -154,7 +160,10 @@ export function ExpenseModal({
       (await api.get<{ id: string; name: string; status?: string }[]>(`/${listEndpoint}`)).data,
     enabled: !!listEndpoint,
   });
-  const elegidaDescontinuada = items.find((i) => i.id === selectedId)?.status === 'DISCONTINUED';
+  // Comprar REACTIVA la ficha solo si `estadoTrasComprar` cambia su estado: una
+  // descontinuada vuelve a activa; una «solo pedido especial» se queda como está.
+  const estadoElegido = MaterialStatusSchema.safeParse(items.find((i) => i.id === selectedId)?.status);
+  const elegidaDescontinuada = estadoElegido.success && estadoTrasComprar(estadoElegido.data) !== estadoElegido.data;
 
   // Proveedores (opcional, para cualquier tipo de gasto): los contactos con
   // tipo Proveedor. Mezclar los clientes haría crecer el desplegable sin control.
@@ -369,7 +378,7 @@ export function ExpenseModal({
               <option value="">Elegir…</option>
               {items.map((i) => (
                 <option key={i.id} value={i.id}>
-                  {i.status === 'DISCONTINUED' ? `${i.name} (descontinuado)` : i.name}
+                  {`${i.name}${sufijoDeEstado(i.status)}`}
                 </option>
               ))}
             </Select>
@@ -590,4 +599,10 @@ function PrecioDelRollo({ amount, quantity }: { amount: number; quantity: number
       {precio.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}.
     </p>
   );
+}
+
+/** Rótulo del estado de una ficha en la lista; vacío si no es de filamento (otros catálogos no tienen estado). */
+function sufijoDeEstado(status: string | undefined): string {
+  const estado = MaterialStatusSchema.safeParse(status);
+  return estado.success ? SUFIJO_DE_ESTADO[estado.data] : '';
 }

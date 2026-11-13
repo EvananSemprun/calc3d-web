@@ -1,4 +1,4 @@
-import { MESES_DE_LA_VENTANA, monthStart, type PrecioPorTipo } from '@calc3d/shared';
+import { MESES_DE_LA_VENTANA, entraEnCalculadora, monthStart, type PrecioPorTipo } from '@calc3d/shared';
 import type { MaterialItem } from './useCatalogData';
 
 /**
@@ -175,13 +175,14 @@ function mesDe(dia: string): string {
 }
 
 /**
- * Las fichas que se ofrecen al cotizar: sin las descontinuadas y con las que
+ * Las fichas que se ofrecen al cotizar (`entraEnCalculadora`: las descontinuadas
+ * no, pero «solo pedido especial» SÍ, que existe justo para cotizar ese pedido) y con las que
  * cerraron el último mes en 0 AL FINAL (2026-09-14, decisión del dueño: se avisa,
  * no se ocultan — se puede cotizar un color que se va a reponer).
  */
 export function quotableMaterials(items: MaterialItem[] | undefined): MaterialItem[] | undefined {
   if (!items) return undefined;
-  const activas = items.filter((m) => m.status !== 'DISCONTINUED');
+  const activas = items.filter((m) => entraEnCalculadora(m.status));
   return [...activas.filter((m) => !m.outAtLastClose), ...activas.filter((m) => m.outAtLastClose)];
 }
 

@@ -15,7 +15,9 @@ import {
 } from 'lucide-react';
 import {
   BUSINESS_TIME_ZONE,
+  ETIQUETA_DE_ESTADO,
   FRACCIONES_DE_ROLLO,
+  entraEnReposicion,
   monthKey,
   monthStart,
   previousMonth,
@@ -485,6 +487,7 @@ export function StockTab() {
               <option value="">Estado: todas</option>
               <option value="ACTIVE">Activas</option>
               <option value="DISCONTINUED">Descontinuadas</option>
+              <option value="SOLO_PEDIDO_ESPECIAL">Solo pedido especial</option>
             </Select>
           </FilterBar>
           {hayOcultas && (
@@ -596,9 +599,11 @@ export function StockTab() {
                               >
                                 {f.brand ?? 'Sin marca'}
                               </button>
-                              {f.status === 'DISCONTINUED' && (
+                              {/* La insignia sale con el rótulo de SU estado: antes era un
+                                  «descontinuado» fijo y el tercer estado salía sin ninguna. */}
+                              {!entraEnReposicion(f.status) && (
                                 <Badge variant="outline" className="shrink-0 text-[10px]">
-                                  descontinuado
+                                  {ETIQUETA_DE_ESTADO[f.status].toLowerCase()}
                                 </Badge>
                               )}
                               {f.needsBrandCheck && (
@@ -616,7 +621,8 @@ export function StockTab() {
                                 'font-display text-xl font-bold leading-none tabular-nums',
                                 // Rojo solo en un mes CERRADO: ahí un 0 es "no hay".
                                 // Mientras se llena el borrador todavía no es un dato.
-                                cerrado && total === 0 && f.status === 'ACTIVE' && 'text-destructive',
+                                // Y solo en las fichas que se reponen: una «solo pedido especial» en 0 es lo esperado.
+                                cerrado && total === 0 && entraEnReposicion(f.status) && 'text-destructive',
                                 total > 0 && p.running > 0 && 'text-brand-yellow-ink',
                                 total === 0 && !cerrado && 'text-muted-foreground',
                               )}
@@ -713,7 +719,7 @@ interface Partes {
 const CERO: Partes = { sealed: 0, inUse: 0, running: 0 };
 
 /** Valores válidos del filtro de estado: '' = todas. */
-const ESTADOS = ['', 'ACTIVE', 'DISCONTINUED'];
+const ESTADOS = ['', 'ACTIVE', 'DISCONTINUED', 'SOLO_PEDIDO_ESPECIAL'];
 
 
 /** `{sealed: 1, running: 2}` → `'1 sin abrir · 2 por acabarse'`; todo en 0 → `'0 rollos'`. */

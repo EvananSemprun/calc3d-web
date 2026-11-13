@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Archive, ArchiveRestore, Trash2 } from 'lucide-react';
-import type { StockCountRow } from '@calc3d/shared';
+import { entraEnCalculadora, entraEnReposicion, type StockCountRow } from '@calc3d/shared';
 import { Button, Field, Input } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { Combobox } from '@/components/Combobox';
@@ -35,7 +35,12 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
   const confirm = useConfirm();
 
   const ocupado = corregir.isPending || cambiarEstado.isPending || borrar.isPending;
-  const descontinuada = fila.status === 'DISCONTINUED';
+  // «Fuera de la circulación normal» = descontinuada O «solo pedido especial»: las
+  // dos ofrecen Reactivar. Solo las activas se reponen, por eso es la pregunta justa
+  // (un `=== 'DISCONTINUED'` dejaba a la tercera ofreciendo «Descontinuar»).
+  const descontinuada = !entraEnReposicion(fila.status);
+  // La descontinuada además salió del calculador; la «solo pedido especial» no.
+  const volveriaAlCalculador = !entraEnCalculadora(fila.status);
   const nombreLimpio = name.trim();
   const colorLimpio = color.trim() || null;
   const marcaLimpia = brand.trim() || null;
@@ -64,7 +69,9 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
       descontinuada
         ? {
             title: `¿Reactivar «${fila.name}»?`,
-            description: 'Vuelve a aparecer al cotizar y en la reposición.',
+            description: volveriaAlCalculador
+              ? 'Vuelve a aparecer al cotizar y en la reposición.'
+              : 'Vuelve a la reposición y al conteo de rollos.',
             confirmLabel: 'Reactivar',
           }
         : {
