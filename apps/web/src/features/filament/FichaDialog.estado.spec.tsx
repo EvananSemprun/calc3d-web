@@ -160,3 +160,23 @@ describe('FichaDialog — la escalera de acciones', () => {
     expect(within(dialogo).queryByText(/Deja de aparecer al cotizar/)).toBeNull();
   });
 });
+
+/**
+ * La nota de una ficha con historial (13/11) nombra las salidas que de verdad existen,
+ * con las palabras de los botones: una ya descontinuada no tiene «Descontinuar».
+ */
+describe('FichaDialog — la nota de «no se borra»', () => {
+  it('una ACTIVA con historial ofrece «Descontinuar» y «Unir con otra ficha…»', () => {
+    montar('ACTIVE');
+    const nota = screen.getByText(/no se borra/);
+    expect(nota.textContent).toContain('«Descontinuar»');
+    expect(nota.textContent).toContain('«Unir con otra ficha…»');
+  });
+
+  it('una DESCONTINUADA solo ofrece unir (esa puerta no existe)', () => {
+    montar('DISCONTINUED');
+    const nota = screen.getByText(/no se borra/);
+    expect(nota.textContent).not.toContain('«Descontinuar»');
+    expect(nota.textContent).toContain('«Unir con otra ficha…»');
+  });
+});

@@ -37,6 +37,9 @@ const TIPO_DE_GASTO: Record<string, string> = { printers: 'printer', components:
 
 type Row = Record<string, unknown> & { id: string };
 
+/** Cómo se llama una fila en un aviso o en el nombre accesible de sus botones (el `singular` si no tiene nombre). */
+const nombreDe = (row: Row, singular: string) => (typeof row.name === 'string' && row.name ? row.name : singular);
+
 const numericDefaults: Record<string, number> = {
   rollGrams: 1000,
   lifetimeHours: 5000,
@@ -74,7 +77,9 @@ function CatalogView({ config }: { config: CatalogConfig }) {
       qc.invalidateQueries({ queryKey: [config.endpoint] });
       notify.success('Elemento eliminado');
     },
-    onError: (error) => notify.error(apiErrorMessage(error)),
+    // El rechazo de borrar con historial trae la salida («Unir con otro insumo»): se deja
+    // más tiempo en pantalla, porque un aviso que se va solo no se alcanza a leer.
+    onError: (error) => notify.error('No se pudo eliminar', apiErrorMessage(error), { duration: 15000 }),
   });
 
   const startCreate = () => {
@@ -191,7 +196,12 @@ function CatalogView({ config }: { config: CatalogConfig }) {
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
                           <Tooltip label="Editar">
-                            <Button variant="ghost" size="icon" onClick={() => startEdit(row)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Editar ${nombreDe(row, config.singular)}`}
+                              onClick={() => startEdit(row)}
+                            >
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Tooltip>
@@ -200,7 +210,7 @@ function CatalogView({ config }: { config: CatalogConfig }) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                aria-label={`Unir ${String(row.name)} con otro insumo`}
+                                aria-label={`Unir ${nombreDe(row, config.singular)} con otro insumo`}
                                 onClick={() => setUniendo(row)}
                               >
                                 <Merge className="h-4 w-4" />
@@ -211,10 +221,11 @@ function CatalogView({ config }: { config: CatalogConfig }) {
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label={`Eliminar ${nombreDe(row, config.singular)}`}
                               onClick={async () => {
                                 if (
                                   await confirm({
-                                    title: '¿Eliminar este elemento?',
+                                    title: `¿Eliminar «${nombreDe(row, config.singular)}»?`,
                                     description: 'Esta acción no se puede deshacer.',
                                     confirmLabel: 'Eliminar',
                                     tone: 'destructive',

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Archive, ArchiveRestore, Merge, Tag, Trash2, type LucideIcon } from 'lucide-react';
-import { accionesDeEstado, type AccionDeEstado, type MaterialStatus, type StockCountRow } from '@calc3d/shared';
+import { accionesDeEstado, ofreceDescontinuar, type AccionDeEstado, type MaterialStatus, type StockCountRow } from '@calc3d/shared';
 import { Button, Field, Input } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { Combobox } from '@/components/Combobox';
@@ -105,7 +105,7 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
         notify.success('Ficha borrada');
         onClose();
       },
-      onError: (e) => notify.error('No se pudo borrar la ficha', apiErrorMessage(e)),
+      onError: (e) => notify.error('No se pudo borrar la ficha', apiErrorMessage(e), { duration: 15000 }),
     });
   };
 
@@ -187,7 +187,9 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
             </Button>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Tiene compras o conteos: no se borra, se descontinúa.
+              {ofreceDescontinuar(fila.status)
+                ? 'Tiene historial: no se borra. Usa «Descontinuar» o «Unir con otra ficha…».'
+                : 'Tiene historial: no se borra. Si es un duplicado, usa «Unir con otra ficha…».'}
             </p>
           )}
         </section>

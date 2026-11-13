@@ -35,6 +35,8 @@ export function Toaster() {
 /** Feedback global de acciones de API. No usar para validación de formularios. */
 export const notify = {
   success: (message: string, description?: string) => toast.success(message, { description }),
-  error: (message: string, description?: string) => toast.error(message, { description }),
+  // `duration` para el aviso que además explica qué hacer: en 4 s no se alcanza a leer una salida.
+  error: (message: string, description?: string, opciones?: { duration?: number }) =>
+    toast.error(message, { description, duration: opciones?.duration }),
   info: (message: string, description?: string) => toast(message, { description }),
 };
