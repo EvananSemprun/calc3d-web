@@ -54,6 +54,13 @@ import {
 } from '@/features/purchases/api';
 import { avisoDePrecio, preciosRealesDeLaLinea } from '@/features/purchases/precio-real';
 import { avisoDeAbono } from '@/features/purchases/aviso-de-abono';
+import { useExchangeRates } from '@/features/settings/useExchangeRates';
+import {
+  FormularioDePago,
+  estimarUsd,
+  pagaEnMoneda,
+  type ValorDePago,
+} from '@/features/pagos/FormularioDePago';
 
 const hoyIso = () => {
   const d = new Date();
@@ -611,13 +618,24 @@ function Abonar({
   const { money } = useMoney();
   const { data: contrapartes = [] } = useCounterparties();
   const { data: cuentas = [] } = useCashAccounts();
+  const { data: tasasData } = useExchangeRates();
   const abonar = useAddInvoicePayment();
-  const [date, setDate] = useState(hoyIso());
-  const [amount, setAmount] = useState(f.saldo);
-  const [counterpartyId, setCounterpartyId] = useState('');
-  /** `''` = sin decir de qué cuenta salió (no se inventa una por defecto). */
-  const [accountId, setAccountId] = useState('');
-  const [note, setNote] = useState('');
+  /**
+   * El formulario de pago es compartido (`features/pagos`). `accountId` en
+   * `''` = sin decir de qué cuenta salió (no se inventa una por defecto).
+   */
+  const [valor, setValor] = useState<ValorDePago>({
+    date: hoyIso(),
+    amount: f.saldo,
+    currencyLabel: '',
+    amountForeign: 0,
+    counterpartyId: '',
+    accountId: '',
+    refundable: true,
+    note: '',
+  });
+  const cambiar = (cambio: Partial<ValorDePago>) => setValor((v) => ({ ...v, ...cambio }));
+  const { amount, note } = valor;
   /** `''` = con plata. Si no, la factura de la que sale el saldo a favor. */
   const [tomadoDe, setTomadoDe] = useState('');
 
@@ -647,9 +665,22 @@ function Abonar({
   const elegirOrigen = (id: string) => {
     setTomadoDe(id);
     const elegido = origenes.find((o) => o.id === id);
-    if (elegido) setAmount(Math.min(f.saldo > 0 ? f.saldo : elegido.disponible, elegido.disponible));
-    else setAmount(f.saldo);
+    // ⚠️ El saldo a favor es en USD: el contrato PROHÍBE la moneda con él, así
+    // que elegirlo apaga la que hubiera elegido antes.
+    cambiar({
+      currencyLabel: '',
+      amountForeign: 0,
+      amount: elegido
+        ? Math.min(f.saldo > 0 ? f.saldo : elegido.disponible, elegido.disponible)
+        : f.saldo,
+    });
   };
+
+  const enMoneda = pagaEnMoneda(valor, conSaldo);
+  const tasaElegida = (tasasData?.rates ?? []).find((r) => r.label === valor.currencyLabel);
+  const usdEstimado = enMoneda ? estimarUsd(valor.amountForeign, tasaElegida?.rate) : null;
+  /** Lo que se compara contra el saldo: el USD, o su estimación si se paga en otra moneda. */
+  const montoUsd = enMoneda ? (usdEstimado ?? 0) : amount;
 
   /**
    * QUÉ AVISAR SOBRE EL MONTO — una sola decisión, pura y testeada
@@ -661,7 +692,7 @@ function Abonar({
    * el saldo SALTA de una factura a la otra, y eso pasaba en silencio.
    */
   const aviso = avisoDeAbono({
-    monto: amount,
+    monto: montoUsd,
     falta: f.saldo,
     // `null` = con plata. No es lo mismo que un origen con 0 disponible.
     disponible: origen ? origen.disponible : null,
@@ -671,15 +702,23 @@ function Abonar({
     abonar.mutate(
       {
         id: f.id,
-        date,
-        amount,
+        date: valor.date,
+        // ⚠️ EN OTRA MONEDA viaja SOLO el par {currencyLabel, amountForeign}: ni
+        // la tasa ni un `amount` calculado acá. El servidor busca la tasa por el
+        // nombre y deriva el USD; si viajaran, el cliente elegiría cuánto vale
+        // lo que pagó.
+        ...(enMoneda
+          ? { currencyLabel: valor.currencyLabel, amountForeign: valor.amountForeign }
+          : { amount }),
         // ⚠️ Un abono tomado del saldo no lo paga nadie: mandar contraparte
         // junto con el origen es 400 (el schema lo rechaza), y con razón —la
         // Caja le quedaría debiendo plata que no puso.
-        counterpartyId: conSaldo ? null : counterpartyId || null,
+        counterpartyId: conSaldo ? null : valor.counterpartyId || null,
+        // «¿Se te devuelve?» solo significa algo con contraparte.
+        ...(!conSaldo && valor.counterpartyId ? { refundable: valor.refundable } : {}),
         // ⚠️ Mismo criterio: con el saldo a favor no salió de ninguna cuenta
         // (el schema lo rechaza con 400).
-        accountId: conSaldo ? null : accountId || null,
+        accountId: conSaldo ? null : valor.accountId || null,
         note: note.trim() || null,
         tomadoDeFacturaId: tomadoDe || null,
       },
@@ -695,84 +734,39 @@ function Abonar({
   return (
     <Dialog open onOpenChange={(a) => !a && onClose()} title="Abonar a la factura">
       <div className="space-y-3">
-        <FieldGrid>
-          <Field label="Fecha" required>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
-          <Field
-            label="Monto (USD)"
-            required
-            hint={
-              conSaldo
-                ? `Falta ${money(f.saldo)} · hay ${money(origen.disponible)} a favor`
-                : `Falta ${money(f.saldo)}`
-            }
-          >
-            {/* La etiqueta de `Field` no está asociada al control (no lleva
-                `htmlFor`), así que el nombre accesible va acá. */}
-            <NumberInput value={amount} onChange={setAmount} />
-          </Field>
-        </FieldGrid>
-        {/* ⚠️ **CON QUÉ SE PAGA**, y son dos cosas distintas: plata que sale
-            ahora, o el saldo a favor —plata que YA salió cuando se pagó de más—.
-            Solo aparece si el proveedor tiene saldo: un desplegable con una sola
-            opción es ruido. */}
-        {origenes.length > 0 && (
-          <Field
-            label="¿Con qué lo pagas?"
-            hint={`${saldo?.supplierName} te debe ${money(saldo?.disponible ?? 0)}.`}
-          >
-            <Select
-              value={tomadoDe}
-              onChange={(e) => elegirOrigen(e.target.value)}
-            >
-              <option value="">Con plata</option>
-              {origenes.map((o) => (
-                <option key={o.id} value={o.id}>
-                  Del saldo a favor de {o.etiqueta} ({money(o.disponible)})
-                </option>
-              ))}
-            </Select>
-          </Field>
-        )}
-        {/* Con el saldo a favor no hay a quién preguntarle: nadie puso plata.
-            Mostrar el campo invitaría a mandar un dato que el servidor rechaza
-            —y con razón: la Caja le quedaría debiendo a quien no puso nada. */}
-        {!conSaldo && (
-          <Field
-            label="¿Quién lo pagó?"
-            hint="Si lo puso una persona, la Caja lo cuenta como aporte que el negocio le debe."
-          >
-            <Select value={counterpartyId} onChange={(e) => setCounterpartyId(e.target.value)}>
-              <option value="">La caja del negocio</option>
-              {contrapartes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.kind === 'EXTERNAL_LENDER' ? c.name : `${c.name}, de su bolsillo`}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        )}
-        {/* La cuenta de la que salió la plata. Con el saldo a favor no hay
-            cuenta: esa plata ya salió cuando se pagó de más. Solo aparece si
-            hay cuentas: un desplegable vacío es ruido. */}
-        {!conSaldo && cuentas.some((c) => c.active) && (
-          <Field label="¿De qué cuenta salió?" hint="Opcional. Antes lo anotabas en la nota.">
-            <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-              <option value="">Sin decir</option>
-              {cuentas
-                .filter((c) => c.active)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-            </Select>
-          </Field>
-        )}
-        <Field label="Nota (opcional)">
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opcional" />
-        </Field>
+        <FormularioDePago
+          valor={valor}
+          onChange={cambiar}
+          contrapartes={contrapartes}
+          cuentas={cuentas}
+          soloUsd={conSaldo}
+          hintMonto={
+            conSaldo
+              ? `Falta ${money(f.saldo)} · hay ${money(origen.disponible)} a favor`
+              : `Falta ${money(f.saldo)}`
+          }
+          ranuraDeOrigen={
+            /* ⚠️ **CON QUÉ SE PAGA**, y son dos cosas distintas: plata que sale
+               ahora, o el saldo a favor —plata que YA salió cuando se pagó de
+               más—. Solo aparece si el proveedor tiene saldo: un desplegable
+               con una sola opción es ruido. */
+            origenes.length > 0 && (
+              <Field
+                label="¿Con qué lo pagas?"
+                hint={`${saldo?.supplierName} te debe ${money(saldo?.disponible ?? 0)}.`}
+              >
+                <Select value={tomadoDe} onChange={(e) => elegirOrigen(e.target.value)}>
+                  <option value="">Con plata</option>
+                  {origenes.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      Del saldo a favor de {o.etiqueta} ({money(o.disponible)})
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )
+          }
+        />
         {/* ⚠️ Lo que hay que decir no es "se usa el saldo": es que **la caja no
             se mueve**. Un abono que baja la deuda sin bajar el saldo se lee como
             un error si nadie explica por qué. */}
@@ -834,7 +828,11 @@ function Abonar({
             // ⚠️ El ÚNICO aviso que bloquea es `SIN_SALDO`: los otros dos son
             // operaciones legítimas y apagar el botón las convertiría en una
             // guarda que corta.
-            disabled={abonar.isPending || amount <= 0 || aviso?.clase === 'SIN_SALDO'}
+            disabled={
+              abonar.isPending ||
+              (enMoneda ? valor.amountForeign <= 0 : amount <= 0) ||
+              aviso?.clase === 'SIN_SALDO'
+            }
           >
             {abonar.isPending ? 'Guardando…' : conSaldo ? 'Usar el saldo' : 'Abonar'}
           </Button>
