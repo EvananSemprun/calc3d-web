@@ -114,7 +114,20 @@ export function hallazgos(texto: string): string[] {
 }
 
 describe('idioma del panel', () => {
-  it('ningún archivo del panel usa voseo', () => {
+  /**
+   * ⚠️ **Límite propio, porque estos dos NO son tests unitarios: RECORREN EL
+   * CÓDIGO.** Leen 271 archivos de dos raíces (el panel y la copia de `shared`).
+   * El trabajo real son ~340 ms medidos —22 ms de recorrer, 211 de leer, 107 de
+   * escanear—, pero con la máquina ocupada se pasan del límite de 5 s que vitest
+   * usa por defecto y la suite sale ROJA sin que nada esté mal.
+   *
+   * Eso no es un detalle: **un guardián que se pone rojo solo es un guardián que
+   * la gente aprende a ignorar**, y después se rodea en vez de arreglarse (ya
+   * pasó con «jamás»). El límite se sube; la afirmación no se toca.
+   */
+  const LIMITE_DE_ESCANEO = 60_000;
+
+  it('ningún archivo del panel usa voseo', { timeout: LIMITE_DE_ESCANEO }, () => {
     const encontrados: string[] = [];
     for (const ruta of RAICES.flatMap(archivos)) {
       if (EXENTOS.includes(ruta)) continue;
@@ -129,7 +142,7 @@ describe('idioma del panel', () => {
     expect(encontrados, `Voseo en el panel (usa «tú»):\n${encontrados.join('\n')}`).toEqual([]);
   });
 
-  it('ningún archivo del panel usa el presente de voseo (-ás/-és/-ís)', () => {
+  it('ningún archivo del panel usa el presente de voseo (-ás/-és/-ís)', { timeout: LIMITE_DE_ESCANEO }, () => {
     const encontrados: string[] = [];
     for (const ruta of RAICES.flatMap(archivos)) {
       if (EXENTOS.includes(ruta)) continue;
