@@ -60,8 +60,10 @@ export const PALABRAS_PERMITIDAS = [
   'demás',
   'revés',
   'estás',
-  // Aparecen al barrer `shared` (jamás y arnés viven solo en la API): código de país y
+  // Aparecen al barrer `shared` (arnés vive solo en la API): código de país y
   // «estar» en tú (subjuntivo).
+  // Adverbio, no voseo (schemas/store.ts).
+  'jamás',
   'país',
   'estés',
   // `-rás/-rés`: futuro del tuteo y adverbios, medidos en este corpus.
