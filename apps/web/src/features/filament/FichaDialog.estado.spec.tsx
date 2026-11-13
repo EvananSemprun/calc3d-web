@@ -63,8 +63,9 @@ function montar(status: StockCountRow['status']) {
 }
 
 describe('FichaDialog — el botón de estado', () => {
-  it('una ficha ACTIVA ofrece Descontinuar', () => {
+  it('una ficha ACTIVA ofrece «Solo pedido especial» y Descontinuar, y no Reactivar', () => {
     montar('ACTIVE');
+    expect(screen.getByRole('button', { name: 'Solo pedido especial' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Descontinuar' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reactivar' })).toBeNull();
   });
@@ -73,12 +74,16 @@ describe('FichaDialog — el botón de estado', () => {
     montar('DISCONTINUED');
     expect(screen.getByRole('button', { name: 'Reactivar' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Descontinuar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Solo pedido especial' })).toBeNull();
   });
 
-  it('una «solo pedido especial» ofrece Reactivar, no Descontinuar', () => {
+  // Antes ofrecía SOLO Reactivar: para retirarla del todo había que reactivarla
+  // primero (devolviéndola al calculador y a la reposición) y descontinuar después.
+  it('una «solo pedido especial» ofrece Reactivar Y Descontinuar', () => {
     montar('SOLO_PEDIDO_ESPECIAL');
     expect(screen.getByRole('button', { name: 'Reactivar' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Descontinuar' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Descontinuar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Solo pedido especial' })).toBeNull();
   });
 });
 
@@ -114,5 +119,44 @@ describe('FichaDialog — Reactivar', () => {
     const dialogo = await reactivar('SOLO_PEDIDO_ESPECIAL');
     expect(within(dialogo).getByText(/reposición y al conteo/)).toBeInTheDocument();
     expect(within(dialogo).queryByText(/cotizar/)).toBeNull();
+  });
+});
+
+/**
+ * CADA BOTÓN MANDA SU ESTADO, Y SU TEXTO DICE LO QUE DE VERDAD CAMBIA (13/11).
+ * El tercer estado no tenía ninguna puerta de entrada en el panel.
+ */
+describe('FichaDialog — la escalera de acciones', () => {
+  const aplicar = async (origen: StockCountRow['status'], boton: string) => {
+    mocks.patch.mockReset();
+    mocks.patch.mockResolvedValue({ data: {} });
+    montar(origen);
+    fireEvent.click(screen.getByRole('button', { name: boton }));
+    return screen.findByRole('alertdialog');
+  };
+
+  it.each([
+    ['ACTIVE', 'Solo pedido especial', 'SOLO_PEDIDO_ESPECIAL'],
+    ['ACTIVE', 'Descontinuar', 'DISCONTINUED'],
+    ['SOLO_PEDIDO_ESPECIAL', 'Reactivar', 'ACTIVE'],
+    ['SOLO_PEDIDO_ESPECIAL', 'Descontinuar', 'DISCONTINUED'],
+    ['DISCONTINUED', 'Reactivar', 'ACTIVE'],
+  ] as const)('desde %s, «%s» manda %s', async (origen, boton, destino) => {
+    const dialogo = await aplicar(origen, boton);
+    fireEvent.click(within(dialogo).getByRole('button', { name: boton }));
+
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalledWith('/materials/m1/status', { status: destino }));
+  });
+
+  it('descontinuar una «solo pedido especial» dice que sale del calculador y NO afirma que salga de la reposición', async () => {
+    const dialogo = await aplicar('SOLO_PEDIDO_ESPECIAL', 'Descontinuar');
+    expect(within(dialogo).getByText(/Deja de aparecer al cotizar/)).toBeInTheDocument();
+    expect(within(dialogo).queryByText(/reposición/)).toBeNull();
+  });
+
+  it('marcar una activa «solo pedido especial» dice que sigue en el calculador', async () => {
+    const dialogo = await aplicar('ACTIVE', 'Solo pedido especial');
+    expect(within(dialogo).getByText(/Sigue disponible al cotizar/)).toBeInTheDocument();
+    expect(within(dialogo).queryByText(/Deja de aparecer al cotizar/)).toBeNull();
   });
 });

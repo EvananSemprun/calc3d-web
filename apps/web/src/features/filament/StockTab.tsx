@@ -764,7 +764,8 @@ export function StockTab() {
                                   y NO con un predicado propio, porque hoy tienen la misma respuesta. Se
                                   separan el día que una ficha ACTIVE deba quedar fuera de la reposición
                                   por una razón de negocio: ahí esta insignia (y el rojo de abajo, y el
-                                  «Descontinuar toda la marca») pasan a otro predicado. Ver `FichaDialog`. */}
+                                  «Descontinuar toda la marca») pasan a otro predicado. `FichaDialog` ya no
+                                  pregunta esto: usa `accionesDeEstado` (tres estados, switch exhaustivo). */}
                               {!entraEnReposicion(f.status) && (
                                 <Badge variant="outline" className="shrink-0 text-[10px]">
                                   {ETIQUETA_DE_ESTADO[f.status].toLowerCase()}

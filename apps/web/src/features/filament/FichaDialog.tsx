@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, Trash2 } from 'lucide-react';
-import { entraEnCalculadora, entraEnReposicion, type StockCountRow } from '@calc3d/shared';
+import { Archive, ArchiveRestore, Tag, Trash2, type LucideIcon } from 'lucide-react';
+import { accionesDeEstado, type AccionDeEstado, type MaterialStatus, type StockCountRow } from '@calc3d/shared';
 import { Button, Field, Input } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
 import { Combobox } from '@/components/Combobox';
@@ -24,6 +24,13 @@ import { useCorrectMaterial, useDeleteMaterial, useSetMaterialStatus } from '@/f
  *
  * Cada acción cierra el diálogo: la fila se refresca con lo nuevo.
  */
+/** Ícono por estado de DESTINO. `Record`: un estado nuevo no compila sin el suyo. */
+const ICONO_DE_DESTINO: Record<MaterialStatus, LucideIcon> = {
+  ACTIVE: ArchiveRestore,
+  DISCONTINUED: Archive,
+  SOLO_PEDIDO_ESPECIAL: Tag,
+};
+
 export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: () => void }) {
   const [name, setName] = useState(fila.name);
   const [color, setColor] = useState(fila.color ?? '');
@@ -35,20 +42,12 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
   const confirm = useConfirm();
 
   const ocupado = corregir.isPending || cambiarEstado.isPending || borrar.isPending;
-  // «Fuera de la circulación normal» = descontinuada O «solo pedido especial»: las
-  // dos ofrecen Reactivar. Solo las activas se reponen, por eso es la pregunta justa
-  // (un `=== 'DISCONTINUED'` dejaba a la tercera ofreciendo «Descontinuar»).
-  //
-  // NOTA — por qué esto llama a `entraEnReposicion` y no a un predicado propio
-  // («¿está en circulación normal?»): hoy las dos preguntas tienen LA MISMA
-  // respuesta, y un segundo nombre que siempre devuelve lo mismo es duplicación.
-  // Se separan el día que una ficha ACTIVE deba quedar fuera de la reposición por
-  // una razón de negocio (p. ej. «activa pero no se repone»): ahí «¿se repone?» y
-  // «¿está en circulación normal?» dejan de coincidir y este botón, que pregunta
-  // lo segundo, tiene que pasar a su propio predicado. Misma nota en `StockTab`.
-  const descontinuada = !entraEnReposicion(fila.status);
-  // La descontinuada además salió del calculador; la «solo pedido especial» no.
-  const volveriaAlCalculador = !entraEnCalculadora(fila.status);
+  // Las acciones salen de un `switch` EXHAUSTIVO en shared (`accionesDeEstado`), no de
+  // un `if` acá: la pregunta «¿en qué circulación está?» tiene TRES respuestas y el
+  // interruptor binario anterior dejaba al tercer estado sin puerta de entrada (nada
+  // lo podía escribir) y obligaba a reactivar para poder descontinuar. Con el
+  // `switch`, un cuarto estado no compila hasta que alguien decide sus acciones.
+  const acciones = accionesDeEstado(fila.status);
   const nombreLimpio = name.trim();
   const colorLimpio = color.trim() || null;
   const marcaLimpia = brand.trim() || null;
@@ -72,29 +71,18 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
       },
     );
 
-  const alternarEstado = async () => {
-    const ok = await confirm(
-      descontinuada
-        ? {
-            title: `¿Reactivar «${fila.name}»?`,
-            description: volveriaAlCalculador
-              ? 'Vuelve a aparecer al cotizar, en la reposición y en el conteo de rollos.'
-              : 'Vuelve a la reposición y al conteo de rollos.',
-            confirmLabel: 'Reactivar',
-          }
-        : {
-            title: `¿Descontinuar «${fila.name}»?`,
-            description:
-              'Deja de aparecer al cotizar, en la reposición y en el conteo de rollos (al cerrar el mes se guarda igual). Sus compras y conteos no se tocan. Se reactiva sola al registrar una compra con rollos, o con «Reactivar».',
-            confirmLabel: 'Descontinuar',
-          },
-    );
+  const aplicarAccion = async (accion: AccionDeEstado) => {
+    const ok = await confirm({
+      title: accion.pregunta(fila.name),
+      description: accion.efecto,
+      confirmLabel: accion.etiqueta,
+    });
     if (!ok) return;
     cambiarEstado.mutate(
-      { id: fila.materialId, status: descontinuada ? 'ACTIVE' : 'DISCONTINUED' },
+      { id: fila.materialId, status: accion.destino },
       {
         onSuccess: () => {
-          notify.success(descontinuada ? 'Ficha reactivada' : 'Ficha descontinuada');
+          notify.success(`${fila.name}: ${accion.etiqueta.toLowerCase()}`);
           onClose();
         },
         onError: (e) => notify.error('No se pudo cambiar el estado', apiErrorMessage(e)),
@@ -164,16 +152,22 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
         </form>
 
         <section className="space-y-2 border-t border-border/60 pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={alternarEstado}
-            disabled={ocupado}
-          >
-            {descontinuada ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-            {descontinuada ? 'Reactivar' : 'Descontinuar'}
-          </Button>
+          {acciones.map((accion) => {
+            const Icono = ICONO_DE_DESTINO[accion.destino];
+            return (
+              <Button
+                key={accion.destino}
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => aplicarAccion(accion)}
+                disabled={ocupado}
+              >
+                <Icono className="h-4 w-4" />
+                {accion.etiqueta}
+              </Button>
+            );
+          })}
           {fila.canDelete ? (
             <Button
               type="button"
