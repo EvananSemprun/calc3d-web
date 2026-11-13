@@ -120,6 +120,8 @@ describe('StockTab — los tres estados de una ficha', () => {
   it('la insignia distingue los tres: la activa no lleva, las otras dos llevan la suya', async () => {
     montar();
     await cargar();
+    // Desde el 13/11 las dos fuera del conteo no salen en la grilla hasta pedirlas.
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrarlas' }));
 
     expect(screen.getAllByText('descontinuado')).toHaveLength(1);
     expect(screen.getAllByText('solo pedido especial')).toHaveLength(1);
@@ -149,6 +151,7 @@ describe('StockTab — los tres estados de una ficha', () => {
   it('el 0 en rojo («no hay») es solo de las que se reponen: la activa sí, las otras dos no', async () => {
     const { container } = montar();
     await cargar();
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrarlas' }));
 
     const rojos = [...container.querySelectorAll('.text-destructive')].filter(
       (el) => el.textContent === '0',

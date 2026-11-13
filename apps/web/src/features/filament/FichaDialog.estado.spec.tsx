@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { StockCountRow } from '@calc3d/shared';
@@ -79,5 +79,40 @@ describe('FichaDialog — el botón de estado', () => {
     montar('SOLO_PEDIDO_ESPECIAL');
     expect(screen.getByRole('button', { name: 'Reactivar' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Descontinuar' })).toBeNull();
+  });
+});
+
+/**
+ * «REACTIVAR» VUELVE A ACTIVE DESDE CUALQUIERA DE LOS OTROS DOS (13/11).
+ * Y dice lo que de verdad pasa en cada caso: la descontinuada además vuelve al
+ * calculador; la «solo pedido especial» nunca salió de él.
+ */
+describe('FichaDialog — Reactivar', () => {
+  const reactivar = async (status: StockCountRow['status']) => {
+    mocks.patch.mockReset();
+    mocks.patch.mockResolvedValue({ data: {} });
+    montar(status);
+    fireEvent.click(screen.getByRole('button', { name: 'Reactivar' }));
+    return screen.findByRole('alertdialog');
+  };
+
+  it.each(['DISCONTINUED', 'SOLO_PEDIDO_ESPECIAL'] as const)('desde %s manda ACTIVE', async (status) => {
+    const dialogo = await reactivar(status);
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Reactivar' }));
+
+    await waitFor(() =>
+      expect(mocks.patch).toHaveBeenCalledWith('/materials/m1/status', { status: 'ACTIVE' }),
+    );
+  });
+
+  it('la descontinuada avisa que vuelve al calculador, a la reposición y al conteo', async () => {
+    const dialogo = await reactivar('DISCONTINUED');
+    expect(within(dialogo).getByText(/cotizar, en la reposición y en el conteo/)).toBeInTheDocument();
+  });
+
+  it('la «solo pedido especial» avisa que vuelve a la reposición y al conteo, sin hablar del calculador', async () => {
+    const dialogo = await reactivar('SOLO_PEDIDO_ESPECIAL');
+    expect(within(dialogo).getByText(/reposición y al conteo/)).toBeInTheDocument();
+    expect(within(dialogo).queryByText(/cotizar/)).toBeNull();
   });
 });

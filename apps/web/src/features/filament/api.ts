@@ -208,3 +208,19 @@ export function useDeleteMaterial() {
     onSuccess: invalidar,
   });
 }
+
+/**
+ * Cambiar el estado de VARIAS fichas en un solo pedido («descontinuar toda la
+ * marca»). Un pedido y no N: si uno fallara a la mitad, la marca quedaría
+ * descontinuada a medias; el servidor lo aplica entero o no lo aplica.
+ */
+export function useSetMaterialStatusBatch() {
+  const invalidar = useInvalidarFichas();
+  return useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: MaterialStatus }) => {
+      const { data } = await api.patch<{ updated: number }>('/materials/status/batch', { ids, status });
+      return data;
+    },
+    onSuccess: invalidar,
+  });
+}

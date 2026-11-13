@@ -17,6 +17,7 @@ import {
   BUSINESS_TIME_ZONE,
   ETIQUETA_DE_ESTADO,
   FRACCIONES_DE_ROLLO,
+  entraEnConteo,
   entraEnReposicion,
   monthKey,
   monthStart,
@@ -51,6 +52,7 @@ import {
   useFilamentStock,
   useFilamentSummary,
   useReopenStockMonth,
+  useSetMaterialStatusBatch,
 } from '@/features/filament/api';
 import { FichaDialog } from '@/features/filament/FichaDialog';
 
@@ -102,6 +104,7 @@ export function StockTab() {
   const { data: estado, isError: estadoFallo } = useFilamentMonthStatus(month);
   const cerrar = useCloseStockMonth();
   const reabrir = useReopenStockMonth();
+  const descontinuarLote = useSetMaterialStatusBatch();
   const confirm = useConfirm();
 
   // La ficha abierta en el diálogo (2026-09-14: reemplaza a la página Materiales).
@@ -155,10 +158,29 @@ export function StockTab() {
   // se compraron en este (decisión del dueño, 2026-10-01). El resto no sale. Al cerrar quedan en 0, que es lo
   // que son. Una a la que ya se le escribieron rollos nunca se esconde.
   const [verAgotadas, setVerAgotadas] = useState(false);
-  const esconder = (f: StockCountRow) =>
+  const esconderAgotada = (f: StockCountRow) =>
     !verAgotadas && f.exhausted && stockTotal(draft[f.materialId] ?? CERO) === 0;
   const agotadas = useMemo(() => filas.filter((f) => f.exhausted), [filas]);
-  const filasBase = useMemo(() => filas.filter((f) => !esconder(f)), [filas, verAgotadas, draft]);
+
+  // Las fichas FUERA DEL CONTEO (descontinuadas o «solo pedido especial», ver
+  // `entraEnConteo`) se esconden de lo que hay que CONTAR con el mismo patrón y el
+  // mismo aviso que las agotadas. ⚠️ NO se esconden de lo que se GUARDA: `cerrarMes`
+  // sigue mandando TODAS las fichas, porque el cierre es la foto completa del
+  // estante y con una afuera el rollo que quede se perdería sin que nadie lo viera.
+  // Dos salvedades, las mismas razones que las agotadas: una a la que ya se le
+  // escribieron rollos nunca se esconde, y filtrar a propósito por su estado las
+  // muestra (si no, ese filtro daría una grilla vacía).
+  const [verFueraDeConteo, setVerFueraDeConteo] = useState(false);
+  const esconderFueraDeConteo = (f: StockCountRow) =>
+    !verFueraDeConteo &&
+    !entraEnConteo(f.status) &&
+    estadoF !== f.status &&
+    stockTotal(draft[f.materialId] ?? CERO) === 0;
+  const fueraDeConteo = useMemo(() => filas.filter((f) => !entraEnConteo(f.status)), [filas]);
+  const filasBase = useMemo(
+    () => filas.filter((f) => !esconderAgotada(f) && !esconderFueraDeConteo(f)),
+    [filas, verAgotadas, verFueraDeConteo, estadoF, draft],
+  );
 
   const tipos = useMemo(() => uniqueSorted(filasBase.map((f) => f.type)), [filasBase]);
   // Un valor guardado que ya no existe (cambió de mes, se corrigió la ficha o
@@ -262,10 +284,14 @@ export function StockTab() {
       filas.filter((f) => stockTotal(draft[f.materialId] ?? CERO) > 0).map(claveDeColor),
     ).size;
     const mes = etiquetaMes(month);
-    const escondidas = filas.length - filasBase.length;
+    const escondidas = filas.filter(esconderAgotada).length;
+    const sinMostrar = filas.filter((f) => !esconderAgotada(f) && esconderFueraDeConteo(f)).length;
     const avisoOcultas =
       (hayOcultas ? ' Se guardan TODAS las fichas, también las que ocultan los filtros.' : '') +
-      (escondidas > 0 ? ` Las ${escondidas} que no había el mes pasado quedan en 0.` : '');
+      (escondidas > 0 ? ` Las ${escondidas} que no había el mes pasado quedan en 0.` : '') +
+      (sinMostrar > 0
+        ? ` Se guardan también las ${sinMostrar} ficha(s) descontinuadas o solo para pedido especial que no se muestran, con 0 rollos.`
+        : '');
     const ok = await confirm(
       rollos === 0
         ? {
@@ -290,6 +316,37 @@ export function StockTab() {
         },
         // El borrador NO se borra: si el cierre falla, lo escrito sigue ahí.
         onError: (e) => notify.error('No se pudo cerrar el mes', apiErrorMessage(e)),
+      },
+    );
+  };
+
+  /**
+   * DESCONTINUAR TODA LA MARCA elegida en el filtro (13/11).
+   *
+   * Toma las fichas de esa marca que hoy se manejan con normalidad
+   * (`entraEnReposicion`) de TODAS las filas —no de las que deja ver el resto
+   * de los filtros— y las ENUMERA en la confirmación, una por una: un «se van a
+   * descontinuar 14» no deja ver que entró una que no correspondía, y deshacerlo
+   * es de a una. Las «solo pedido especial» no se tocan: el dueño las puso así a
+   * propósito y descontinuarlas las sacaría del calculador.
+   */
+  const fichasDeLaMarca = marcaSegura
+    ? filas.filter((f) => f.brand === marcaSegura && entraEnReposicion(f.status))
+    : [];
+  const descontinuarMarca = async () => {
+    const nombres = fichasDeLaMarca.map((f) => f.name).join(', ');
+    const ok = await confirm({
+      title: `¿Descontinuar toda la marca ${marcaSegura}?`,
+      description: `Se van a descontinuar estas ${fichasDeLaMarca.length} ficha(s): ${nombres}. Dejan de aparecer al cotizar, en la reposición y en el conteo. Sus compras y conteos no se tocan; se reactivan de a una desde su ficha.`,
+      confirmLabel: 'Descontinuar',
+      tone: 'destructive',
+    });
+    if (!ok) return;
+    descontinuarLote.mutate(
+      { ids: fichasDeLaMarca.map((f) => f.materialId), status: 'DISCONTINUED' },
+      {
+        onSuccess: () => notify.success(`${marcaSegura}: ${fichasDeLaMarca.length} ficha(s) descontinuadas`),
+        onError: (e) => notify.error('No se pudo descontinuar la marca', apiErrorMessage(e)),
       },
     );
   };
@@ -490,6 +547,19 @@ export function StockTab() {
               <option value="SOLO_PEDIDO_ESPECIAL">Solo pedido especial</option>
             </Select>
           </FilterBar>
+          {fichasDeLaMarca.length > 0 && (
+            <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              {marcaSegura} tiene {fichasDeLaMarca.length} ficha(s) en circulación.
+              <button
+                type="button"
+                onClick={descontinuarMarca}
+                disabled={descontinuarLote.isPending}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Descontinuar toda la marca {marcaSegura}
+              </button>
+            </p>
+          )}
           {hayOcultas && (
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               Se ven {filasVisibles.length} de {filas.length} fichas. Al cerrar el mes se guardan todas,
@@ -513,6 +583,21 @@ export function StockTab() {
                 className="font-medium text-foreground underline underline-offset-4"
               >
                 Copiar todo {mesAnterior}
+              </button>
+            </p>
+          )}
+          {fueraDeConteo.length > 0 && (
+            <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              {verFueraDeConteo
+                ? `Se ven también las ${fueraDeConteo.length} ficha(s) descontinuadas o solo para pedido especial.`
+                : `${fueraDeConteo.length} ficha(s) descontinuadas o solo para pedido especial no se muestran porque no se cuentan. Al cerrar el mes se guardan igual.`}
+              <button
+                type="button"
+                onClick={() => setVerFueraDeConteo((v) => !v)}
+                aria-pressed={verFueraDeConteo}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                {verFueraDeConteo ? 'Ocultarlas' : 'Mostrarlas'}
               </button>
             </p>
           )}
@@ -601,6 +686,11 @@ export function StockTab() {
                               </button>
                               {/* La insignia sale con el rótulo de SU estado: antes era un
                                   «descontinuado» fijo y el tercer estado salía sin ninguna. */}
+                              {/* NOTA: «¿está en circulación normal?» se contesta con `entraEnReposicion`
+                                  y NO con un predicado propio, porque hoy tienen la misma respuesta. Se
+                                  separan el día que una ficha ACTIVE deba quedar fuera de la reposición
+                                  por una razón de negocio: ahí esta insignia (y el rojo de abajo, y el
+                                  «Descontinuar toda la marca») pasan a otro predicado. Ver `FichaDialog`. */}
                               {!entraEnReposicion(f.status) && (
                                 <Badge variant="outline" className="shrink-0 text-[10px]">
                                   {ETIQUETA_DE_ESTADO[f.status].toLowerCase()}

@@ -38,6 +38,14 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
   // «Fuera de la circulación normal» = descontinuada O «solo pedido especial»: las
   // dos ofrecen Reactivar. Solo las activas se reponen, por eso es la pregunta justa
   // (un `=== 'DISCONTINUED'` dejaba a la tercera ofreciendo «Descontinuar»).
+  //
+  // NOTA — por qué esto llama a `entraEnReposicion` y no a un predicado propio
+  // («¿está en circulación normal?»): hoy las dos preguntas tienen LA MISMA
+  // respuesta, y un segundo nombre que siempre devuelve lo mismo es duplicación.
+  // Se separan el día que una ficha ACTIVE deba quedar fuera de la reposición por
+  // una razón de negocio (p. ej. «activa pero no se repone»): ahí «¿se repone?» y
+  // «¿está en circulación normal?» dejan de coincidir y este botón, que pregunta
+  // lo segundo, tiene que pasar a su propio predicado. Misma nota en `StockTab`.
   const descontinuada = !entraEnReposicion(fila.status);
   // La descontinuada además salió del calculador; la «solo pedido especial» no.
   const volveriaAlCalculador = !entraEnCalculadora(fila.status);
@@ -70,14 +78,14 @@ export function FichaDialog({ fila, onClose }: { fila: StockCountRow; onClose: (
         ? {
             title: `¿Reactivar «${fila.name}»?`,
             description: volveriaAlCalculador
-              ? 'Vuelve a aparecer al cotizar y en la reposición.'
+              ? 'Vuelve a aparecer al cotizar, en la reposición y en el conteo de rollos.'
               : 'Vuelve a la reposición y al conteo de rollos.',
             confirmLabel: 'Reactivar',
           }
         : {
             title: `¿Descontinuar «${fila.name}»?`,
             description:
-              'Deja de aparecer al cotizar y en la reposición. Sus compras y conteos no se tocan. Se reactiva sola al registrar una compra con rollos, o con «Reactivar».',
+              'Deja de aparecer al cotizar, en la reposición y en el conteo de rollos (al cerrar el mes se guarda igual). Sus compras y conteos no se tocan. Se reactiva sola al registrar una compra con rollos, o con «Reactivar».',
             confirmLabel: 'Descontinuar',
           },
     );
