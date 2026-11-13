@@ -33,6 +33,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   CardContent,
   FilterBar,
   NumberInput,
@@ -205,6 +206,20 @@ export function StockTab() {
       ),
     [filasBase, tipoSeguro, colorSeguro, marcaSegura, estadoF],
   );
+  // SELECCIÓN MÚLTIPLE para descontinuar varias fichas a mano (13/11).
+  // ⚠️ Se LIMPIA al cambiar cualquier filtro: si no, quedarían marcadas fichas que
+  // ya no se ven y se descontinuaría a ciegas. Además se cruza con lo visible al
+  // usarla (`fichasElegidas`), por si el conjunto visible cambia por otro camino
+  // (Mostrarlas/Ocultarlas, un refetch).
+  const [seleccion, setSeleccion] = useState<string[]>([]);
+  useEffect(() => {
+    setSeleccion([]);
+  }, [colorSeguro, marcaSegura, tipoSeguro, estadoF]);
+  const fichasElegidas = filasVisibles.filter(
+    (f) => seleccion.includes(f.materialId) && entraEnReposicion(f.status),
+  );
+  const alternarSeleccion = (id: string, marcada: boolean) =>
+    setSeleccion((s) => (marcada ? [...s, id] : s.filter((x) => x !== id)));
   const hayOcultas = filasVisibles.length < filasBase.length;
   const quitarFiltros = () => {
     setColorF('');
@@ -335,9 +350,18 @@ export function StockTab() {
     : [];
   const descontinuarMarca = async () => {
     const nombres = fichasDeLaMarca.map((f) => f.name).join(', ');
+    // ⚠️ «Toda la marca» ignora los filtros A PROPÓSITO, pero entonces puede llevarse
+    // fichas que el dueño no está viendo (filtra PLA y la marca también tiene PETG).
+    // Se dice con esas palabras SOLO cuando pasa: un aviso que sale siempre no se lee.
+    const visibles = new Set(filasVisibles.map((f) => f.materialId));
+    const escondidas = fichasDeLaMarca.filter((f) => !visibles.has(f.materialId));
+    const avisoEscondidas =
+      escondidas.length > 0
+        ? ` ⚠️ ${escondidas.length} de estas no se ven con los filtros puestos: ${escondidas.map((f) => f.name).join(', ')}.`
+        : '';
     const ok = await confirm({
       title: `¿Descontinuar toda la marca ${marcaSegura}?`,
-      description: `Se van a descontinuar estas ${fichasDeLaMarca.length} ficha(s): ${nombres}. Dejan de aparecer al cotizar, en la reposición y en el conteo. Sus compras y conteos no se tocan; se reactivan de a una desde su ficha.`,
+      description: `Se van a descontinuar estas ${fichasDeLaMarca.length} ficha(s): ${nombres}. Dejan de aparecer al cotizar, en la reposición y en el conteo.${avisoEscondidas} Sus compras y conteos no se tocan; se reactivan de a una desde su ficha.`,
       confirmLabel: 'Descontinuar',
       tone: 'destructive',
     });
@@ -347,6 +371,28 @@ export function StockTab() {
       {
         onSuccess: () => notify.success(`${marcaSegura}: ${fichasDeLaMarca.length} ficha(s) descontinuadas`),
         onError: (e) => notify.error('No se pudo descontinuar la marca', apiErrorMessage(e)),
+      },
+    );
+  };
+
+  /** Descontinuar las fichas marcadas a mano. Enumera igual que la de marca: las eligió una persona, el repaso importa más. */
+  const descontinuarElegidas = async () => {
+    const lista = fichasElegidas.map((f) => `${f.name} (${f.brand ?? 'Sin marca'})`).join(', ');
+    const ok = await confirm({
+      title: `¿Descontinuar ${fichasElegidas.length} ficha(s) elegidas?`,
+      description: `Se van a descontinuar: ${lista}. Dejan de aparecer al cotizar, en la reposición y en el conteo. Sus compras y conteos no se tocan; se reactivan de a una desde su ficha.`,
+      confirmLabel: 'Descontinuar',
+      tone: 'destructive',
+    });
+    if (!ok) return;
+    descontinuarLote.mutate(
+      { ids: fichasElegidas.map((f) => f.materialId), status: 'DISCONTINUED' },
+      {
+        onSuccess: () => {
+          setSeleccion([]);
+          notify.success(`${fichasElegidas.length} ficha(s) descontinuadas`);
+        },
+        onError: (e) => notify.error('No se pudieron descontinuar las fichas', apiErrorMessage(e)),
       },
     );
   };
@@ -547,6 +593,26 @@ export function StockTab() {
               <option value="SOLO_PEDIDO_ESPECIAL">Solo pedido especial</option>
             </Select>
           </FilterBar>
+          {fichasElegidas.length > 0 && (
+            <p className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+              {fichasElegidas.length} ficha(s) seleccionadas.
+              <button
+                type="button"
+                onClick={descontinuarElegidas}
+                disabled={descontinuarLote.isPending}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Descontinuar seleccionadas
+              </button>
+              <button
+                type="button"
+                onClick={() => setSeleccion([])}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Limpiar selección
+              </button>
+            </p>
+          )}
           {fichasDeLaMarca.length > 0 && (
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               {marcaSegura} tiene {fichasDeLaMarca.length} ficha(s) en circulación.
@@ -671,6 +737,14 @@ export function StockTab() {
                       >
                         <div className="flex items-start gap-3">
                           <Muestra color={f.color} />
+                          {entraEnReposicion(f.status) && (
+                            <Checkbox
+                              checked={seleccion.includes(f.materialId)}
+                              onChange={(v) => alternarSeleccion(f.materialId, v)}
+                              label=""
+                              ariaLabel={`Seleccionar ${ficha}`}
+                            />
+                          )}
                           <div className="min-w-0 flex-1">
                             <h3 className="truncate font-display text-base font-semibold leading-tight">
                               {g.clave}

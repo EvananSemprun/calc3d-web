@@ -63,9 +63,9 @@ const FILAS: StockCountRow[] = [
   fila('s1', 'Negro', 'Sinco', 'ACTIVE'),
 ];
 
-function montar() {
+function montar(filasDelMes: StockCountRow[] = FILAS) {
   mocks.get.mockImplementation(async (url: string) => {
-    if (url === '/filament/stock') return { data: FILAS };
+    if (url === '/filament/stock') return { data: filasDelMes };
     if (url === '/filament/stock/status') {
       return {
         data: {
@@ -223,5 +223,94 @@ describe('StockTab — las fichas fuera del conteo', () => {
     const [url, cuerpo] = mocks.post.mock.calls[0] as [string, { counts: { materialId: string }[] }];
     expect(url).toBe('/filament/stock/close');
     expect(cuerpo.counts.map((c) => c.materialId).sort()).toEqual(['e1', 'e2', 'e3', 'e4', 's1']);
+  });
+});
+
+// Eryone también tiene un PETG: con el filtro de tipo en PLA, ese NO se ve.
+const CON_PETG: StockCountRow[] = [...FILAS, { ...fila('e5', 'Negro', 'Eryone', 'ACTIVE'), type: 'PETG', name: 'PETG Negro' }];
+
+const elegirTipo = (tipo: string) => {
+  fireEvent.keyDown(screen.getByLabelText('Filtrar por tipo de filamento'), { key: 'Enter' });
+  fireEvent.click(screen.getByRole('option', { name: tipo }));
+};
+
+describe('StockTab — «toda la marca» con filtros puestos', () => {
+  it('si el lote incluye fichas que los filtros esconden, la confirmación lo dice', async () => {
+    montar(CON_PETG);
+    await cargar();
+    elegirTipo('PLA');
+    elegirMarca('Eryone');
+
+    fireEvent.click(screen.getByRole('button', { name: /Descontinuar toda la marca Eryone/ }));
+    const dialogo = await screen.findByRole('alertdialog');
+
+    expect(within(dialogo).getByText(/1 de estas no se ven con los filtros puestos: PETG Negro/)).toBeInTheDocument();
+  });
+
+  // Hermano: sin nada escondido, el aviso NO sale (uno que sale siempre deja de leerse).
+  it('sin fichas escondidas por los filtros no dice nada', async () => {
+    montar(CON_PETG);
+    await cargar();
+    elegirMarca('Eryone');
+
+    fireEvent.click(screen.getByRole('button', { name: /Descontinuar toda la marca Eryone/ }));
+    const dialogo = await screen.findByRole('alertdialog');
+
+    expect(within(dialogo).getByText(/PETG Negro/)).toBeInTheDocument();
+    expect(within(dialogo).queryByText(/no se ven con los filtros/)).toBeNull();
+  });
+});
+
+describe('StockTab — selección múltiple para descontinuar', () => {
+  const marcar = (nombre: string) => fireEvent.click(screen.getByLabelText(`Seleccionar ${nombre}`));
+
+  it('sin nada marcado no hay barra de selección', async () => {
+    montar();
+    await cargar();
+    expect(screen.queryByRole('button', { name: 'Descontinuar seleccionadas' })).toBeNull();
+  });
+
+  it('la confirmación ENUMERA las elegidas (con su marca) y manda solo esas', async () => {
+    montar();
+    await cargar();
+    marcar('PLA Rojo Eryone');
+    marcar('PLA Negro Sinco');
+    expect(screen.getByText(/2 ficha\(s\) seleccionadas/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descontinuar seleccionadas' }));
+    const dialogo = await screen.findByRole('alertdialog');
+    expect(within(dialogo).getByText(/PLA Rojo \(Eryone\)/)).toBeInTheDocument();
+    expect(within(dialogo).getByText(/PLA Negro \(Sinco\)/)).toBeInTheDocument();
+    expect(within(dialogo).queryByText(/PLA Azul/)).toBeNull();
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Descontinuar' }));
+
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalledTimes(1));
+    expect(mocks.patch).toHaveBeenCalledWith('/materials/status/batch', { ids: ['e1', 's1'], status: 'DISCONTINUED' });
+  });
+
+  it('cancelar no escribe nada', async () => {
+    montar();
+    await cargar();
+    marcar('PLA Rojo Eryone');
+    fireEvent.click(screen.getByRole('button', { name: 'Descontinuar seleccionadas' }));
+    const dialogo = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Cancelar' }));
+    await act(async () => {});
+    expect(mocks.patch).not.toHaveBeenCalled();
+  });
+
+  // ⚠️ Descontinuar a ciegas: lo marcado que ya no se ve NO puede seguir marcado.
+  it('al cambiar un filtro la selección se limpia: al volver, no queda nada marcado', async () => {
+    montar();
+    await cargar();
+    marcar('PLA Rojo Eryone');
+    expect(screen.getByRole('button', { name: 'Descontinuar seleccionadas' })).toBeInTheDocument();
+
+    elegirMarca('Sinco');
+    fireEvent.keyDown(screen.getByLabelText('Filtrar por marca'), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'Marca: todas' }));
+
+    expect(screen.getByLabelText('Seleccionar PLA Rojo Eryone')).not.toBeChecked();
+    expect(screen.queryByRole('button', { name: 'Descontinuar seleccionadas' })).toBeNull();
   });
 });

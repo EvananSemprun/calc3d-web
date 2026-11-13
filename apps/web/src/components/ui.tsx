@@ -1291,10 +1291,13 @@ export function Checkbox({
   checked,
   onChange,
   label,
+  ariaLabel,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
+  /** Nombre accesible propio, para cuando la etiqueta visible es corta y se repite (una casilla por tarjeta). */
+  ariaLabel?: string;
 }) {
   return (
     <label className="inline-flex cursor-pointer select-none items-center gap-2 text-sm">
@@ -1302,6 +1305,7 @@ export function Checkbox({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
+        aria-label={ariaLabel}
         className="peer sr-only"
       />
       <span
