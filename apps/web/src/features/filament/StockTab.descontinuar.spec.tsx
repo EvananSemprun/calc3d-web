@@ -359,3 +359,20 @@ describe('StockTab — los avisos cuentan lo que se ve y concuerdan en número',
     expect(within(dialogo).getByText(/Se van a descontinuar estas 2 fichas: /)).toBeInTheDocument();
   });
 });
+
+describe('StockTab — el aviso de las agotadas concuerda en número', () => {
+  const agotada = (id: string, color: string) => ({ ...fila(id, color, 'Sinco', 'ACTIVE'), exhausted: true });
+
+  it('«1 ficha no existía» con una y «2 fichas no existían» con dos, sin «(s)»', async () => {
+    montar([...FILAS, agotada('x1', 'Plata')]);
+    await cargar();
+    expect(screen.getByText(/1 ficha no existía al cierre/)).toBeInTheDocument();
+    expect(screen.queryByText(/\(s\)/)).toBeNull();
+  });
+
+  it('con dos, en plural', async () => {
+    montar([...FILAS, agotada('x1', 'Plata'), agotada('x2', 'Cobre')]);
+    await cargar();
+    expect(screen.getByText(/2 fichas no existían al cierre/)).toBeInTheDocument();
+  });
+});

@@ -682,8 +682,8 @@ export function StockTab() {
           {agotadas.length > 0 && (
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               {verAgotadas
-                ? `Se ven también las ${agotadas.length} ficha(s) que no había al cierre de ${etiquetaMes(previousMonth(month))} y no se compraron en ${etiquetaMes(month)}.`
-                : `${agotadas.length} ficha(s) no había al cierre de ${etiquetaMes(previousMonth(month))} y no se compraron en ${etiquetaMes(month)}: no se muestran y al cerrar quedan en 0.`}
+                ? `Se ${agotadas.length === 1 ? 've también' : 'ven también'} ${plural(agotadas.length, 'ficha que no existía', 'fichas que no existían')} al cierre de ${etiquetaMes(previousMonth(month))} y no se compraron en ${etiquetaMes(month)}.`
+                : `${plural(agotadas.length, 'ficha no existía', 'fichas no existían')} al cierre de ${etiquetaMes(previousMonth(month))} y no se compraron en ${etiquetaMes(month)}: no se muestran y al cerrar quedan en 0.`}
               <button
                 type="button"
                 onClick={() => setVerAgotadas((v) => !v)}

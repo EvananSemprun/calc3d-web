@@ -35,7 +35,11 @@ export function Toaster() {
 /** Feedback global de acciones de API. No usar para validación de formularios. */
 export const notify = {
   success: (message: string, description?: string) => toast.success(message, { description }),
-  // `duration` para el aviso que además explica qué hacer: en 4 s no se alcanza a leer una salida.
+  // `duration` alarga el toast, y TIENE TECHO (medido a 375 px el 13/11): ~37 palabras entran en
+  // 15 s con margen (el rechazo de borrar una ficha, `FichaDialog`); ~50 NO (el de borrar un
+  // insumo: 12,5-15 s de lectura contra 15,2 s visibles, y en el teléfono no hay hover que lo
+  // pause). Un aviso accionable de esa longitud no se alarga: va en un cartel `role="alert"`
+  // que no se va solo (ver `pages/Catalog.tsx`).
   error: (message: string, description?: string, opciones?: { duration?: number }) =>
     toast.error(message, { description, duration: opciones?.duration }),
   info: (message: string, description?: string) => toast(message, { description }),
