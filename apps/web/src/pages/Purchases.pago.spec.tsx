@@ -283,6 +283,27 @@ describe('Abonar: el contrato no cambia', () => {
   });
 });
 
+describe('Abonar: ida y vuelta por el saldo a favor', () => {
+  beforeEach(() => {
+    mocks.get.mockReset();
+    mocks.post.mockReset();
+  });
+
+  it('moneda → saldo a favor → «Con plata»: no reaparece la moneda y el monto vuelve al saldo de la factura', async () => {
+    await abrirAbonar();
+    await elegirMoneda();
+    fireEvent.change(screen.getByLabelText('Monto pagado (VES)'), { target: { value: '1900' } });
+    await tomarDelSaldo();
+    await elegir('¿Con qué lo pagas?', 'Con plata');
+
+    // La moneda vieja no volvió: se ve el monto en USD editable, no el par foráneo.
+    expect(screen.queryByLabelText('Monto pagado (VES)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Equivalente en USD')).not.toBeInTheDocument();
+    // …y vuelve a lo que falta de la factura ($50), no a cero.
+    expect(screen.getByLabelText('Monto (USD)')).toHaveValue(50);
+  });
+});
+
 describe('Abonar: el saldo a favor apaga lo que el contrato prohíbe', () => {
   beforeEach(() => {
     mocks.get.mockReset();
