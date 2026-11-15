@@ -86,13 +86,71 @@ export const StockCountPartsSchema = z.object({
 export type StockCountParts = z.infer<typeof StockCountPartsSchema>;
 
 /**
+ * El peso de UN rollo empezado en una casilla (`inUse` o `running`). Los cuatro
+ * campos existen para poder explicar el número sin depender de una configuración
+ * que pudo cambiar: lo que marcó la balanza, el tipo de carrete elegido, el peso
+ * de ese carrete CONGELADO y los gramos resultantes. Todo null = sin pesar.
+ *
+ * ⚠️ Una casilla admite pesar UN rollo (decisión medida: 0 de 57 filas tenían
+ * más de uno abierto); si hay más, el resto cuenta como sin pesar.
+ * Todavía NO está enganchado a `StockMonthCloseSchema`: el contrato existe
+ * antes que el comportamiento, y cerrar el mes se comporta igual que antes.
+ */
+export const PesoDeCasillaSchema = z.object({
+  pesoBalanza: z.number().int().min(0).nullable(),
+  carreteTipoId: z.string().min(1).nullable(),
+  carretePeso: z.number().int().min(0).nullable(),
+  gramos: z.number().int().min(0).nullable(),
+});
+export type PesoDeCasilla = z.infer<typeof PesoDeCasillaSchema>;
+
+/** Tipo de carrete vacío del catálogo (cuánto pesa el carrete). */
+export const TipoDeCarreteSchema = z.object({
+  id: z.string(),
+  nombre: z.string().trim().min(1, 'El tipo necesita un nombre'),
+  gramos: z.number().int().min(0, 'El peso no puede ser negativo'),
+});
+export type TipoDeCarrete = z.infer<typeof TipoDeCarreteSchema>;
+
+/** Alta y edición: lo que ENTRA no lleva `id` (lo pone la base / la ruta). */
+export const TipoDeCarreteCreateSchema = TipoDeCarreteSchema.omit({ id: true });
+export const TipoDeCarreteUpdateSchema = TipoDeCarreteCreateSchema.partial();
+export type TipoDeCarreteCreate = z.infer<typeof TipoDeCarreteCreateSchema>;
+export type TipoDeCarreteUpdate = z.infer<typeof TipoDeCarreteUpdateSchema>;
+
+const PESO_BALANZA_MAXIMO = 1_000_000;
+
+/**
+ * Lo que el dueño MIDIÓ de un rollo empezado: la balanza y el tipo de carrete.
+ * Es lo único que viaja: el peso del carrete lo copia el SERVIDOR del catálogo
+ * al cerrar y los gramos los calcula él (`pesoBalanza − carretePeso`). Si el
+ * cliente mandara esos dos, un valor viejo o inventado quedaría congelado.
+ * Sin tipo de carrete NO hay peso utilizable: el rollo cuenta como sin pesar.
+ */
+export const PesoMedidoSchema = z.object({
+  // Tope: la columna es Int de 32 bits y un valor enorme sería un 500 que revierte.
+  // 1.000.000 g (una tonelada) está muy por encima de cualquier balanza real.
+  pesoBalanza: z.number().int().min(0).max(PESO_BALANZA_MAXIMO, 'La balanza no puede marcar más de 1.000.000 g').nullable(),
+  carreteTipoId: z.string().min(1).nullable(),
+});
+export type PesoMedido = z.infer<typeof PesoMedidoSchema>;
+
+/**
  * CERRAR el conteo de un mes: la única forma de escribir conteos. Lo que no
  * viene en `counts` se guarda en 0 (casillas vacías = no hay, como el Excel).
  */
 export const StockMonthCloseSchema = z.object({
   month: MonthSchema,
   counts: z
-    .array(StockCountPartsSchema.extend({ materialId: z.string().min(1, 'Falta el material') }))
+    .array(
+      StockCountPartsSchema.extend({
+        materialId: z.string().min(1, 'Falta el material'),
+        /** Peso del rollo de la casilla `inUse` (uno solo por casilla). */
+        inUsePeso: PesoMedidoSchema.nullish(),
+        /** Peso del rollo de la casilla `running` (uno solo por casilla). */
+        runningPeso: PesoMedidoSchema.nullish(),
+      }),
+    )
     .max(500, 'Demasiadas fichas en un solo cierre')
     .default([]),
 });
@@ -101,6 +159,16 @@ export type StockMonthCloseDto = z.infer<typeof StockMonthCloseSchema>;
 /** Reabrir un mes cerrado para corregirlo. */
 export const StockMonthReopenSchema = z.object({ month: MonthSchema });
 export type StockMonthReopenDto = z.infer<typeof StockMonthReopenSchema>;
+
+/** Un rollo pesado que pesa más que un rollo lleno de su ficha. */
+export interface PesoSobreElRolloLleno {
+  materialId: string;
+  nombre: string;
+  casilla: 'inUse' | 'running';
+  gramos: number;
+  /** Gramos de un rollo nuevo de esa ficha (`Material.rollGrams`). */
+  gramosDelRollo: number;
+}
 
 /** Estado del cierre de un mes (`GET /filament/stock/status`). */
 export interface StockMonthStatus {
@@ -113,6 +181,17 @@ export interface StockMonthStatus {
   reopenedAt: string | null;
   /** hoy, en la zona del negocio, ya es el último día del mes o después */
   canClose: boolean;
+  /**
+   * ROLLOS abiertos del mes cerrado que valen 0 por no tener un peso utilizable
+   * (sin balanza, sin tipo de carrete, balanza por debajo del carrete, o más de
+   * un rollo en la casilla). 0 si el mes está abierto: no hay dato final.
+   */
+  rollosSinPesar: number;
+  /**
+   * Casillas pesadas cuyos gramos superan el rollo lleno. NO se recortan (hay
+   * rollos reales de 1,02 kg: recortar sería inventar): se guardan y se avisan.
+   */
+  pesosSobreElRolloLleno: PesoSobreElRolloLleno[];
   /** `'AAAA-MM-DD'`: desde qué día se puede cerrar */
   closableFrom: string;
 }

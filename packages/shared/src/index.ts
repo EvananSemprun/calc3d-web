@@ -12,6 +12,7 @@ export * from './calc/novedad';
 export * from './calc/usdt';
 export * from './calc/stock';
 export * from './calc/valor-inventario';
+export * from './calc/consumo-de-filamento';
 export * from './calc/restock-order';
 export * from './calc/estado-de-ficha';
 export * from './calc/unir-fichas';

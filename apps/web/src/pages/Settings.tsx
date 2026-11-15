@@ -12,6 +12,7 @@ import {
   PiggyBank,
   Plus,
   RefreshCw,
+  Scale,
   Sprout,
   Trash2,
   User,
@@ -31,6 +32,7 @@ import {
 } from '@/features/settings/useExchangeRates';
 import { CounterpartiesCard } from '@/features/cash/CounterpartiesCard';
 import { CashAccountsCard } from '@/features/cash/CashAccountsCard';
+import { TiposDeCarreteCard } from '@/features/filament/TiposDeCarreteCard';
 import { useAuth } from '@/auth/AuthContext';
 import { monedaPorDefectoFantasma } from '@/features/settings/monedaFantasma';
 import {
@@ -58,6 +60,7 @@ export function SettingsPage() {
     { key: 'moneda', label: 'Moneda', icon: Coins, Comp: CurrencySettings },
     { key: 'caja', label: 'Caja', icon: Wallet, Comp: CashSettings },
     { key: 'fijos', label: 'Costos fijos', icon: PiggyBank, Comp: FixedCostsSettings },
+    { key: 'filamento', label: 'Filamento', icon: Scale, Comp: FilamentSettings },
     { key: 'productos', label: 'Productos', icon: Boxes, Comp: ProductSettings },
     { key: 'negocio', label: 'Negocio', icon: Building2, Comp: BusinessSettings },
     { key: 'datos', label: 'Datos', icon: Database, Comp: DataSettings },
@@ -297,6 +300,14 @@ function CashSettings() {
     <div className="space-y-5">
       <CounterpartiesCard />
       <CashAccountsCard />
+    </div>
+  );
+}
+
+function FilamentSettings() {
+  return (
+    <div className="space-y-5">
+      <TiposDeCarreteCard />
     </div>
   );
 }

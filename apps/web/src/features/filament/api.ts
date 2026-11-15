@@ -6,6 +6,9 @@ import type {
   StockCountRow,
   StockMonthCloseDto,
   StockMonthStatus,
+  TipoDeCarrete,
+  TipoDeCarreteCreate,
+  TipoDeCarreteUpdate,
   ValorDelInventario,
 } from '@calc3d/shared';
 import { api } from '@/lib/api';
@@ -222,5 +225,34 @@ export function useSetMaterialStatusBatch() {
       return data;
     },
     onSuccess: invalidar,
+  });
+}
+
+/**
+ * TIPOS DE CARRETE (Configuración → Filamento): cuánto pesa el carrete vacío de
+ * cada marca. Se usa para pesar un rollo empezado (balanza − carrete).
+ */
+export function useTiposDeCarrete() {
+  return useQuery({
+    queryKey: ['tipos-de-carrete'],
+    queryFn: async () => (await api.get<TipoDeCarrete[]>('/settings/carretes')).data,
+  });
+}
+
+export function useSaveTipoDeCarrete() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...dto }: (TipoDeCarreteCreate | TipoDeCarreteUpdate) & { id?: string }) =>
+      id ? api.patch(`/settings/carretes/${id}`, dto) : api.post('/settings/carretes', dto),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tipos-de-carrete'] }),
+  });
+}
+
+/** El servidor da 409 (con el motivo) si algún cierre de mes ya usó el tipo. */
+export function useDeleteTipoDeCarrete() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => api.delete(`/settings/carretes/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tipos-de-carrete'] }),
   });
 }
