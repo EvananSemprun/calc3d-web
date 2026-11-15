@@ -1,87 +1,155 @@
 import { D, sum, toMoney } from './money';
 
 /**
- * CUÁNTO VALE EN DINERO EL FILAMENTO QUE QUEDA, al cierre de un mes.
+ * CUÁNTO VALE EN DINERO EL FILAMENTO QUE QUEDA.
  *
- * ⚠️ Es una ESTIMACIÓN, y conviene no disfrazarla de medición. El conteo
- * físico distingue tres estados —sellado, en uso, por acabarse— pero NO sabe
- * gramos: cuánto vale un rollo abierto es una convención del negocio, no un
- * dato. Por eso, además del total, se devuelve el rango honesto (`piso` y
- * `techo`): el valor real está ahí adentro.
+ * Regla del dueño, y manda sobre cualquier duda: **ante la falta de un dato,
+ * vale 0 y se avisa; nunca se estima.** Por eso un rollo empezado vale lo que
+ * pesa en la balanza o no vale nada: la versión anterior inventaba que un rollo
+ * «en uso» valía medio rollo y uno «por acabarse» un octavo, y esa fracción no
+ * salía de ningún dato. Un valor inventado se lee como una medición, y es
+ * peor que un hueco declarado.
  *
- * ⚠️ El precio que entra acá es el de la ÚLTIMA compra de esa ficha, así que
- * esto es COSTO DE REPOSICIÓN ("cuánto costaría volver a tener esto"), no lo
- * que se pagó en su momento. Para saber con cuánto material cuentas, sirve;
- * como valuación contable histórica, no es lo mismo.
+ * Lo que no se puede valuar NO desaparece en silencio: se cuenta aparte
+ * (`rollosSinPesar`, `sinPrecio`) para que el dueño vea cuánto del inventario
+ * quedó afuera del total.
+ *
+ * El precio de un rollo es el PROMEDIO PONDERADO de lo que se pagó
+ * (`promedioPorFicha`), no el de la última compra: esto es lo que cuesta lo que
+ * tienes, no lo que costaría reponerlo.
  */
 
-/** Las tres casillas del conteo de una ficha, con el precio de un rollo entero. */
-export interface RolloValorizable {
-  sealed: number;
-  inUse: number;
-  running: number;
-  /**
-   * Precio de un rollo entero. `null` = la ficha nunca se compró, así que no
-   * hay precio que usar. Poner 0 diría "vale nada" en vez de "no sé": sus
-   * rollos se cuentan aparte, en `sinPrecio`.
-   */
-  lastRollPrice: number | null;
+export interface CompraParaPromedio {
+  materialId: string;
+  amount: number;
+  /** Rollos comprados. `null` = la compra no dice cuántos. */
+  quantity: number | null;
+  date: Date;
 }
 
 /**
- * Cuánto del precio de un rollo entero vale cada estado.
+ * PRECIO PROMEDIO DE UN ROLLO por ficha, solo con compras ANTERIORES a `hasta`.
  *
- * `running` es "menos de un cuarto" (ver `StockCount` en el schema), o sea
- * algo entre 0 y 0.25: 0.125 es el punto medio de ese rango, no un número
- * elegido a ojo. Se exporta para poder MOSTRAR la convención en pantalla:
- * una estimación que no dice de dónde sale es una caja negra.
+ * Es `suma(monto) / suma(rollos)`, NO el promedio de los precios unitarios:
+ * $40 por 2 rollos y $22 por 1 dan $20,67 (62 / 3), y promediar los unitarios
+ * (20 y 22) daría $21,00, que ignora que de uno compraste el doble.
+ *
+ * Qué compra NO entra (exactamente estas dos, y ninguna regla de atípicos):
+ * - `amount <= 0`: «no hay precio». Es la misma exclusión del precio por tipo
+ *   (`filament-type-price.ts`, regla 1): el rollo regalado es un gasto
+ *   verdadero pero no una señal de precio, y no es «sospechosamente barato»;
+ *   una regla de atípicos borraría también al PLA PURE a $13, que es un dato
+ *   real.
+ * - `quantity` nula o `<= 0`: no se sabe a cuántos rollos corresponde ese
+ *   monto, y sumarlo inflaría el costo por rollo (o dividiría por cero).
+ *
+ * `hasta` es un límite EXCLUSIVO (`date < hasta`): quien quiera todo un mes
+ * pasa el día 1 del mes SIGUIENTE; con el último día del mes pierde las
+ * compras de ese día.
+ *
+ * Una ficha sin ninguna compra válida NO aparece en el mapa: «no hay promedio»
+ * no es «vale 0».
  */
-export const FRACCIONES_DE_ROLLO = { sealed: 1, inUse: 0.5, running: 0.125 } as const;
+export function promedioPorFicha(
+  compras: CompraParaPromedio[],
+  hasta: Date,
+): Map<string, number> {
+  const montos = new Map<string, ReturnType<typeof D>[]>();
+  const rollos = new Map<string, ReturnType<typeof D>[]>();
+
+  for (const c of compras) {
+    if (!(c.date.getTime() < hasta.getTime())) continue;
+    if (!(c.amount > 0)) continue;
+    if (c.quantity === null || !(c.quantity > 0)) continue;
+    montos.set(c.materialId, [...(montos.get(c.materialId) ?? []), D(c.amount)]);
+    rollos.set(c.materialId, [...(rollos.get(c.materialId) ?? []), D(c.quantity)]);
+  }
+
+  const promedios = new Map<string, number>();
+  for (const [materialId, lista] of montos) {
+    promedios.set(materialId, toMoney(sum(lista).div(sum(rollos.get(materialId) ?? []))));
+  }
+  return promedios;
+}
+
+/** Un rollo abierto que SÍ se pesó: lo que marca la balanza y lo que pesa el carrete vacío. */
+export interface RolloPesado {
+  pesoEnBalanza: number;
+  pesoDelCarrete: number;
+}
+
+export interface FichaValorizable {
+  materialId: string;
+  /** Rollos sellados (valen el promedio entero). */
+  sealed: number;
+  /** Rollos abiertos que nadie pesó: no hay dato, valen 0 y se avisan. */
+  abiertosSinPesar: number;
+  pesados: RolloPesado[];
+  /**
+   * Promedio de un rollo entero (`promedioPorFicha`). `null` = ninguna compra
+   * válida: no hay precio con que valuar y sus rollos van a `sinPrecio`.
+   */
+  promedioDelRollo: number | null;
+  /** Gramos de filamento de un rollo nuevo. */
+  gramosDelRollo: number;
+}
 
 export interface ValorDelInventario {
-  /** Ya con la fracción de su estado aplicada. */
   sellados: number;
-  enUso: number;
-  porAcabarse: number;
+  abiertosPesados: number;
   total: number;
-  /** Si los abiertos no valieran nada: solo los sellados. */
-  piso: number;
-  /** Si todos los abiertos estuvieran llenos: todo a precio completo. */
-  techo: number;
+  /** ROLLOS (no dinero) abiertos que valen 0 por no tener un peso utilizable. */
+  rollosSinPesar: number;
   /** ROLLOS (no dinero) que no se pudieron valorar por no tener precio. */
   sinPrecio: number;
 }
 
-export function valorDelInventario(fichas: RolloValorizable[]): ValorDelInventario {
+export function valorDelInventario(fichas: FichaValorizable[]): ValorDelInventario {
   const sellados = [];
-  const enUso = [];
-  const porAcabarse = [];
-  const completos = [];
+  const abiertos = [];
+  let rollosSinPesar = 0;
   let sinPrecio = 0;
 
   for (const f of fichas) {
-    if (f.lastRollPrice === null) {
-      sinPrecio += f.sealed + f.inUse + f.running;
+    if (f.promedioDelRollo === null) {
+      sinPrecio += f.sealed + f.abiertosSinPesar + f.pesados.length;
       continue;
     }
-    const precio = D(f.lastRollPrice);
-    sellados.push(precio.times(f.sealed).times(FRACCIONES_DE_ROLLO.sealed));
-    enUso.push(precio.times(f.inUse).times(FRACCIONES_DE_ROLLO.inUse));
-    porAcabarse.push(precio.times(f.running).times(FRACCIONES_DE_ROLLO.running));
-    completos.push(precio.times(f.sealed + f.inUse + f.running));
+    const promedio = D(f.promedioDelRollo);
+    sellados.push(promedio.times(f.sealed));
+    rollosSinPesar += f.abiertosSinPesar;
+
+    for (const r of f.pesados) {
+      const neto = D(r.pesoEnBalanza).minus(r.pesoDelCarrete);
+      // TRES casos, y cada uno tiene su test:
+      // 1. Neto NEGATIVO (balanza por debajo del carrete) o `gramosDelRollo <= 0`:
+      //    dato ROTO. No es un rollo vacío ni uno medido; se trata como SIN PESAR
+      //    (vale 0 y se avisa). Recortar con un máximo lo daría por bien medido y
+      //    el dueño nunca vería el aviso.
+      // 2. Neto EXACTAMENTE 0: es un DATO, no una ausencia. Un carrete
+      //    legítimamente vacío vale 0 y está medido; si contara como sin pesar, el
+      //    aviso sonaría para siempre con todo bien y el dueño no podría limpiarlo.
+      //    El riesgo (tipear el peso del carrete en la casilla de la balanza) se
+      //    ataja en la pantalla, donde está quien tipea (Tarea 6), no acá.
+      // 3. Neto MAYOR que `gramosDelRollo`: NO se recorta. Vale lo que pesa
+      //    (recortar sería estimar, y hay rollos reales de 1,02 kg); el aviso de
+      //    «peso mayor que rollo lleno + carrete» lo emite el cierre (Tarea 4).
+      //    No «arreglar» el recorte aquí.
+      if (neto.isNegative() || !(f.gramosDelRollo > 0)) {
+        rollosSinPesar += 1;
+        continue;
+      }
+      abiertos.push(neto.times(promedio).div(f.gramosDelRollo));
+    }
   }
 
   const vSellados = sum(sellados);
-  const vEnUso = sum(enUso);
-  const vPorAcabarse = sum(porAcabarse);
-
+  const vAbiertos = sum(abiertos);
   return {
     sellados: toMoney(vSellados),
-    enUso: toMoney(vEnUso),
-    porAcabarse: toMoney(vPorAcabarse),
-    total: toMoney(vSellados.plus(vEnUso).plus(vPorAcabarse)),
-    piso: toMoney(vSellados),
-    techo: toMoney(sum(completos)),
+    abiertosPesados: toMoney(vAbiertos),
+    total: toMoney(vSellados.plus(vAbiertos)),
+    rollosSinPesar,
     sinPrecio,
   };
 }

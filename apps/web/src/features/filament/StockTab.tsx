@@ -16,7 +16,6 @@ import {
 import {
   BUSINESS_TIME_ZONE,
   ETIQUETA_DE_ESTADO,
-  FRACCIONES_DE_ROLLO,
   entraEnConteo,
   entraEnReposicion,
   monthKey,
@@ -1137,17 +1136,22 @@ function Muestra({ color }: { color: string | null }) {
 /**
  * CUÁNTO VALE EL FILAMENTO QUE QUEDA.
  *
- * ⚠️ Es una ESTIMACIÓN y la tarjeta tiene que decirlo: el conteo distingue
- * sellado / en uso / por acabarse, pero NO sabe gramos. Por eso se muestran
- * las tres partes con su porcentaje y el rango (piso–techo): un número solo,
- * sin de dónde sale, se lee como si estuviera medido.
+ * ⚠️ Aquí NO se estima nada. Regla del dueño: ante la falta de un dato, vale 0
+ * y se avisa. Un rollo sellado vale su precio entero; uno empezado vale lo que
+ * se midió en la balanza, y si nadie lo pesó vale 0 y cuenta en el aviso de
+ * «sin pesar». La versión anterior mostraba un rango «entre piso y techo» y
+ * unos porcentajes por tipo de rollo: esas fracciones eran inventadas y NO deben
+ * volver.
+ *
+ * Tarea 6: cuando exista la casilla del peso, el aviso de `rollosSinPesar` debe
+ * reescribirse para mandar a ella. Hoy NO la menciona a propósito: un mensaje
+ * que manda a una puerta que no existe es peor que no tener mensaje.
  *
  * ⚠️ El texto va como hijo DIRECTO de cada <p>, sin <span> en medio: los
  * tests lo buscan con `getByText`, que solo ve los nodos de texto directos.
  */
 function ValorCard({ valor }: { valor: ValorDelInventario }) {
   const { money } = useMoney();
-  const pct = (f: number) => `${f * 100} %`;
   return (
     <Card>
       <CardContent className="pt-5">
@@ -1158,21 +1162,22 @@ function ValorCard({ valor }: { valor: ValorDelInventario }) {
               Valor del filamento que queda
             </div>
             <div className="font-display text-2xl font-bold tabular-nums">{money(valor.total)}</div>
-            <p className="text-xs text-muted-foreground">
-              Estimado: entre {money(valor.piso)} y {money(valor.techo)}
-            </p>
           </div>
         </div>
 
         <p className="mt-3 text-xs text-muted-foreground">
-          Sellados {money(valor.sellados)} ({pct(FRACCIONES_DE_ROLLO.sealed)}) · En uso{' '}
-          {money(valor.enUso)} ({pct(FRACCIONES_DE_ROLLO.inUse)}) · Por acabarse{' '}
-          {money(valor.porAcabarse)} ({pct(FRACCIONES_DE_ROLLO.running)})
+          Sellados {money(valor.sellados)} · Abiertos pesados {money(valor.abiertosPesados)}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           Al precio de tu última compra de cada filamento: es lo que costaría reponerlo, no lo que
-          pagaste. Un rollo abierto no se puede pesar, así que vale una parte del entero.
+          pagaste. Solo vale lo que está medido; lo que no, vale 0.
         </p>
+        {valor.rollosSinPesar > 0 && (
+          <p className="mt-2 text-xs text-brand-yellow-ink">
+            {valor.rollosSinPesar} rollo(s) empezado(s) todavía no se pueden pesar, así que no
+            entran en el total.
+          </p>
+        )}
         {valor.sinPrecio > 0 && (
           <p className="mt-2 text-xs text-brand-yellow-ink">
             {valor.sinPrecio} rollo(s) sin precio: su ficha nunca se compró, así que no entran en el

@@ -10,9 +10,12 @@ import { TooltipProvider } from '@/components/overlays';
  *
  * ⚠️ La cuenta ya está probada en `valor-inventario.spec.ts` (shared) y su
  * cableado en el servicio. Lo que ninguna de las dos puede ver es si la
- * PANTALLA muestra la plata, y sobre todo si la muestra **cuando no debe**:
- * el valor es una ESTIMACIÓN —el conteo no sabe gramos— así que un número
- * solo, sin el rango ni el desglose, se lee como si estuviera medido.
+ * PANTALLA dice lo que debe y NO dice lo que no debe.
+ *
+ * La regla es la contraria a la de la primera versión: el número YA NO se
+ * estima. Vale lo que está medido; lo que no está medido vale 0 y se avisa.
+ * Por eso la tarjeta no muestra rango ni porcentajes (eran fracciones
+ * inventadas) y sí el aviso de cuántos rollos quedaron afuera.
  *
  * Se mockea `@/lib/api` y nada más.
  */
@@ -52,11 +55,9 @@ const FILAS: StockCountRow[] = [
 
 const VALOR: ValorDelInventario = {
   sellados: 20,
-  enUso: 20,
-  porAcabarse: 11,
-  total: 51,
-  piso: 20,
-  techo: 148,
+  abiertosPesados: 0,
+  total: 20,
+  rollosSinPesar: 6,
   sinPrecio: 0,
 };
 
@@ -126,28 +127,34 @@ beforeEach(() => {
 });
 
 describe('Valor del filamento que queda', () => {
-  it('muestra cuánto vale en dinero', async () => {
+  it('muestra cuánto vale en dinero y de dónde sale', async () => {
     const { cargar } = montar();
     await cargar();
-    expect(screen.getByText('$51.00')).toBeInTheDocument();
+    expect(screen.getByText('$20.00')).toBeInTheDocument();
+    expect(screen.getByText(/Sellados \$20\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Abiertos pesados \$0\.00/)).toBeInTheDocument();
   });
 
-  // ⚠️ El rango es lo que impide leer la estimación como una medición: el
-  // conteo no sabe gramos, así que el valor real está entre los dos extremos.
-  it('muestra el rango: el piso y el techo', async () => {
+  it('avisa cuántos rollos empezados no entran en el total', async () => {
     const { cargar } = montar();
     await cargar();
-    expect(screen.getByText(/\$20\.00.*\$148\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/6 rollo\(s\) empezado\(s\) todavía no se pueden pesar/)).toBeInTheDocument();
   });
 
-  // ⚠️ Sin el desglose la estimación es una caja negra: no se puede ver que el
-  // número sale de contar los abiertos a mitad de precio.
-  it('muestra de dónde sale: las tres partes con su porcentaje', async () => {
-    const { cargar } = montar();
+  it('sin rollos sin pesar no mete ese aviso', async () => {
+    const { cargar } = montar({ valor: { ...VALOR, rollosSinPesar: 0 } });
     await cargar();
-    expect(screen.getByText(/Sellados/)).toBeInTheDocument();
-    expect(screen.getByText(/50 %/)).toBeInTheDocument();
-    expect(screen.getByText(/12\.5 %/)).toBeInTheDocument();
+    expect(screen.queryByText(/sin pesar|no se pueden pesar/)).not.toBeInTheDocument();
+  });
+
+  // ⚠️ El que importa: impide que alguien devuelva las fracciones inventadas
+  // (un rango piso-techo o los porcentajes de «un rollo abierto vale la mitad»).
+  it('NO muestra un rango ni un porcentaje', async () => {
+    const { cargar, container } = montar();
+    await cargar();
+    expect(screen.queryByText(/Estimado|entre \$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d\s?%/)).not.toBeInTheDocument();
+    expect(container.textContent ?? '').not.toMatch(/Estimado|\d(\.\d)? %/);
   });
 
   it('avisa de los rollos que no pudo valorar', async () => {

@@ -1,100 +1,152 @@
-import {
-  FRACCIONES_DE_ROLLO,
-  valorDelInventario,
-  type RolloValorizable,
-} from './valor-inventario';
+import { promedioPorFicha, valorDelInventario, FichaValorizable } from './valor-inventario';
 
-/** Una ficha con un solo rollo, en el estado que se indique. */
-const ficha = (partes: Partial<RolloValorizable>): RolloValorizable => ({
+const dia = (s: string) => new Date(`${s}T00:00:00.000Z`);
+const HASTA = dia('2026-12-01');
+
+describe('promedioPorFicha', () => {
+  const dosCompras = [
+    { materialId: 'a', amount: 40, quantity: 2, date: dia('2026-01-01') },
+    { materialId: 'a', amount: 22, quantity: 1, date: dia('2026-02-01') },
+  ];
+
+  it('promedia por rollo: $40 por 2 rollos y $22 por 1 dan $20,67', () => {
+    expect(promedioPorFicha(dosCompras, HASTA).get('a')).toBe(20.6667);
+  });
+
+  it('NO promedia precios unitarios: ese camino daría $21,00 y está mal', () => {
+    expect(promedioPorFicha(dosCompras, HASTA).get('a')).not.toBe(21);
+  });
+
+  it('el rollo regalado no entra: una compra en $0 no baja el promedio', () => {
+    const m = promedioPorFicha(
+      [
+        { materialId: 'a', amount: 20, quantity: 1, date: dia('2026-01-01') },
+        { materialId: 'a', amount: 0, quantity: 1, date: dia('2026-02-01') },
+      ],
+      HASTA,
+    );
+    expect(m.get('a')).toBe(20);
+  });
+
+  it('una compra sin cantidad no entra: no infla el costo por rollo', () => {
+    const m = promedioPorFicha(
+      [
+        { materialId: 'a', amount: 20, quantity: 1, date: dia('2026-01-01') },
+        { materialId: 'a', amount: 100, quantity: null, date: dia('2026-02-01') },
+        { materialId: 'a', amount: 100, quantity: 0, date: dia('2026-03-01') },
+      ],
+      HASTA,
+    );
+    expect(m.get('a')).toBe(20);
+  });
+
+  it('corta en la fecha: una compra posterior a `hasta` no cuenta', () => {
+    const m = promedioPorFicha(
+      [
+        { materialId: 'a', amount: 20, quantity: 1, date: dia('2026-01-01') },
+        { materialId: 'a', amount: 40, quantity: 1, date: dia('2026-12-01') },
+        { materialId: 'a', amount: 60, quantity: 1, date: dia('2026-12-15') },
+      ],
+      HASTA,
+    );
+    expect(m.get('a')).toBe(20);
+  });
+
+  it('una ficha sin ninguna compra válida no aparece en el mapa', () => {
+    const m = promedioPorFicha(
+      [
+        { materialId: 'a', amount: 0, quantity: 1, date: dia('2026-01-01') },
+        { materialId: 'b', amount: 10, quantity: null, date: dia('2026-01-01') },
+        { materialId: 'c', amount: 10, quantity: 1, date: dia('2027-01-01') },
+      ],
+      HASTA,
+    );
+    expect(m.size).toBe(0);
+  });
+});
+
+const ficha = (p: Partial<FichaValorizable>): FichaValorizable => ({
+  materialId: 'a',
   sealed: 0,
-  inUse: 0,
-  running: 0,
-  lastRollPrice: 20,
-  ...partes,
+  abiertosSinPesar: 0,
+  pesados: [],
+  promedioDelRollo: 20,
+  gramosDelRollo: 1000,
+  ...p,
 });
 
 describe('valorDelInventario', () => {
-  it('un rollo sellado vale su precio completo', () => {
-    const v = valorDelInventario([ficha({ sealed: 1, lastRollPrice: 25 })]);
-    expect(v.sellados).toBe(25);
-    expect(v.total).toBe(25);
+  it('un rollo sellado vale el promedio entero', () => {
+    const v = valorDelInventario([ficha({ sealed: 3 })]);
+    expect(v).toEqual({ sellados: 60, abiertosPesados: 0, total: 60, rollosSinPesar: 0, sinPrecio: 0 });
   });
 
-  it('un rollo en uso vale la mitad', () => {
-    const v = valorDelInventario([ficha({ inUse: 1, lastRollPrice: 25 })]);
-    expect(v.enUso).toBe(12.5);
-    expect(v.total).toBe(12.5);
-  });
-
-  it('un rollo por acabarse vale un octavo', () => {
-    const v = valorDelInventario([ficha({ running: 1, lastRollPrice: 24 })]);
-    expect(v.porAcabarse).toBe(3);
-    expect(v.total).toBe(3);
-  });
-
-  it('suma las tres partes de varias fichas', () => {
+  it('un rollo pesado vale (balanza − carrete) × promedio / gramosDelRollo', () => {
+    // 750 − 250 = 500 g de 1000: media bobina a $20 = $10
     const v = valorDelInventario([
-      ficha({ sealed: 2, lastRollPrice: 20 }), // 40
-      ficha({ inUse: 4, lastRollPrice: 25 }), // 50
-      ficha({ running: 8, lastRollPrice: 16 }), // 16
+      ficha({ pesados: [{ pesoEnBalanza: 750, pesoDelCarrete: 250 }] }),
     ]);
-    expect(v.sellados).toBe(40);
-    expect(v.enUso).toBe(50);
-    expect(v.porAcabarse).toBe(16);
-    expect(v.total).toBe(106);
+    expect(v.abiertosPesados).toBe(10);
+    expect(v.total).toBe(10);
+    expect(v.rollosSinPesar).toBe(0);
   });
 
-  // ⚠️ El piso y el techo son el rango HONESTO: el conteo no sabe gramos, así
-  // que un rollo abierto vale algo entre nada y un rollo entero. Mostrar solo
-  // el total sería dar por medido algo que es una convención.
-  it('el piso son solo los sellados y el techo es todo a precio completo', () => {
+  it('un rollo abierto sin pesar vale 0 y suma a rollosSinPesar', () => {
+    const v = valorDelInventario([ficha({ abiertosSinPesar: 2 })]);
+    expect(v.total).toBe(0);
+    expect(v.rollosSinPesar).toBe(2);
+  });
+
+  it('una ficha sin promedio no vale 0: sus rollos van a sinPrecio', () => {
     const v = valorDelInventario([
-      ficha({ sealed: 1, lastRollPrice: 20 }),
-      ficha({ inUse: 1, lastRollPrice: 20 }),
-      ficha({ running: 1, lastRollPrice: 20 }),
+      ficha({
+        promedioDelRollo: null,
+        sealed: 2,
+        abiertosSinPesar: 1,
+        pesados: [{ pesoEnBalanza: 750, pesoDelCarrete: 250 }],
+      }),
     ]);
-    expect(v.piso).toBe(20);
-    expect(v.techo).toBe(60);
-    expect(v.total).toBe(20 + 10 + 2.5);
+    expect(v.total).toBe(0);
+    expect(v.sinPrecio).toBe(4);
+    expect(v.rollosSinPesar).toBe(0);
   });
 
-  // ⚠️ "Un default no es un dato": una ficha que nunca se compró no tiene
-  // precio, y poner 0 diría "vale nada" en vez de "no sé". Se cuentan aparte.
-  it('una ficha sin precio no suma plata y sus rollos se cuentan aparte', () => {
+  it('balanza menor que el carrete: el rollo vale 0 y cuenta como sin pesar, nunca negativo', () => {
     const v = valorDelInventario([
-      ficha({ sealed: 1, lastRollPrice: 20 }),
-      ficha({ sealed: 2, inUse: 1, lastRollPrice: null }),
+      ficha({ pesados: [{ pesoEnBalanza: 100, pesoDelCarrete: 250 }] }),
     ]);
-    expect(v.total).toBe(20);
-    expect(v.sinPrecio).toBe(3);
+    expect(v.abiertosPesados).toBe(0);
+    expect(v.total).toBe(0);
+    expect(Object.is(v.total, -0)).toBe(false);
+    expect(v.rollosSinPesar).toBe(1);
   });
 
-  it('sin rollos sin precio, sinPrecio es 0', () => {
-    expect(valorDelInventario([ficha({ sealed: 1 })]).sinPrecio).toBe(0);
+  it('gramosDelRollo en 0: el rollo vale 0 y cuenta como sin pesar, sin dividir por cero', () => {
+    const v = valorDelInventario([
+      ficha({ gramosDelRollo: 0, pesados: [{ pesoEnBalanza: 750, pesoDelCarrete: 250 }] }),
+    ]);
+    expect(Number.isFinite(v.total)).toBe(true);
+    expect(v.abiertosPesados).toBe(0);
+    expect(v.total).toBe(0);
+    expect(v.rollosSinPesar).toBe(1);
   });
 
-  it('un inventario vacío vale 0 y no rompe', () => {
-    const v = valorDelInventario([]);
-    expect(v).toEqual({
-      sellados: 0,
-      enUso: 0,
-      porAcabarse: 0,
-      total: 0,
-      piso: 0,
-      techo: 0,
-      sinPrecio: 0,
-    });
+  it('neto exactamente 0: el rollo está medido y vacío, vale 0 y NO cuenta como sin pesar', () => {
+    const v = valorDelInventario([
+      ficha({ pesados: [{ pesoEnBalanza: 250, pesoDelCarrete: 250 }] }),
+    ]);
+    expect(v.abiertosPesados).toBe(0);
+    expect(v.total).toBe(0);
+    expect(v.rollosSinPesar).toBe(0);
   });
 
-  // ⚠️ El dinero se suma con decimal.js: 0.1 + 0.2 en punto flotante da
-  // 0.30000000000000004, y acá se multiplican precios por fracciones muchas
-  // veces. Un centavo de más en pantalla es un número que no cuadra.
-  it('no arrastra error de punto flotante al sumar muchos rollos', () => {
-    const fichas = Array.from({ length: 3 }, () => ficha({ inUse: 1, lastRollPrice: 0.1 }));
-    expect(valorDelInventario(fichas).total).toBe(0.15);
-  });
-
-  it('las fracciones de la convención son 100 %, 50 % y 12.5 %', () => {
-    expect(FRACCIONES_DE_ROLLO).toEqual({ sealed: 1, inUse: 0.5, running: 0.125 });
+  it('neto mayor que gramosDelRollo: no se recorta, vale más que un sellado y no cuenta como sin pesar', () => {
+    // 1270 − 250 = 1020 g de 1000 a $20 = $20,40 (un sellado valdría $20)
+    const v = valorDelInventario([
+      ficha({ pesados: [{ pesoEnBalanza: 1270, pesoDelCarrete: 250 }] }),
+    ]);
+    expect(v.abiertosPesados).toBe(20.4);
+    expect(v.total).toBe(20.4);
+    expect(v.rollosSinPesar).toBe(0);
   });
 });
