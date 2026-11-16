@@ -133,10 +133,20 @@ export function contarSinPesar(
 }
 
 /**
- * Lo que viaja en el cierre para una casilla. `undefined` = NO se tocó: la clave
- * no se manda y el servidor conserva lo que ya hubiera guardado (reabrir un mes y
- * re-cerrarlo no debe borrar pesos). Escribir y después borrar la balanza SÍ se
- * manda, como `null`: es la forma explícita de limpiar.
+ * Lo que viaja en el cierre para una casilla. DOS reglas protegen un re-cierre, y
+ * cada una protege algo distinto:
+ *
+ * 1. `undefined` (la casilla NO está en lo escrito) = la clave no se manda y el
+ *    servidor conserva lo guardado. Hoy protege POCO: `sembrarPesos` deja toda
+ *    casilla con peso guardado como «escrita», así que solo cubre las que nunca
+ *    se pesaron (no hay nada que borrar) y los rollos que no se tocaron.
+ * 2. Lo que de verdad evita que un re-cierre mueva un mes es la regla del SERVIDOR
+ *    (`pesoACongelar`): si la balanza y el tipo enviados son idénticos a los
+ *    guardados, conserva el peso del carrete y los gramos congelados y NO relee el
+ *    catálogo. Por eso lo sembrado se re-envía tal cual, sin tocarlo.
+ *
+ * Escribir y después borrar la balanza SÍ se manda, como `null`: es la forma
+ * explícita de limpiar.
  */
 export function pesoParaCerrar(
   escrito: PesoEscrito | undefined,

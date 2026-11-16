@@ -1161,9 +1161,12 @@ function PesoDelRollo({
           aria-label={`Peso en balanza (g) · ${etiqueta} · ${ficha}`}
           className="h-8 w-24 text-right tabular-nums"
           min={0}
+          step={1}
           value={escrito?.balanza ?? 0}
           disabled={disabled}
-          onChange={(n) => onChange({ balanza: Math.max(0, n) })}
+          // Entero: la columna es Int. Redondear acá (y no solo al cerrar) hace que la previa
+          // diga lo mismo que se va a guardar.
+          onChange={(n) => onChange({ balanza: Math.max(0, Math.round(n)) })}
         />
       </div>
       {hayBalanza && (

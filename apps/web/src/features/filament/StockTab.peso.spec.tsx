@@ -477,3 +477,45 @@ describe('Un mes con pesos ya guardados (reabierto)', () => {
     expect(counts.m2.inUsePeso).toEqual({ pesoBalanza: 900, carreteTipoId: 'c-b' });
   });
 });
+
+describe('Fronteras de la tarea 6 (ronda 2)', () => {
+  // El cierre guarda TODAS las fichas: el aviso habla de todas, no de las que el filtro deja ver.
+  // Si contara solo las visibles, el botón diría menos de lo que hay y el resto se cerraría en 0.
+  it('el contador «sin pesar» cuenta TAMBIÉN las fichas que un filtro esconde', async () => {
+    montar();
+    await cargar();
+    expect(botonCerrar()).toHaveTextContent('3 sin pesar');
+
+    fireEvent.keyDown(screen.getByLabelText('Filtrar por marca'), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'Creality' }));
+
+    // La ficha Bambu (un rollo sin pesar) ya no se ve…
+    expect(screen.queryByLabelText(M2)).not.toBeInTheDocument();
+    // …y el botón la sigue contando.
+    expect(botonCerrar()).toHaveTextContent('3 sin pesar');
+  });
+
+  // Gramos exactamente 0 es un DATO medido (el rollo está vacío), no una ausencia: no cuenta como sin pesar.
+  it('una balanza exactamente igual al carrete vale 0 g y NO cuenta como sin pesar', async () => {
+    montar();
+    await cargar();
+    expect(botonCerrar()).toHaveTextContent('3 sin pesar');
+
+    pesar('En uso', M2, 150); // el carrete preseleccionado (c-a) pesa 150
+
+    expect(screen.getByText('Quedan 0 g de filamento.')).toBeInTheDocument();
+    expect(botonCerrar()).toHaveTextContent('2 sin pesar');
+  });
+
+  it('la casilla es entera: lo que dice la previa es lo que se guarda', async () => {
+    montar();
+    await cargar();
+
+    expect(casillaDePeso('En uso', M2)).toHaveAttribute('step', '1');
+    pesar('En uso', M2, 650.4);
+
+    expect(screen.getByText('Quedan 500 g de filamento.')).toBeInTheDocument();
+    const counts = await cerrarYLeerCuerpo();
+    expect(counts.m2.inUsePeso).toEqual({ pesoBalanza: 650, carreteTipoId: 'c-a' });
+  });
+});
