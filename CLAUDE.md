@@ -2960,3 +2960,22 @@ El filtro «Estado» de Stock del mes tiene **cuatro** opciones (todas / Activas
 - **Borrar con historial**: la ficha con historial NO ofrece «Eliminar» (el diálogo dice «Usa «Descontinuar» o «Unir con otra ficha…»»); el rechazo con salida llega por el 409 de la API y, en **Insumos** (`pages/Catalog.tsx`), como toast.
 
 ⚠️ **El rechazo de borrar un insumo con historial NO va en un toast: va en un cartel que no se va por tiempo** (`pages/Catalog.tsx`, `role="alert"`, `destructive`, con X). Medido a 375 px (DOM): el aviso tiene título + 46 palabras (50), mide 343 × 174 px en 812 de alto (entra sin cortarse) y el toast de 15 s desaparecía a los ~15,2 s; leerlo toma 12,5-15 s (200-240 palabras/min) y en el celular no hay hover que lo pause (en escritorio con el mouse encima siguió 28 s). Es el caso del `CLAUDE.md` global: «un aviso que no se puede perder va en un cartel». El cartel se cierra con la X o al hacer otra cosa (borrar de nuevo, editar, unir). Tests (`Catalog.borrar.spec.tsx`): aparece con el mensaje del servidor, no pasa por el toast, sigue pasado un minuto con relojes falsos instalados ANTES de rechazar (con el reloj real el test no vería un `setTimeout` nuevo), y se va con la X y con otra acción. Mutaciones: que se cierre solo tumba 1; que vuelva al toast, 4; sin `role="alert"`, 4. ⚠️ `notify.error` conserva la opción `duration`: **`FichaDialog` la sigue usando** (rechazo de borrar una ficha de filamento, 41 palabras; la UI no ofrece «Eliminar» con historial, así que ese camino solo se alcanza por una carrera). Si algún día se mide que ese también se pierde, pasa al mismo cartel y entonces `duration` se borra.
+
+
+## El panel no rehace el resultado: su barrido y los verdes falsos (2026-11-16, fase «filamento como inventario», tarea 10)
+
+El resultado del negocio lo calcula el **servidor** (`useResultadoDeOperacion`, `resultado.utilidad`; el filamento resta cuando se **consume**, ver el `CLAUDE.md` de `calc3d-api`). Si una pantalla vuelve a restar `ingresos − gastosOperativos` con las filas de Gastos, cuenta el filamento el día que se compró y la misma pantalla dice dos ganancias distintas: compila y ningún test de función pura lo nota (ya pasó en el Dashboard).
+
+- **Barrido: `src/lib/gasto-operativo.inventario.spec.ts`**, gemelo del de la API. Lee los fuentes y se pone rojo nombrando archivo:línea ante `ingresos - gastos`, `gastos - inversion` o `!r.isInvestment`. Las únicas exenciones son **por uso y con su razón escrita**: el desglose de lo GASTADO del Dashboard (`gastosOperativos = gastos - inversion` y sus filtros, que alimentan el KPI «Gastos», no el resultado) y la casilla «Solo inversión» de `expenses-view.ts`. Cada exención tiene que seguir usándose (si no, el test falla). Caja no aplica la regla y no hace esta resta: no necesita exención.
+- ⚠️ **Probado rompiéndolo**: volver a poner `const utilidad = ingresos - gastosOperativos` en `Dashboard.tsx` lo pone en rojo (`pages\Dashboard.tsx:188 [resta ingresos - gastos]`), y una pantalla nueva con `ingresos - gastos` también. Un test comprueba además que el barrido VE los usos que ya existen: una regex mal escapada pasaría en verde sin mirar nada (cicatriz de la fase h).
+- Si salta y la cuenta es «lo gastado» y no el resultado, agregá la exención con su razón; si es el resultado, **mostralo desde el servidor, no lo rehagas**.
+
+### Verdes falsos que aplican al panel (todos dieron «0 tumbados» y parecían un hallazgo)
+**Regla: si una mutación da 0, sospechá primero de la mutación y del fixture, y recién después concluí que falta un test.**
+1. **`sed` con continuaciones de línea** en un `.tsx`: el `//` se come el bloque y la mutación queda **comentada**. Insertar con `node`/`python` y **leer el archivo después**.
+2. **Un diálogo modal de Radix** esconde el resto de la página del árbol de accesibilidad: `queryByRole` devuelve `null` aunque el elemento siga montado. Va con `{ hidden: true }`.
+3. **`useMemo` cuyo argumento se cambia sin tocar sus dependencias**: el memo viejo se sigue usando.
+4. **Un fixture al que le falta el caso** que la guarda cubre.
+5. **Mutar `shared` sin recompilar**: los specs importan del `dist` viejo (ver arriba, «shared»).
+6. **Un fixture SIMÉTRICO** («1 pesado y 1 sin pesar»): invertir los dos contadores no cambia nada. Los fixtures van asimétricos.
+Restaurar mutaciones con copia `cp`, **nunca** `git checkout --`.

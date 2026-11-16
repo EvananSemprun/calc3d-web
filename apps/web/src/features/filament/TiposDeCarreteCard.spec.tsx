@@ -11,6 +11,8 @@ import { ConfirmProvider, TooltipProvider } from '@/components/overlays';
  */
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() }));
+// El parámetro solo tipa las llamadas que el test inspecciona.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const apiError = vi.hoisted(() => vi.fn((_e?: unknown) => 'falló'));
 const toastError = vi.hoisted(() => vi.fn());
 
