@@ -81,6 +81,7 @@ import {
   useSales,
 } from '@/features/finance/api';
 import { NotasDelResultado } from '@/features/finance/NotasDelResultado';
+import { textoDeLaBrecha } from '@/features/finance/brecha-de-gastos';
 
 /** Canal de los gráficos: todo, solo mostrador o solo abonos de encargos. */
 type Canal = 'ALL' | 'COUNTER' | 'ORDERS';
@@ -144,6 +145,8 @@ export function DashboardPage() {
   const payments = useOrderPayments(range);
   // El resultado lo calcula el servidor: acá solo se dibuja.
   const { data: resultado } = useResultadoDeOperacion(range);
+  // La brecha con el KPI «Gastos», en las dos direcciones. Decide una función pura.
+  const brecha = resultado ? textoDeLaBrecha(resultado, money) : null;
 
   const loading = sales.isLoading || expenses.isLoading;
   const saleRows = sales.data ?? [];
@@ -550,17 +553,22 @@ export function DashboardPage() {
               <br />
               no incluye aportes, devoluciones ni cuotas del préstamo
               {/*
-                ⚠️ LA BRECHA CON LA TARJETA DE AL LADO TIENE QUE DECIRSE. «Gastos» es lo
-                que SE PAGÓ (el filamento el día que se compró); el resultado resta el
-                filamento cuando se CONSUME. La diferencia es exactamente
-                `filamentoEnEstante`, que ya viaja en el contrato: sin esta línea, la
-                resta que el pie nombra no daba lo que las dos tarjetas pegadas dejaban
-                ver (el dueño leyó «GASTOS $202» y se creyó $202 más pobre).
+                ⚠️ LA BRECHA CON LA TARJETA DE AL LADO TIENE QUE DECIRSE, Y EN LAS DOS
+                DIRECCIONES. «Gastos» es lo que SE PAGÓ (el filamento el día que se
+                compró); el resultado resta el filamento cuando se CONSUME. La diferencia
+                es exactamente `filamentoEnEstante`, que ya viaja en el contrato: sin esta
+                línea, la resta que el pie nombra no daba lo que las dos tarjetas pegadas
+                dejaban ver (el dueño leyó «GASTOS $202» y se creyó $202 más pobre).
+
+                El texto lo decide `textoDeLaBrecha`, que cubre los tres casos (positivo,
+                NEGATIVO y rango parcial) y devuelve null cuando no hay brecha: hasta el
+                16/11 el pie se dibujaba solo con `> 0` y con el estante negativo
+                DESAPARECÍA, dejando la brecha al revés sin explicar.
               */}
-              {resultado && resultado.filamentoEnEstante > 0 && (
+              {brecha && (
                 <>
                   <br />
-                  {`«Gastos» incluye ${money(resultado.filamentoEnEstante)} de filamento que sigue en el estante: acá no se resta hasta que se consuma`}
+                  {brecha}
                 </>
               )}
             </>

@@ -165,15 +165,48 @@ function FilaDelMes({ fila, money }: { fila: FilaDeConsumoPorMes; money: (n: num
   );
 }
 
-/** Dice CUÁNTOS rollos cambiaron de medición y por qué eso no es una venta ni un consumo. */
+/**
+ * QUÉ PASÓ CON LOS ROLLOS DE ESTE MES, en los términos del motor nuevo.
+ *
+ * ⚠️ **Las frases viejas decían lo que NO pasó**, y con el motor del crédito
+ * (shared 0.101.0) además cambiaron de significado: «volvieron a «sin pesar»»
+ * contaba rollos que **se terminaron**, «pasaron de «sin pesar» a pesado»
+ * contaba rollos **recién abiertos de un sellado** (que hoy ni generan ajuste), y
+ * «sin que se haya comprado ni gastado nada… no lo leas como un consumo»
+ * afirmaba, de un rollo que SÍ se consumió, exactamente lo contrario.
+ *
+ * Lo que el ajuste dice de verdad, y es lo que se escribe acá:
+ * - **positivo** (`rollosConCreditoNuevo`): se pesó por primera vez un rollo que
+ *   estaba sin pesar. Su valor vuelve al inventario, pero ya se había contado
+ *   como consumo, así que no baja el consumo de este mes.
+ * - **negativo** (`rollosConCreditoLiberado`): rollos que gastaron parte de lo
+ *   que se les había reservado — se consumieron, se terminaron o quedaron sin
+ *   pesar. Esa caída del inventario ya se había contado como consumo antes.
+ */
 function explicacionDelAjuste(fila: FilaDeConsumoPorMes, ajuste: number): string {
-  const total = fila.rollosPesados + fila.rollosSinPesar;
-  const detalle: string[] = [];
-  if (fila.rollosPesados > 0) detalle.push(`${plural(fila.rollosPesados, 'pasó', 'pasaron')} de «sin pesar» a pesado`);
-  if (fila.rollosSinPesar > 0) detalle.push(`${plural(fila.rollosSinPesar, 'volvió', 'volvieron')} a «sin pesar»`);
-  return (
-    `${plural(total, 'rollo cambió', 'rollos cambiaron')} de medición (${detalle.join(' y ')}), ` +
-    `y su valor ${ajuste > 0 ? 'aparece en el inventario' : 'desaparece del inventario'} sin que se haya comprado ni gastado nada. ` +
-    `No lo leas como ${ajuste > 0 ? 'una venta' : 'un consumo'}.`
-  );
+  const nuevos = fila.rollosConCreditoNuevo;
+  const liberados = fila.rollosConCreditoLiberado;
+  const partes: string[] = [];
+  if (nuevos > 0) {
+    partes.push(
+      `${plural(nuevos, 'rollo que estaba sin pesar se pesó', 'rollos que estaban sin pesar se pesaron')} por primera vez`,
+    );
+  }
+  if (liberados > 0) {
+    // ⚠️ El paréntesis va DENTRO del plural: con un texto fijo, «1 rollo … gastó» se
+    // cerraba con «(se consumieron, se terminaron…)» y la frase no concordaba.
+    partes.push(
+      plural(
+        liberados,
+        'rollo ya pesado gastó parte de su valor (se consumió, se terminó o quedó sin pesar)',
+        'rollos ya pesados gastaron parte de su valor (se consumieron, se terminaron o quedaron sin pesar)',
+      ),
+    );
+  }
+  const cierre =
+    ajuste > 0
+      ? 'ese valor ya se había contado como consumo cuando el rollo estaba sin pesar, así que vuelve al inventario y no baja el consumo de este mes. No lo leas como una venta.'
+      : 'ese valor ya se había contado como consumo antes, así que la baja del inventario no es un consumo nuevo. No lo cuentes dos veces.';
+  // Sin contadores (no debería pasar con un ajuste ≠ 0) se dice solo lo cierto.
+  return partes.length > 0 ? `${partes.join(' y ')}; ${cierre}` : cierre;
 }

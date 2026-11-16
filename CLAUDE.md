@@ -796,12 +796,22 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
   nada**: las filas salen de `GET /filament/consumo` y lo que «sigue en el
   estante» es el `filamentoEnEstante` de `/expenses/resultado` (el mismo dato
   del Dashboard). ⚠️ **El ajuste por medición va en su PROPIA fila**, nunca
-  sumado al consumo, y cuando no es 0 dice «No es plata nueva» y CUÁNTOS rollos
-  cambiaron de medición. ⚠️ **El mes abierto no inventa consumo**: dice cuánto se
+  sumado al consumo, y cuando no es 0 dice «No es plata nueva» y qué pasó con los
+  rollos. ⚠️ **Desde shared 0.101.0 el ajuste es un CRÉDITO PENDIENTE** (ver el
+  `CLAUDE.md` de la API) y las frases viejas **decían lo que NO pasó**: «volvieron a
+  «sin pesar»» contaba rollos que **se terminaron**, «pasaron de «sin pesar» a
+  pesado» contaba rollos **recién abiertos de un sellado** (que hoy ni generan
+  ajuste) y «sin que se haya comprado ni gastado nada… no lo leas como un
+  consumo» afirmaba, de un rollo que SÍ se consumió, lo contrario. Hoy el texto
+  sale de `rollosConCreditoNuevo` / `rollosConCreditoLiberado` (los contadores
+  también se renombraron: `rollosSinPesar` además **chocaba de nombre** con el de
+  `ValorDelInventario`, que significa otra cosa). ⚠️ **El mes abierto no inventa consumo**: dice cuánto se
   compró y que sigue en el estante (consumo e inventario en «—»). La clave de
   caché cuelga de `filament-summary`, que ya invalidan el cierre/reapertura y
-  las compras. Test: `AnalysisTab.consumo.spec.tsx` (8; por mutación, sumar el
-  ajuste al consumo tumba 1 y que el abierto muestre consumo tumba 1).
+  las compras. Test: `AnalysisTab.consumo.spec.tsx` (13; por mutación, sumar el
+  ajuste al consumo tumba 1, que el abierto muestre consumo tumba 1 y **volver a la
+  redacción vieja tumba 3**). El caso que **ningún spec cubría** y ahora sí: un mes
+  con ajuste NEGATIVO porque un rollo pesado se terminó.
 - ⚠️ `capitalize` de Tailwind pone mayúscula en CADA palabra ("Septiembre De
   2026"): para un mes en español va `first-letter:uppercase`.
 
@@ -2966,7 +2976,11 @@ El filtro «Estado» de Stock del mes tiene **cuatro** opciones (todas / Activas
 
 El resultado del negocio lo calcula el **servidor** (`useResultadoDeOperacion`, `resultado.utilidad`; el filamento resta cuando se **consume**, ver el `CLAUDE.md` de `calc3d-api`). Si una pantalla vuelve a restar `ingresos − gastosOperativos` con las filas de Gastos, cuenta el filamento el día que se compró y la misma pantalla dice dos ganancias distintas: compila y ningún test de función pura lo nota (ya pasó en el Dashboard).
 
-- **Barrido: `src/lib/gasto-operativo.inventario.spec.ts`**, gemelo del de la API. Lee los fuentes y se pone rojo nombrando archivo:línea ante `ingresos - gastos`, `gastos - inversion` o `!r.isInvestment`. Las únicas exenciones son **por uso y con su razón escrita**: el desglose de lo GASTADO del Dashboard (`gastosOperativos = gastos - inversion` y sus filtros, que alimentan el KPI «Gastos», no el resultado) y la casilla «Solo inversión» de `expenses-view.ts`. Cada exención tiene que seguir usándose (si no, el test falla). Caja no aplica la regla y no hace esta resta: no necesita exención.
+- **Barrido: `src/lib/gasto-operativo.inventario.spec.ts`**, gemelo del de la API. Lee los fuentes y se pone rojo nombrando archivo:línea ante `ingresos - gastos`, `gastos - inversion` o `!r.isInvestment`.
+- ⚠️ **NO veía `ventas - gastos`, y «ventas» es EL nombre que usa el código** (2026-11-16). Medido el 15/11: insertar `const utilidadDeLaPantalla = ventas - gastosOperativos;` en `Dashboard.tsx`, justo debajo de la exención y con las dos variables ya en ese ámbito, dejaba el barrido en **VERDE 26/26** — porque `vendid` no matchea «ventas». Se agregó la raíz **`venta`** y cuatro formas más: `ingresos - x - gastos`, `ventas + abonos - gastos`, `ingresos - (gastos + 1)` y la resta con **decimal.js** (`.minus()`), que es su propio patrón. Probado inyectando el caso medido: lo pone rojo con archivo:línea.
+- ⚠️ **Y el FIXTURE esquivaba el caso**: la línea era `'const neto = ventas + abonos - gastos;'.replace('ventas + abonos', 'ingresos')`, o sea cambiaba «ventas» por «ingresos» **antes de medir**. Un fixture que evita justo el caso que la guarda cubre es uno de los verdes falsos de esta fase. Hoy entra tal cual.
+- ⚠️ **`uso` es OBLIGATORIO en toda exención y hay un test que lo exige**: dos de las tres no lo tenían, o sea que perdonaban el **archivo entero** para ese patrón — incluido un hallazgo que naciera mañana al lado del que se quiso perdonar. Mutación: sacarle el `uso` a una exención tumba 1.
+- ⚠️ **El `uso` mira SOLO lo que queda de SU línea** (antes, 300 caracteres). Acá mordía de verdad: la única exención con `uso` (`gastos - inversion`) **no es de una lectura**, así que un hallazgo escrito ARRIBA del perdonado heredó su permiso por alcanzar a leer el código del vecino. Tiene su test, y volver a los 300 caracteres lo tumba. Las únicas exenciones son **por uso y con su razón escrita**: el desglose de lo GASTADO del Dashboard (`gastosOperativos = gastos - inversion` y sus filtros, que alimentan el KPI «Gastos», no el resultado) y la casilla «Solo inversión» de `expenses-view.ts`. Cada exención tiene que seguir usándose (si no, el test falla). Caja no aplica la regla y no hace esta resta: no necesita exención.
 - ⚠️ **Probado rompiéndolo**: volver a poner `const utilidad = ingresos - gastosOperativos` en `Dashboard.tsx` lo pone en rojo (`pages\Dashboard.tsx:188 [resta ingresos - gastos]`), y una pantalla nueva con `ingresos - gastos` también. Un test comprueba además que el barrido VE los usos que ya existen: una regex mal escapada pasaría en verde sin mirar nada (cicatriz de la fase h).
 - Si salta y la cuenta es «lo gastado» y no el resultado, agregá la exención con su razón; si es el resultado, **mostralo desde el servidor, no lo rehagas**.
 
@@ -2978,9 +2992,18 @@ El resultado del negocio lo calcula el **servidor** (`useResultadoDeOperacion`, 
 4. **Un fixture al que le falta el caso** que la guarda cubre.
 5. **Mutar `shared` sin recompilar**: los specs importan del `dist` viejo (ver arriba, «shared»).
 6. **Un fixture SIMÉTRICO** («1 pesado y 1 sin pesar»): invertir los dos contadores no cambia nada. Los fixtures van asimétricos.
+
+7. **Una guarda que el CONTRATO no puede alcanzar.** Borrar el `!r.presente` de `consumoPorMes` (shared) tumba 0, y no es un test que falte: su único productor nunca emite una casilla vacía marcada como pesada. Antes de concluir «falta un test», preguntate si el estado que la guarda cubre **existe**.
+8. **Un test que compara solo la SUMA y no la atribución por mes.** Medido: con el defecto del 15/11 puesto, el Σ de consumos del escenario da **el mismo número** y lo que cambia es en qué mes cae más unos ajustes inventados. Los números van clavados **mes a mes**.
 Restaurar mutaciones con copia `cp`, **nunca** `git checkout --`.
 
 ### Lo que el segundo repaso arregló en el panel (2026-11-16)
-- ⚠️ **El KPI «Gastos» y el «Resultado de la operación» estaban pegados con definiciones distintas**: «Gastos» es lo PAGADO (el filamento el día que se compró) y el resultado resta el filamento cuando se CONSUME; con los datos del 16/11 la resta que el pie nombraba daba $49,03 y la tarjeta de al lado decía $505,50. Ahora el pie del resultado dice «Gastos» incluye $X de filamento que sigue en el estante: acá no se resta hasta que se consuma (`filamentoEnEstante` del servidor, que ya viajaba; sin estante no escribe nada). Tests: `Dashboard.resultado.spec.tsx` (por mutación, apagar la línea tumba 1). El barrido sigue eximiendo `gastosOperativos = gastos - inversion` del Dashboard, ahora con esa razón.
+- ⚠️ **El KPI «Gastos» y el «Resultado de la operación» estaban pegados con definiciones distintas**: «Gastos» es lo PAGADO (el filamento el día que se compró) y el resultado resta el filamento cuando se CONSUME; con los datos del 16/11 la resta que el pie nombraba daba $49,03 y la tarjeta de al lado decía $505,50. Ahora el pie del resultado lo dice. El barrido sigue eximiendo `gastosOperativos = gastos - inversion` del Dashboard, ahora con esa razón.
+- ⚠️ **Y LA BRECHA EXISTE EN LAS DOS DIRECCIONES** (2026-11-16). El pie se dibujaba solo con `filamentoEnEstante > 0`: con el estante **NEGATIVO** —un rango con más consumo que compras, o sea un mes cerrado del pasado en el que se imprimió lo comprado antes— **desaparecía**, y la brecha seguía existiendo **al revés**: el servidor resta MÁS que «Gastos» y el resultado queda por debajo de lo que las dos tarjetas dejan calcular, sin que nada lo explique. El signo negativo no tenía un solo test.
+  - El texto lo decide **`textoDeLaBrecha`** (`features/finance/brecha-de-gastos.ts`, pura, 7 tests) y el Dashboard solo lo dibuja. Tres casos: positivo («sigue en el estante»), negativo («el resultado resta $X MÁS que «Gastos»») y **rango PARCIAL**.
+  - ⚠️ **En un rango parcial el texto NO puede afirmar «sigue en el estante»**: ahí X son **todas** las compras del tramo porque no hay consumo deducible, no porque el material esté sin usar — pudo haberse impreso entero. Dice «que todavía no se puede descontar», que es lo cierto, y la nota de `mesesSinContar` lo repite dos renglones abajo sin contradecirlo.
+  - ⚠️ **Se decide con la LISTA `mesesSinContar`, no con el bool `tramosSueltos`**: la misma regla que `NotasDelResultado` (decidir con un dato y redactar con otro ya dejó salir una nota con un hueco). Tiene test.
+  - ⚠️ **Lo que el texto NO cubre, sabido**: con un mes de consumo negativo (conteo mal tipeado) X puede ser mayor que lo comprado en el rango. Eso ya lo grita la alerta roja de `NotasDelResultado` («el resultado queda inflado»); un segundo cartel sobre la misma plata entrena a no leer ninguno.
+  - Tests: `brecha-de-gastos.spec.ts` (7) + 2 de pantalla en `Dashboard.resultado.spec.tsx`. Por mutación, volver a `estante <= 0` tumba 3 y afirmar «sigue en el estante» en un rango parcial tumba 2.
 - ⚠️ **La nota del ajuste por medición respeta su SIGNO** (`NotasDelResultado`): positivo = «un rollo que recién se pesó»; negativo = rollos que estaban pesados y ya no (se terminaron o quedaron sin pesar), no es consumo nuevo. Antes el `Math.abs` afirmaba «recién se pesó» también para el caso opuesto. Mutación: forzar la rama positiva tumba 1.
 - El barrido del panel reconoce operandos con prefijo y sinónimos (`totalCobrado - totalGastado`, `cobrado - egresos`) y declara arriba, en su cabecera, lo que NO ve.

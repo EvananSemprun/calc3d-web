@@ -19,9 +19,13 @@
  *
  * Aquí NO hay «pasar por ConsumoService» (el panel no tiene cómo): lo que
  * dibuja el resultado lo recibe del servidor. Un hallazgo solo se perdona
- * desde `EXENCIONES`, que es POR USO (archivo + patrón + trozo de código) y
+ * desde `EXENCIONES`, que es POR USO (archivo + patrón + **la línea** del hallazgo) y
  * lleva su razón escrita. Cada exención tiene que seguir USÁNDOSE: si el
  * código que justificaba desaparece, el test se pone rojo.
+ *
+ * ⚠️ **`uso` es OBLIGATORIO y hay un test que lo exige.** Dos de las tres exenciones no
+ * lo tenían, o sea que perdonaban el archivo entero para ese patrón — incluido un
+ * hallazgo que naciera mañana al lado del que se quiso perdonar.
  *
  * ⚠️ Caja NO aplica la regla (decisión del spec): sus pantallas leen lo que
  * da `/cash`, no hacen esta resta, así que no necesitan exención.
@@ -54,7 +58,19 @@ const PATRONES: { nombre: string; re: RegExp }[] = [
   {
     nombre: 'resta ingresos - gastos',
     // Sin `\b` al principio: así también entra `totalCobrado` o `p.totalGastado`. Sinónimos: egreso, costo, salida.
-    re: /(ingreso|income|revenue|cobrad|vendid|factur)\w*\s*-\s*[\w.]*(gast|expense|egreso|costo|salida)/gi,
+    // ⚠️ `venta` está en la lista porque es EL nombre que usa el código de este repo y
+    // `vendid` NO matchea «ventas»: medido el 15/11, insertar
+    // `const utilidadDeLaPantalla = ventas - gastosOperativos;` en `Dashboard.tsx` —justo
+    // debajo de la exención, con las dos variables ya en ese ámbito— dejaba el barrido en
+    // VERDE 26/26. Es la forma más probable de que la regresión vuelva.
+    // El tramo `[-+]` del medio ve las restas con escalas (`ingresos - x - gastos`) y las
+    // sumas de por medio (`ventas + abonos - gastos`); el `\(?` ve `ingresos - (gastos + 1)`.
+    re: /(ingreso|income|revenue|cobrad|vendid|venta|factur)\w*(?:\s*[-+]\s*[\w.]{1,40}){0,4}?\s*-\s*\(?\s*[\w.]*(gast|expense|egreso|costo|salida)/gi,
+  },
+  {
+    // Por si alguna pantalla resta con decimal.js en vez del operador.
+    nombre: 'resta ingresos - gastos con decimal.js',
+    re: /(ingreso|income|revenue|cobrad|vendid|venta|factur)\w*\s*\)?\s*\.\s*minus\s*\(\s*\w*\(?\s*[\w.]*(gast|expense|egreso|costo|salida)/gi,
   },
   { nombre: 'resta gastos - inversión', re: /(gast|expense)\w*\s*-\s*[\w.]*(inversion|investment)/gi },
   { nombre: 'filtro de operativos a mano', re: /!\s*\w+\??\.isInvestment\b|\bisInvestment\s*(===|==)\s*false\b/g },
@@ -82,6 +98,7 @@ const EXENCIONES: Exencion[] = [
   {
     archivo: 'pages/Dashboard.tsx',
     patron: 'filtro de operativos a mano',
+    uso: /!r\.isInvestment\)/,
     razon:
       'Reparto de lo gastado por pagador y por recurso (gráficos del desglose): excluye la inversión en ' +
       'equipos para cuadrar con el KPI «Gastos». No calcula ninguna ganancia.',
@@ -89,6 +106,7 @@ const EXENCIONES: Exencion[] = [
   {
     archivo: 'features/finance/expenses-view.ts',
     patron: 'filtro de operativos a mano',
+    uso: /!e\.isInvestment\) return false/,
     razon: 'La casilla «Solo inversión» de la lista de Gastos: decide qué filas se ven, no suma ni calcula ninguna ganancia.',
   },
 ];
@@ -100,6 +118,20 @@ interface Hallazgo {
   texto: string;
   /** Código desde el hallazgo hacia adelante: sirve para decidir una exención por uso. */
   contexto: string;
+}
+
+/**
+ * El código que una exención por uso puede mirar: **lo que queda de SU línea**.
+ *
+ * ⚠️ Eran 300 caracteres, y eso es un agujero: un hallazgo escrito ARRIBA del que se
+ * quiso perdonar hereda su permiso por alcanzar a leer el código del vecino. Acá muerde
+ * de verdad, porque la única exención con `uso` de este barrido (`gastos - inversion`)
+ * NO es de una lectura — un segundo `gast… - inversion…` dentro de esos 300 caracteres
+ * quedaba exento sin que nadie lo decidiera.
+ */
+function contextoDe(limpio: string, inicio: number): string {
+  const fin = limpio.indexOf('\n', inicio);
+  return limpio.slice(inicio, fin === -1 ? limpio.length : fin);
 }
 
 function hallazgosEn(archivo: string, codigo: string): Hallazgo[] {
@@ -115,7 +147,7 @@ function hallazgosEn(archivo: string, codigo: string): Hallazgo[] {
         linea,
         patron: p.nombre,
         texto: lineas[linea - 1].trim(),
-        contexto: limpio.slice(inicio, inicio + 300),
+        contexto: contextoDe(limpio, inicio),
       });
     }
   }
@@ -150,7 +182,17 @@ const RAIZ = join(__dirname, '..');
 describe('el detector del inventario (un inventario que no ve nada pasaría siempre en verde)', () => {
   it.each([
     ['const utilidad = ingresos - gastosOperativos;'],
-    ['const neto = ventas + abonos - gastos;'.replace('ventas + abonos', 'ingresos')],
+    // ⚠️ ESTA LÍNEA ERA `'const neto = ventas + abonos - gastos;'.replace('ventas + abonos', 'ingresos')`:
+    // el fixture **esquivaba** el caso que el barrido no veía, cambiando «ventas» por
+    // «ingresos» antes de medir. Un fixture que evita el caso que la guarda cubre es uno
+    // de los verdes falsos de esta fase. Ahora entra tal cual, y con ella los cuatro
+    // casos medidos sobre los archivos reales.
+    ['const neto = ventas + abonos - gastos;'],
+    ['const utilidadDeLaPantalla = ventas - gastosOperativos;'],
+    ['const x = ingresos - disenio - gastos;'],
+    ['const x = ingresos - (gastos + 1);'],
+    ['const x = D(ingresos).minus(gastos);'],
+    ['const x = totalCobrado.minus(D(totalGastado));'],
     ['const ganancia = resultado.ingresos - resultado.gastosOperativos;'],
     ['const margen = income - operatingExpenses;'],
     ['const gastosOperativos = gastos - inversion;'],
@@ -181,6 +223,20 @@ describe('el detector del inventario (un inventario que no ve nada pasaría siem
     const f = 'src/pages/Dashboard.tsx';
     expect(infraccionesEn(f, 'const gastosOperativos = gastos - inversion;')).toEqual([]);
     expect(infraccionesEn(f, 'const utilidad = ingresos - gastosOperativos;').length).toBeGreaterThan(0);
+  });
+
+  /**
+   * ⚠️ El `uso` mira SOLO lo que queda de su línea. Con los 300 caracteres que había,
+   * el hallazgo de la línea 1 heredó el permiso del de la línea 2 por leer su código.
+   */
+  it('una exención por uso no se hereda desde la línea de al lado', () => {
+    const codigo = [
+      'const utilidad = gastos - inversion + 1;',
+      'const gastosOperativos = gastos - inversion;',
+    ].join('\n');
+
+    const infracciones = infraccionesEn('src/pages/Dashboard.tsx', codigo);
+    expect(infracciones.map((h) => h.linea)).toEqual([1]); // el de la línea 2 sigue exento
   });
 
   it('una exención no se hereda por parecido de nombre ni en otra carpeta', () => {
@@ -226,5 +282,9 @@ describe('inventario: el panel no arma el resultado del negocio por su cuenta', 
 
   it('toda exención trae su razón escrita', () => {
     for (const e of EXENCIONES) expect(e.razon.trim().length).toBeGreaterThan(30);
+  });
+
+  it('toda exención es POR USO (ninguna perdona el archivo entero)', () => {
+    expect(EXENCIONES.filter((e) => !e.uso).map((e) => `${e.archivo} [${e.patron}]`)).toEqual([]);
   });
 });

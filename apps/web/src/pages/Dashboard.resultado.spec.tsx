@@ -199,6 +199,36 @@ describe('«Resultado de la operación» del Dashboard', () => {
     expect(screen.getByText('$200.00')).toBeTruthy();
   });
 
+  /**
+   * ⚠️ EL CASO QUE EL PIE NO CUBRÍA: con `filamentoEnEstante` NEGATIVO (un rango con
+   * más consumo que compras) el pie **desaparecía** y la brecha quedaba al revés sin
+   * explicación: el servidor resta MÁS que «Gastos», así que el resultado queda por
+   * debajo de lo que las dos tarjetas pegadas dejan calcular. El signo negativo no
+   * tenía un solo test.
+   */
+  it('con el estante NEGATIVO el pie dice la OTRA dirección, en vez de desaparecer', async () => {
+    const vista = montar({ ...RESULTADO_BASE, filamentoEnEstante: -40, gastosOperativos: 240, utilidad: 260 });
+    await vista.cargar('$260.00');
+
+    const pie = screen.getByText(/resta \$40\.00 MÁS que «Gastos»/);
+    expect(pie.textContent).toContain('se había comprado antes');
+    expect(screen.queryByText(/sigue en el estante/)).toBeNull();
+  });
+
+  it('en un rango PARCIAL el pie no afirma «sigue en el estante»', async () => {
+    const vista = montar({
+      ...RESULTADO_BASE,
+      tramosSueltos: true,
+      mesesCompletos: ['2026-09'],
+      mesesSinContar: ['2026-10'],
+    });
+    await vista.cargar(/todavía no se puede descontar/);
+
+    const pie = screen.getByText(/todavía no se puede descontar/);
+    expect(pie.textContent).toContain('no hay conteo cerrado');
+    expect(screen.queryByText(/sigue en el estante/)).toBeNull();
+  });
+
   it('sin filamento en el estante no inventa una explicación', async () => {
     const vista = montar({ ...RESULTADO_BASE, filamentoEnEstante: 0 });
     await vista.cargar('$321.00');

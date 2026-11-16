@@ -36,14 +36,15 @@ const COMPRA = {
 } as unknown as FilamentPurchase;
 
 const fila = (over: Partial<FilaDeConsumoPorMes> & { mes: string }): FilaDeConsumoPorMes => ({
-  abierto: false, compras: 0, inventarioFinal: 0, consumo: 0, ajuste: 0, rollosPesados: 0, rollosSinPesar: 0, ...over,
+  abierto: false, compras: 0, inventarioFinal: 0, consumo: 0, ajuste: 0,
+  rollosConCreditoNuevo: 0, rollosConCreditoLiberado: 0, ...over,
 });
 
 /** Agosto y septiembre cerrados sin ajuste, octubre con un rollo que se pesó, noviembre abierto. */
 const MESES: FilaDeConsumoPorMes[] = [
   fila({ mes: '2026-08', compras: 100, inventarioFinal: 30, consumo: 70 }),
   fila({ mes: '2026-09', compras: 20, inventarioFinal: 40, consumo: 10 }),
-  fila({ mes: '2026-10', compras: 10, inventarioFinal: 45, consumo: 10, ajuste: 5, rollosPesados: 1 }),
+  fila({ mes: '2026-10', compras: 10, inventarioFinal: 45, consumo: 10, ajuste: 5, rollosConCreditoNuevo: 1 }),
   fila({ mes: '2026-11', abierto: true, compras: 30, inventarioFinal: 75, consumo: null, ajuste: null }),
 ];
 
@@ -110,7 +111,7 @@ describe('Filamento → Análisis: la tabla mes a mes', () => {
   it('la cuenta del encabezado cierra en octubre, celda por celda: 40 + 10 − 45 + 5 = 10', async () => {
     montar([
       fila({ mes: '2026-09', compras: 20, inventarioFinal: 40, consumo: 10 }),
-      fila({ mes: '2026-10', compras: 10, inventarioFinal: 45, consumo: 10, ajuste: 5, rollosPesados: 1 }),
+      fila({ mes: '2026-10', compras: 10, inventarioFinal: 45, consumo: 10, ajuste: 5, rollosConCreditoNuevo: 1 }),
       fila({ mes: '2026-11', abierto: true, compras: 0, consumo: null, ajuste: null }),
     ]);
     await screen.findByTestId('mes-2026-10');
@@ -137,29 +138,39 @@ describe('Filamento → Análisis: la tabla mes a mes', () => {
     expect(screen.getByTestId('mes-2026-10').textContent).not.toContain('Ajuste');
   });
 
-  it('un mes con ajuste explica por qué, nombrando cuántos rollos cambiaron de medición', async () => {
+  it('un mes con ajuste POSITIVO dice que se pesó un rollo que estaba sin pesar, y que ya se había contado como consumo', async () => {
     montar();
     const nota = await screen.findByTestId('ajuste-explicacion-2026-10');
 
     expect(nota.textContent).toContain('No es plata nueva');
-    expect(nota.textContent).toContain('1 rollo cambió de medición');
-    expect(nota.textContent).toContain('de «sin pesar» a pesado');
+    expect(nota.textContent).toContain('1 rollo que estaba sin pesar se pesó por primera vez');
+    expect(nota.textContent).toContain('ya se había contado como consumo');
+    expect(nota.textContent).toContain('no baja el consumo de este mes');
     expect(nota.textContent).toContain('No lo leas como una venta');
+    // ⚠️ Las frases viejas afirmaban cosas que con el motor del crédito no pasan.
+    expect(nota.textContent).not.toContain('cambió de medición');
+    expect(nota.textContent).not.toContain('sin que se haya comprado ni gastado nada');
     // Los meses sin ajuste no llevan explicación.
     expect(screen.queryByTestId('ajuste-explicacion-2026-08')).toBeNull();
     expect(screen.queryByTestId('ajuste-explicacion-2026-09')).toBeNull();
   });
 
-  it('con varios rollos usa el plural y separa los que se pesaron de los que dejaron de estarlo', async () => {
+  it('con varios rollos usa el plural y separa los que estrenaron crédito de los que lo liberaron', async () => {
     montar([
-      fila({ mes: '2026-09', compras: 0, inventarioFinal: 40, consumo: 0, ajuste: 3, rollosPesados: 3, rollosSinPesar: 1 }),
+      fila({
+        mes: '2026-09', compras: 0, inventarioFinal: 40, consumo: 0, ajuste: 3,
+        rollosConCreditoNuevo: 3, rollosConCreditoLiberado: 1,
+      }),
       fila({ mes: '2026-10', abierto: true, compras: 0, consumo: null, ajuste: null }),
     ]);
     const nota = await screen.findByTestId('ajuste-explicacion-2026-09');
 
-    expect(nota.textContent).toContain('4 rollos cambiaron de medición');
-    expect(nota.textContent).toContain('3 pasaron de «sin pesar» a pesado');
-    expect(nota.textContent).toContain('1 volvió a «sin pesar»');
+    // ⚠️ ASIMÉTRICO a propósito (3 y 1): con 1 y 1, invertir los dos contadores no cambia el texto.
+    expect(nota.textContent).toContain('3 rollos que estaban sin pesar se pesaron por primera vez');
+    expect(nota.textContent).toContain('1 rollo ya pesado gastó parte de su valor');
+    // ⚠️ CONCORDANCIA: el que va en singular lleva el paréntesis en singular, aunque el
+    // otro pedazo de la misma frase esté en plural.
+    expect(nota.textContent).toContain('(se consumió, se terminó o quedó sin pesar)');
   });
 
   it('el mes abierto dice cuánto se compró y que sigue en el estante, sin inventar consumo', async () => {
@@ -204,21 +215,49 @@ describe('Filamento → Análisis: la tabla mes a mes', () => {
     expect(orden).toEqual(['mes-2026-11', 'mes-2026-10', 'mes-2026-09', 'mes-2026-08']);
   });
 
-  it('la mitad NEGATIVA del ajuste: signo, frase en singular y «no lo leas como un consumo»', async () => {
+  /**
+   * ⚠️ EL CASO QUE NINGÚN SPEC CUBRÍA: un mes con ajuste NEGATIVO porque un rollo
+   * pesado SE TERMINÓ. Las frases viejas decían de él que «volvió a sin pesar» y que
+   * «no lo leas como un consumo» — de un rollo que sí se consumió, entero.
+   */
+  it('la mitad NEGATIVA del ajuste: el rollo gastó lo que tenía reservado, y eso ya se contó como consumo', async () => {
     montar([
-      fila({ mes: '2026-09', compras: 0, inventarioFinal: 40, consumo: 12, ajuste: -8, rollosPesados: 0, rollosSinPesar: 1 }),
+      fila({
+        mes: '2026-09', compras: 0, inventarioFinal: 40, consumo: 12, ajuste: -8,
+        rollosConCreditoNuevo: 0, rollosConCreditoLiberado: 1,
+      }),
       fila({ mes: '2026-10', abierto: true, compras: 0, consumo: null, ajuste: null }),
     ]);
     await screen.findByTestId('mes-2026-09');
 
     expect(celdas('ajuste-2026-09')).toEqual(['Ajuste por medición', '', '', '−$8.00']);
     const nota = screen.getByTestId('ajuste-explicacion-2026-09').textContent ?? '';
-    expect(nota).toContain('1 rollo cambió de medición');
-    expect(nota).toContain('1 volvió a «sin pesar»');
-    expect(nota).toContain('desaparece del inventario');
-    expect(nota).not.toContain('de el inventario');
-    expect(nota).toContain('No lo leas como un consumo');
+    expect(nota).toContain('1 rollo ya pesado gastó parte de su valor');
+    // ⚠️ CONCORDANCIA: en singular el paréntesis también va en singular.
+    expect(nota).toContain('(se consumió, se terminó o quedó sin pesar)');
+    expect(nota).not.toContain('se consumieron');
+    expect(nota).toContain('ya se había contado como consumo antes');
+    expect(nota).toContain('No lo cuentes dos veces');
+    // Lo que el ajuste negativo NO puede decir.
+    expect(nota).not.toContain('volvió a «sin pesar»');
+    expect(nota).not.toContain('sin que se haya comprado ni gastado nada');
     expect(nota).not.toContain('una venta');
+  });
+
+  /**
+   * El otro lado del mismo defecto: con el motor del crédito, un rollo que se abre de
+   * un sellado y se pesa en el acto NO genera ajuste, así que la fila de ajuste **no
+   * existe** y nadie puede decir de él que «pasó de sin pesar a pesado».
+   */
+  it('un rollo abierto de un sellado y pesado en el acto no deja fila de ajuste', async () => {
+    montar([
+      fila({ mes: '2026-09', compras: 40, inventarioFinal: 30, consumo: 10, ajuste: 0 }),
+      fila({ mes: '2026-10', abierto: true, compras: 0, consumo: null, ajuste: null }),
+    ]);
+    await screen.findByTestId('mes-2026-09');
+
+    expect(screen.queryByTestId('ajuste-2026-09')).toBeNull();
+    expect(screen.queryByTestId('ajuste-explicacion-2026-09')).toBeNull();
   });
 
   it('una fila CERRADA que llegara con consumo null dice «—», no $0.00 (no sé ≠ cero)', async () => {
