@@ -92,10 +92,34 @@ describe('Filamento → Análisis: la tabla mes a mes', () => {
     expect(celdas('mes-2026-08')).toEqual(['$100.00', '$30.00', '$70.00']);
     expect(celdas('mes-2026-09')).toEqual(['$20.00', '$40.00', '$10.00']);
     expect(screen.getByTestId('mes-2026-08').textContent).toContain('Agosto 2026');
-    // Cada mes cerrado tiene SU fila de ajuste, aunque valga 0 (se enciende sola).
-    expect(screen.getByTestId('ajuste-2026-08')).toBeTruthy();
-    expect(screen.getByTestId('ajuste-2026-09')).toBeTruthy();
+    // La fila de ajuste SOLO existe cuando el ajuste no es 0: una que siempre dice «—» se aprende a saltear.
+    expect(screen.queryByTestId('ajuste-2026-08')).toBeNull();
+    expect(screen.queryByTestId('ajuste-2026-09')).toBeNull();
     expect(screen.getByTestId('ajuste-2026-10')).toBeTruthy();
+  });
+
+  it('el encabezado da la fórmula COMPLETA (con el ajuste) y nombra el concepto una vez', async () => {
+    montar();
+    await screen.findByTestId('mes-2026-08');
+
+    const texto = document.body.textContent ?? '';
+    expect(texto).toContain('Consumo = lo que había + lo que compraste − lo que queda + el ajuste por medición');
+    expect(texto).toContain('fila de «Ajuste por medición»');
+  });
+
+  it('la cuenta del encabezado cierra en octubre, celda por celda: 40 + 10 − 45 + 5 = 10', async () => {
+    montar([
+      fila({ mes: '2026-09', compras: 20, inventarioFinal: 40, consumo: 10 }),
+      fila({ mes: '2026-10', compras: 10, inventarioFinal: 45, consumo: 10, ajuste: 5, rollosPesados: 1 }),
+      fila({ mes: '2026-11', abierto: true, compras: 0, consumo: null, ajuste: null }),
+    ]);
+    await screen.findByTestId('mes-2026-10');
+
+    const num = (t: string) => Number(t.replace(/[^0-9.\-−+]/g, '').replace('−', '-'));
+    const inicial = num(celdas('mes-2026-09')[1]); // inventario al cierre de septiembre
+    const [, compras, inventario, consumo] = [0, ...celdas('mes-2026-10').map(num)];
+    const ajuste = num(celdas('ajuste-2026-10')[3]);
+    expect(inicial + compras - inventario + ajuste).toBe(consumo);
   });
 
   it('el ajuste va en su PROPIA fila, nunca sumado al consumo', async () => {
@@ -105,14 +129,12 @@ describe('Filamento → Análisis: la tabla mes a mes', () => {
     // El consumo de octubre es el que mandó el servidor (10), no 10 + 5.
     expect(celdas('mes-2026-10')[2]).toBe('$10.00');
     expect(screen.queryByText('$15.00')).toBeNull();
-    // El ajuste está en la fila de abajo, con su signo.
-    expect(celdas('ajuste-2026-10').join('|')).toContain('+$5.00');
-    expect(screen.getByTestId('ajuste-2026-10').textContent).toContain('Ajuste por medición');
+    // El ajuste está en la fila de abajo, con su signo, CELDA POR CELDA: bajo la columna Consumo, no bajo Inventario.
+    expect(celdas('ajuste-2026-10')).toEqual(['Ajuste por medición', '', '', '+$5.00']);
+    const columnas = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(columnas.indexOf('Consumo')).toBe(3);
     // Y la fila del mes NO lo menciona.
     expect(screen.getByTestId('mes-2026-10').textContent).not.toContain('Ajuste');
-    // Un mes sin ajuste lo deja en blanco (—), no en $0.00.
-    expect(celdas('ajuste-2026-08').join('|')).toContain('—');
-    expect(screen.getByTestId('ajuste-2026-08').textContent).not.toContain('$0.00');
   });
 
   it('un mes con ajuste explica por qué, nombrando cuántos rollos cambiaron de medición', async () => {
@@ -180,5 +202,32 @@ describe('Filamento → Análisis: la tabla mes a mes', () => {
 
     const orden = screen.getAllByTestId(/^mes-/).map((f) => f.getAttribute('data-testid'));
     expect(orden).toEqual(['mes-2026-11', 'mes-2026-10', 'mes-2026-09', 'mes-2026-08']);
+  });
+
+  it('la mitad NEGATIVA del ajuste: signo, frase en singular y «no lo leas como un consumo»', async () => {
+    montar([
+      fila({ mes: '2026-09', compras: 0, inventarioFinal: 40, consumo: 12, ajuste: -8, rollosPesados: 0, rollosSinPesar: 1 }),
+      fila({ mes: '2026-10', abierto: true, compras: 0, consumo: null, ajuste: null }),
+    ]);
+    await screen.findByTestId('mes-2026-09');
+
+    expect(celdas('ajuste-2026-09')).toEqual(['Ajuste por medición', '', '', '−$8.00']);
+    const nota = screen.getByTestId('ajuste-explicacion-2026-09').textContent ?? '';
+    expect(nota).toContain('1 rollo cambió de medición');
+    expect(nota).toContain('1 volvió a «sin pesar»');
+    expect(nota).toContain('desaparece del inventario');
+    expect(nota).not.toContain('de el inventario');
+    expect(nota).toContain('No lo leas como un consumo');
+    expect(nota).not.toContain('una venta');
+  });
+
+  it('una fila CERRADA que llegara con consumo null dice «—», no $0.00 (no sé ≠ cero)', async () => {
+    montar([
+      fila({ mes: '2026-09', compras: 5, inventarioFinal: 40, consumo: null, ajuste: null }),
+      fila({ mes: '2026-10', abierto: true, compras: 0, consumo: null, ajuste: null }),
+    ]);
+    await screen.findByTestId('mes-2026-09');
+
+    expect(celdas('mes-2026-09')).toEqual(['$5.00', '$40.00', '—']);
   });
 });

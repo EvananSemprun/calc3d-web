@@ -80,13 +80,14 @@ describe('consumoPorMes', () => {
 
   it('cuenta CUÁNTOS rollos cambiaron de medición, separando los que aparecen de los que desaparecen', () => {
     const r = consumoPorMes([
-      mes('2026-09', 0, 100, [rollo('a:inUse', 0, false), rollo('b:inUse', 9, true), rollo('c:running', 0, false)]),
-      mes('2026-10', 0, 100, [rollo('a:inUse', 8, true), rollo('b:inUse', 0, false), rollo('c:running', 0, false)]),
+      mes('2026-09', 0, 100, [rollo('a:inUse', 0, false), rollo('b:inUse', 9, true), rollo('c:running', 0, false), rollo('d:inUse', 0, false)]),
+      mes('2026-10', 0, 100, [rollo('a:inUse', 8, true), rollo('b:inUse', 0, false), rollo('c:running', 0, false), rollo('d:inUse', 4, true)]),
     ]);
     expect(r[0].rollosPesados).toBe(0);
     expect(r[0].rollosSinPesar).toBe(0);
-    // a pasa a pesado (aparece), b a sin pesar (desaparece), c no cambia.
-    expect(r[1].rollosPesados).toBe(1);
+    // a y d pasan a pesado (aparecen), b a sin pesar (desaparece), c no cambia.
+    // ⚠️ ASIMÉTRICO a propósito (2 y 1): con 1 y 1, invertir los dos contadores no cambiaba nada.
+    expect(r[1].rollosPesados).toBe(2);
     expect(r[1].rollosSinPesar).toBe(1);
   });
 

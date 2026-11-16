@@ -33,9 +33,11 @@ const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno
  *
  * ⚠️ **El ajuste va en su PROPIA fila, nunca sumado al consumo.** Un rollo que
  * pasa de «sin pesar» a pesado hace APARECER inventario sin que se haya comprado
- * nada; sin esa línea el dueño leería esa subida como una venta. Hoy ningún rollo
- * está pesado y el ajuste es 0 en todos los meses: la fila existe igual y se
- * enciende sola en el primer cierre que pese uno.
+ * nada; sin esa línea el dueño leería esa subida como una venta. La fila SOLO se
+ * dibuja cuando el ajuste no es 0 (una fila que casi siempre dice «—» se aprende a
+ * saltear, y el día que aparezca un número no se vería); el concepto se nombra
+ * una vez en el encabezado de la tarjeta para que se sepa que la app lo vigila.
+ * Hoy ningún rollo está pesado: se enciende sola en el primer cierre que pese uno.
  *
  * ⚠️ **El mes abierto no inventa consumo**: dice cuánto se compró y que sigue en
  * el estante. El consumo se conoce al cerrar el mes.
@@ -59,7 +61,12 @@ export function ConsumoPorMes() {
         <div className="space-y-1 border-b border-border/70 p-4">
           <h2 className="font-display text-base font-bold">Mes a mes: compras, inventario y consumo</h2>
           <p className="text-xs text-muted-foreground">
-            Toda la historia (no depende del rango de arriba). Consumo = lo que había + lo que compraste − lo que queda.
+            Toda la historia (no depende del rango de arriba). Consumo = lo que había + lo que compraste − lo que queda
+            + el ajuste por medición, si lo hay.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Cuando un rollo pasa de «sin pesar» a pesado (o al revés), su valor aparece o desaparece del inventario sin que se
+            haya comprado ni gastado nada: eso se muestra aparte, en una fila de «Ajuste por medición» bajo el mes.
           </p>
           {resultado && (
             <p className="pt-1 text-sm" data-testid="en-el-estante">
@@ -114,37 +121,45 @@ function FilaDelMes({ fila, money }: { fila: FilaDeConsumoPorMes; money: (n: num
     );
   }
 
-  const ajuste = fila.ajuste ?? 0;
-  const consumo = fila.consumo ?? 0;
+  // ⚠️ Se decide por el DATO, no por el flag: una fila cerrada que llegara con
+  // `null` no puede dibujarse como $0.00 («no se consumió nada»), que afirma algo.
+  const { consumo, ajuste } = fila;
+  const hayAjuste = ajuste !== null && ajuste !== 0;
 
   return (
     <Fragment>
-      <tr className="border-b-0" data-testid={`mes-${fila.mes}`}>
+      <tr className={hayAjuste ? undefined : "border-b border-border/40"} data-testid={`mes-${fila.mes}`}>
         <th scope="row" className="p-3 text-left font-medium">{nombreDelMes(fila.mes)}</th>
         <td className="p-3 text-right tabular-nums">{money(fila.compras)}</td>
         <td className="p-3 text-right tabular-nums">{money(fila.inventarioFinal)}</td>
-        <td className={consumo < 0 ? 'p-3 text-right tabular-nums text-destructive' : 'p-3 text-right tabular-nums'}>
-          {money(consumo)}
-          {consumo < 0 && <span className="block text-[11px]">Conviene revisar el conteo de ese mes</span>}
-        </td>
-      </tr>
-      {/* EL AJUSTE, EN SU PROPIA FILA: nunca va sumado al consumo de arriba. */}
-      <tr className="border-b border-border/40 text-xs" data-testid={`ajuste-${fila.mes}`}>
-        <td className="px-3 pb-3 pt-0 text-muted-foreground">
-          <span className="pl-4">Ajuste por medición</span>
-        </td>
-        <td className="px-3 pb-3 pt-0" />
-        <td className="px-3 pb-3 pt-0 text-right tabular-nums text-muted-foreground">
-          {ajuste === 0 ? '—' : `${ajuste > 0 ? '+' : '−'}${money(Math.abs(ajuste))}`}
-        </td>
-        <td className="px-3 pb-3 pt-0" />
-      </tr>
-      {ajuste !== 0 && (
-        <tr className="border-b border-border/40" data-testid={`ajuste-explicacion-${fila.mes}`}>
-          <td colSpan={4} className="px-3 pb-3 pt-0 text-xs text-muted-foreground">
-            No es plata nueva: {explicacionDelAjuste(fila, ajuste)}
+        {consumo === null ? (
+          <td className="p-3 text-right text-muted-foreground">—</td>
+        ) : (
+          <td className={consumo < 0 ? 'p-3 text-right tabular-nums text-destructive' : 'p-3 text-right tabular-nums'}>
+            {money(consumo)}
+            {consumo < 0 && <span className="block text-[11px]">Conviene revisar el conteo de ese mes</span>}
           </td>
-        </tr>
+        )}
+      </tr>
+      {/* EL AJUSTE, EN SU PROPIA FILA y bajo la columna que modifica (Consumo): nunca sumado al número de arriba. */}
+      {hayAjuste && (
+        <>
+          <tr className="text-xs" data-testid={`ajuste-${fila.mes}`}>
+            <td className="px-3 pb-1 pt-0 text-muted-foreground">
+              <span className="pl-4">Ajuste por medición</span>
+            </td>
+            <td className="px-3 pb-1 pt-0" />
+            <td className="px-3 pb-1 pt-0" />
+            <td className="px-3 pb-1 pt-0 text-right tabular-nums text-muted-foreground">
+              {`${ajuste > 0 ? '+' : '−'}${money(Math.abs(ajuste))}`}
+            </td>
+          </tr>
+          <tr className="border-b border-border/40" data-testid={`ajuste-explicacion-${fila.mes}`}>
+            <td colSpan={4} className="px-3 pb-3 pt-0 text-xs text-muted-foreground">
+              No es plata nueva: {explicacionDelAjuste(fila, ajuste)}
+            </td>
+          </tr>
+        </>
       )}
     </Fragment>
   );
@@ -158,7 +173,7 @@ function explicacionDelAjuste(fila: FilaDeConsumoPorMes, ajuste: number): string
   if (fila.rollosSinPesar > 0) detalle.push(`${plural(fila.rollosSinPesar, 'volvió', 'volvieron')} a «sin pesar»`);
   return (
     `${plural(total, 'rollo cambió', 'rollos cambiaron')} de medición (${detalle.join(' y ')}), ` +
-    `y su valor ${ajuste > 0 ? 'aparece en' : 'desaparece de'} el inventario sin que se haya comprado ni gastado nada. ` +
+    `y su valor ${ajuste > 0 ? 'aparece en el inventario' : 'desaparece del inventario'} sin que se haya comprado ni gastado nada. ` +
     `No lo leas como ${ajuste > 0 ? 'una venta' : 'un consumo'}.`
   );
 }
