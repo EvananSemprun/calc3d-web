@@ -11,10 +11,11 @@ import { ConfirmProvider, TooltipProvider } from '@/components/overlays';
  */
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() }));
+const apiError = vi.hoisted(() => vi.fn(() => 'falló'));
 
 vi.mock('@/lib/api', () => ({
   api: { get: mocks.get, post: mocks.post, patch: mocks.patch, delete: mocks.del },
-  apiErrorMessage: () => 'falló',
+  apiErrorMessage: apiError,
   downloadFile: vi.fn(),
   getToken: () => null,
 }));
@@ -73,10 +74,32 @@ describe('TiposDeCarreteCard', () => {
     montar();
     await screen.findByText('Carrete Bambu');
 
-    const aviso = screen.getByRole('note');
-    expect(aviso.textContent).toContain('no toca los meses ya cerrados');
-    // Solo afirma lo medido: nada sobre el mes abierto.
+    const aviso = screen.getByText(/no toca los meses ya cerrados/);
+    // Tripwire de UNA redacción, no una guarda: caza que alguien meta literalmente «mes abierto» o
+    // «mes en curso». NO garantiza que el aviso no prometa algo sobre el mes abierto con otras palabras.
     expect(aviso.textContent).not.toMatch(/mes (abierto|en curso)/i);
+  });
+
+  it('si el servidor rechaza el borrado, su texto queda en pantalla en un cartel que no se va solo', async () => {
+    const RECHAZO =
+      '«Carrete Bambu» lo usan 3 pesajes de cierres de mes. No se borra porque esos meses quedarían sin poder explicarse. Cámbialo desde editar.';
+    mocks.del.mockRejectedValue(new Error('409'));
+    apiError.mockReturnValue(RECHAZO);
+    montar();
+    await screen.findByText('Carrete Bambu');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar Carrete Bambu' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Borrar' }));
+
+    const cartel = await screen.findByRole('alert');
+    expect(cartel.textContent).toContain(RECHAZO);
+    expect(mocks.del).toHaveBeenCalledWith('/settings/carretes/t1');
+
+    // No se va solo: sigue ahí pasado el tiempo de un toast (4 s) y se cierra a mano.
+    await new Promise((r) => setTimeout(r, 300));
+    expect(screen.getByRole('alert')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar el aviso' }));
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('editar un tipo manda PATCH con su id', async () => {

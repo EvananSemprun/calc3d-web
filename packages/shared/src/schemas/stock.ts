@@ -104,11 +104,18 @@ export const PesoDeCasillaSchema = z.object({
 });
 export type PesoDeCasilla = z.infer<typeof PesoDeCasillaSchema>;
 
+/** Techo de cualquier peso en gramos (balanza o carrete): una tonelada, muy por encima de lo real. */
+const PESO_BALANZA_MAXIMO = 1_000_000;
+
 /** Tipo de carrete vacío del catálogo (cuánto pesa el carrete). */
 export const TipoDeCarreteSchema = z.object({
   id: z.string(),
-  nombre: z.string().trim().min(1, 'El tipo necesita un nombre'),
-  gramos: z.number().int().min(0, 'El peso no puede ser negativo'),
+  nombre: z.string().trim().min(1, 'El tipo necesita un nombre').max(80, 'El nombre no puede pasar de 80 letras'),
+  gramos: z
+    .number()
+    .int()
+    .min(0, 'El peso no puede ser negativo')
+    .max(PESO_BALANZA_MAXIMO, 'El peso no puede pasar de 1.000.000 g'),
 });
 export type TipoDeCarrete = z.infer<typeof TipoDeCarreteSchema>;
 
@@ -117,8 +124,6 @@ export const TipoDeCarreteCreateSchema = TipoDeCarreteSchema.omit({ id: true });
 export const TipoDeCarreteUpdateSchema = TipoDeCarreteCreateSchema.partial();
 export type TipoDeCarreteCreate = z.infer<typeof TipoDeCarreteCreateSchema>;
 export type TipoDeCarreteUpdate = z.infer<typeof TipoDeCarreteUpdateSchema>;
-
-const PESO_BALANZA_MAXIMO = 1_000_000;
 
 /**
  * Lo que el dueño MIDIÓ de un rollo empezado: la balanza y el tipo de carrete.

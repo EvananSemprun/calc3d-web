@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Info, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
+import { AlertTriangle, Info, Pencil, Plus, Scale, Trash2, X } from 'lucide-react';
 import {
   Button,
   Card,
@@ -38,7 +38,8 @@ const VACIO: Borrador = { nombre: '', gramos: 0 };
  * promete nada sobre el mes abierto.
  *
  * Los errores los escribe el SERVIDOR (409 con el motivo: nombre repetido, tipo
- * usado por un cierre) y se muestran tal cual con `apiErrorMessage`.
+ * usado por un cierre) y se muestran tal cual con `apiErrorMessage`: el del borrado, en un
+ * cartel que no se va solo; el del guardado, en toast (es corto).
  */
 export function TiposDeCarreteCard() {
   const { data, isLoading } = useTiposDeCarrete();
@@ -49,6 +50,9 @@ export function TiposDeCarreteCard() {
   // `null` = cerrado; `undefined` = alta nueva; con tipo = edición.
   const [editando, setEditando] = useState<Tipo | null | undefined>(null);
   const [form, setForm] = useState<Borrador>(VACIO);
+  // El rechazo del servidor (409) va en un cartel que NO se va solo: es largo y dice qué hacer;
+  // un toast de 4 s no alcanza a leerse (ver `components/toast.tsx` y `pages/Catalog.tsx`).
+  const [rechazo, setRechazo] = useState<string | null>(null);
 
   const abierto = editando !== null;
   const set = (parche: Partial<Borrador>) => setForm((f) => ({ ...f, ...parche }));
@@ -68,6 +72,7 @@ export function TiposDeCarreteCard() {
     e.preventDefault();
     const nombre = form.nombre.trim();
     if (!nombre) return;
+    setRechazo(null);
     guardar.mutate(
       { id: editando?.id, nombre, gramos: Math.round(form.gramos) },
       {
@@ -89,9 +94,10 @@ export function TiposDeCarreteCard() {
       tone: 'destructive',
     });
     if (!ok) return;
+    setRechazo(null);
     borrar.mutate(t.id, {
       onSuccess: () => notify.success(`«${t.nombre}» ya no está`),
-      onError: (err) => notify.error(apiErrorMessage(err)),
+      onError: (err) => setRechazo(apiErrorMessage(err)),
     });
   };
 
@@ -119,6 +125,22 @@ export function TiposDeCarreteCard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {rechazo && (
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-sm"
+          >
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="font-semibold">No se pudo borrar</p>
+              <p>{rechazo}</p>
+            </div>
+            <Button variant="ghost" size="icon" aria-label="Cerrar el aviso" onClick={() => setRechazo(null)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         {isLoading ? (
           <TableSkeleton rows={3} cols={2} />
         ) : lista.length === 0 ? (
@@ -160,7 +182,7 @@ export function TiposDeCarreteCard() {
           </ul>
         )}
 
-        <p className="flex items-start gap-2 text-xs text-muted-foreground" role="note">
+        <p className="flex items-start gap-2 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>
             Cambiar el peso de un tipo no toca los meses ya cerrados: cada cierre guarda el peso
