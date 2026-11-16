@@ -1617,6 +1617,33 @@ function AnnualIncome() {
   const ordenadas = orden === 'MES' ? filas : [...filas].sort((a, b) => b.total - a.total);
 
   /**
+   * EL MES EN CURSO SE RESALTA, en la barra y en la fila.
+   *
+   * ⚠️ Solo cuando el año elegido es el actual: en 2025 no hay "este mes", y
+   * pintar noviembre ahí afirmaría que estás parado en un mes que ya pasó.
+   *
+   * ⚠️ `mesActual` sale de `new Date().getMonth()`, que es hora LOCAL — la
+   * clase de fecha correcta para "qué mes es hoy". Con `toISOString()` sería
+   * UTC y desde las 20:00 de Caracas el último día del mes resaltaría el
+   * siguiente (es el bug que este repo ya documentó en siete lugares).
+   *
+   * En la TABLA además hace falta: se puede ordenar por monto, así que el mes
+   * en curso cae en cualquier posición y sin marca hay que buscarlo leyendo.
+   */
+  const esMesActual = (indice: number) => anio === anioActual && indice === mesActual;
+  /**
+   * Glow de marca sobre la columna del mes en curso.
+   *
+   * ⚠️ **Va como FILTRO de SVG declarado en `<defs>`, no como `style` ni como
+   * `shadow-*`.** La barra es un `<path>` de SVG, así que una sombra de caja de
+   * Tailwind no la pinta; y medido en el navegador, **Recharts DESCARTA el
+   * `style` de un `<Cell>`** (al `<path>` le reenvía `fill` y `name`, nada
+   * más), así que un `drop-shadow` de CSS tampoco llegaba: la barra salía
+   * igual que las otras once y nada fallaba. El atributo `filter` sí viaja.
+   */
+  const FILTRO_RESALTE = 'glowMesActual';
+
+  /**
    * El gráfico se corta en el mes ACTUAL. Dibujar noviembre y diciembre en $0
    * hace que la línea se desplome y se lea como un derrumbe del negocio, cuando
    * en realidad esos meses todavía no pasaron. En la TABLA sí se listan los 12
@@ -1661,17 +1688,50 @@ function AnnualIncome() {
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={datosGrafico}>
+              <defs>
+                {/* La región del filtro se agranda a propósito: por defecto recorta al
+                    borde de la barra y el halo quedaría cortado. */}
+                <filter id={FILTRO_RESALTE} x="-75%" y="-75%" width="250%" height="250%">
+                  {/* Dos halos encadenados: el segundo toma la salida del primero, así
+                      el brillo se nota sobre el navy de la tarjeta sin desdibujar la barra. */}
+                  <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor={GOLD} floodOpacity={1} />
+                  <feDropShadow dx="0" dy="0" stdDeviation="7" floodColor={GOLD} floodOpacity={0.85} />
+                </filter>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis
                 dataKey="mes"
-                tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                tickFormatter={(m: string) => m.slice(0, 3)}
+                // Recharts tipa `x`/`y` como `string | number`: se convierten acá.
+                tick={(props: { x?: string | number; y?: string | number; payload: { value: string } }) => {
+                  const { x, y, payload } = props;
+                  const actual = esMesActual(MESES.indexOf(payload.value));
+                  return (
+                    <text
+                      x={Number(x)}
+                      y={Number(y) + 12}
+                      textAnchor="middle"
+                      fontSize={11}
+                      fontWeight={actual ? 700 : 400}
+                      fill={actual ? GOLD : 'hsl(var(--muted-foreground))'}
+                    >
+                      {payload.value.slice(0, 3)}
+                    </text>
+                  );
+                }}
               />
               <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={40} />
               <Tooltip contentStyle={tooltipStyle} formatter={(v) => money(Number(v))} cursor={{ fill: 'hsl(var(--accent) / 0.4)' }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="mostrador" name="Mostrador" stackId="canal" fill={GOLD} />
-              <Bar dataKey="encargos" name="Encargos" stackId="canal" fill={BLUE} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="mostrador" name="Mostrador" stackId="canal" fill={GOLD}>
+                {datosGrafico.map((f) => (
+                  <Cell key={f.mes} fill={GOLD} filter={esMesActual(f.indice) ? `url(#${FILTRO_RESALTE})` : undefined} />
+                ))}
+              </Bar>
+              <Bar dataKey="encargos" name="Encargos" stackId="canal" fill={BLUE} radius={[4, 4, 0, 0]}>
+                {datosGrafico.map((f) => (
+                  <Cell key={f.mes} fill={BLUE} filter={esMesActual(f.indice) ? `url(#${FILTRO_RESALTE})` : undefined} />
+                ))}
+              </Bar>
               <Line type="monotone" dataKey="total" name="Total" stroke={GREEN} strokeWidth={2} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
@@ -1688,13 +1748,33 @@ function AnnualIncome() {
             <tbody>
               {ordenadas.map((f) => {
                 const futuro = anio === anioActual && f.indice > mesActual;
+                const actual = esMesActual(f.indice);
                 return (
-                  <tr key={f.mes} className="border-b border-border/70 last:border-0">
-                    <td className={cn('py-1.5', futuro && 'text-muted-foreground/60')}>
+                  <tr
+                    key={f.mes}
+                    className={cn(
+                      'border-b border-border/70 last:border-0',
+                      actual && 'bg-brand-yellow/10',
+                    )}
+                  >
+                    <td
+                      className={cn(
+                        'py-1.5',
+                        futuro && 'text-muted-foreground/60',
+                        actual && 'font-semibold text-brand-yellow-ink',
+                      )}
+                    >
                       {f.mes}
                       {futuro && <span className="ml-1.5 text-xs">(no llegó)</span>}
+                      {actual && <span className="ml-1.5 text-xs font-normal">(este mes)</span>}
                     </td>
-                    <td className={cn('py-1.5 text-right tabular', f.total === 0 && 'text-muted-foreground')}>
+                    <td
+                      className={cn(
+                        'py-1.5 text-right tabular',
+                        f.total === 0 && 'text-muted-foreground',
+                        actual && 'font-semibold',
+                      )}
+                    >
                       {money(f.total)}
                     </td>
                   </tr>

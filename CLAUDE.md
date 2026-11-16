@@ -1582,6 +1582,40 @@ con 133.22 y le quedaban 102.83.
   (`campaignDisplayStatus`), porque nada mueve el `status` guardado a FINISHED
   cuando pasa la fecha de fin.
 
+#### El mes en curso BRILLA (2026-11-16, pedido del dueño)
+
+La tarjeta se puede ordenar por monto, así que el mes en curso cae en cualquier
+posición y había que buscarlo leyendo los doce. Ahora se marca en los TRES
+lugares, todos desde **una sola** función (`esMesActual`): la columna del
+gráfico con un halo dorado, su etiqueta del eje X en negrita y oro, y la fila de
+la tabla con fondo tenue y «(este mes)».
+
+- ⚠️ **Solo cuando el año elegido es el actual.** En 2025 no hay «este mes», y
+  pintar noviembre ahí afirmaría que estás parado en un mes que ya pasó. Es la
+  regla que cuida el test, porque resaltar noviembre es lo fácil.
+- ⚠️ `mesActual` sale de `new Date().getMonth()`, hora **LOCAL** — la clase de
+  fecha correcta para «qué mes es hoy» (ver la sección de fechas).
+- ⚠️ **EL BRILLO ES UN FILTRO DE SVG EN `<defs>`, NO UN `style`.** Dos trampas,
+  y la segunda no falla nunca: (1) la barra es un `<path>` de SVG, así que una
+  `shadow-*` de Tailwind no la pinta; (2) **Recharts DESCARTA el `style` de un
+  `<Cell>`** — medido en el navegador, al `<path>` solo le reenvía `fill` y
+  `name`—, así que el `drop-shadow` de CSS **no llegaba** y la barra salía igual
+  que las otras once **con todo en verde**. El atributo `filter` sí viaja. La
+  región del filtro se agranda (`x="-75%" … width="250%"`) o el halo queda
+  recortado al borde de la barra.
+- ⚠️ **Esto NO se puede medir en jsdom**: Recharts no dibuja dentro de un
+  `ResponsiveContainer` de tamaño 0. El test (`Dashboard.mes-actual.spec.tsx`,
+  4) cubre la TABLA y la regla del año; la barra y la fila comparten
+  `esMesActual`, así que romperla pone esos tests en rojo. El halo en sí se
+  verificó en el navegador y no tiene red.
+- ⚠️ **Y medirlo tiene DOS trampas más, las dos ya pagadas:** el panel del
+  escritorio de Claude con el pane **oculto** no corre `requestAnimationFrame`,
+  así que las barras de Recharts **nunca montan su `<path>`** y se lee como «el
+  gráfico está roto» (hay que medir con un Chrome real, Playwright); y en la
+  base LOCAL octubre y noviembre valen **$0,00** —es la copia del 1/10— así que
+  el mes en curso **no tiene barra que brillar**. Se midió apuntando el resalte
+  a un mes con datos con un parche temporal, y revirtiendo después.
+
 #### Avisos de encargos (2026-10-12, shared 0.52.0)
 
 Cuatro recordatorios nuevos, todos en el **renglón plegado** junto al conteo
