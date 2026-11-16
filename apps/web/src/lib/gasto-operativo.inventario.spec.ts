@@ -40,6 +40,9 @@
  *  - Una pantalla que sume gastos sin restarlos de ningún ingreso.
  *  - Un resultado calculado en `shared` y mostrado acá: eso es del servidor, y lo
  *    vigila el barrido de la API.
+ *  - **Qué se recorre**: solo `apps/web/src`, y nada llamado `*.spec.ts` / `*.test.tsx`.
+ *    Un lector nuevo fuera de ahí es INVISIBLE — dicho para que el verde no se lea
+ *    como cobertura total.
  * Es el precio de un inventario por texto: caza el descuido, no al que quiere
  * esquivarlo.
  */
