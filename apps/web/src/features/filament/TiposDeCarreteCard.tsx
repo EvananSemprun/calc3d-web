@@ -59,11 +59,13 @@ export function TiposDeCarreteCard() {
   const cerrar = () => setEditando(null);
 
   const abrirAlta = () => {
+    setRechazo(null);
     setForm(VACIO);
     setEditando(undefined);
   };
 
   const abrirEdicion = (t: Tipo) => {
+    setRechazo(null);
     setForm({ nombre: t.nombre, gramos: t.gramos });
     setEditando(t);
   };

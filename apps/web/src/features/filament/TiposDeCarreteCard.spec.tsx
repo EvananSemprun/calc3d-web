@@ -11,13 +11,19 @@ import { ConfirmProvider, TooltipProvider } from '@/components/overlays';
  */
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() }));
-const apiError = vi.hoisted(() => vi.fn(() => 'falló'));
+const apiError = vi.hoisted(() => vi.fn((_e?: unknown) => 'falló'));
+const toastError = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api', () => ({
   api: { get: mocks.get, post: mocks.post, patch: mocks.patch, delete: mocks.del },
   apiErrorMessage: apiError,
   downloadFile: vi.fn(),
   getToken: () => null,
+}));
+
+vi.mock('@/components/toast', () => ({
+  notify: { success: vi.fn(), error: toastError, info: vi.fn() },
+  Toaster: () => null,
 }));
 
 const { TiposDeCarreteCard } = await import('@/features/filament/TiposDeCarreteCard');
@@ -45,6 +51,8 @@ function montar() {
 describe('TiposDeCarreteCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks no resetea implementaciones: se restaura para que un test no filtre su mensaje al siguiente.
+    apiError.mockImplementation(() => 'falló');
     mocks.get.mockResolvedValue({ data: TIPOS });
     mocks.post.mockResolvedValue({ data: { id: 't3', nombre: 'Nuevo', gramos: 200 } });
   });
@@ -80,26 +88,63 @@ describe('TiposDeCarreteCard', () => {
     expect(aviso.textContent).not.toMatch(/mes (abierto|en curso)/i);
   });
 
-  it('si el servidor rechaza el borrado, su texto queda en pantalla en un cartel que no se va solo', async () => {
-    const RECHAZO =
-      '«Carrete Bambu» lo usan 3 pesajes de cierres de mes. No se borra porque esos meses quedarían sin poder explicarse. Cámbialo desde editar.';
+  // El mensaje REAL del servidor (47 palabras): por esto es un cartel y no un toast. En este repo
+  // ~37 palabras ya entran justas en 15 s de toast y ~50 no entran (`components/toast.tsx`).
+  const RECHAZO =
+    '«Carrete Bambu» lo usan 3 pesaje(s) de cierres de mes (2 como rollo en uso, 1 como rollo por acabarse). ' +
+    'No se borra porque esos meses quedarían sin poder explicarse de dónde salió el peso del carrete. ' +
+    'Si el nombre ya no te sirve, cámbialo desde editar.';
+
+  async function borrarBambuRechazado() {
     mocks.del.mockRejectedValue(new Error('409'));
-    apiError.mockReturnValue(RECHAZO);
+    apiError.mockImplementation(() => RECHAZO);
     montar();
     await screen.findByText('Carrete Bambu');
-
     fireEvent.click(screen.getByRole('button', { name: 'Borrar Carrete Bambu' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Borrar' }));
+    return screen.findByRole('alert');
+  }
 
-    const cartel = await screen.findByRole('alert');
+  it('si el servidor rechaza el borrado, su texto queda en un cartel (role=alert) y NO en un toast', async () => {
+    const cartel = await borrarBambuRechazado();
+
     expect(cartel.textContent).toContain(RECHAZO);
     expect(mocks.del).toHaveBeenCalledWith('/settings/carretes/t1');
+    expect(toastError).not.toHaveBeenCalled();
+  });
 
-    // No se va solo: sigue ahí pasado el tiempo de un toast (4 s) y se cierra a mano.
-    await new Promise((r) => setTimeout(r, 300));
-    expect(screen.getByRole('alert')).toBeTruthy();
+  it('el cartel NO se va por tiempo: sigue ahí pasado un minuto', async () => {
+    // Los relojes se falsean ANTES de rechazar: un temporizador nacido con el reloj real no lo movería
+    // `advanceTimersByTime`, y el test pasaría aunque el cartel se cerrara solo.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+    try {
+      const cartel = await borrarBambuRechazado();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(screen.getByRole('alert')).toBe(cartel);
+      expect(screen.getByRole('alert').textContent).toContain(RECHAZO);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('se va cuando el dueño lo cierra', async () => {
+    await borrarBambuRechazado();
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar el aviso' }));
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  // `hidden: true`: el diálogo modal esconde el resto de la página al lector de pantalla, y sin eso
+  // `queryByRole` no ve el cartel aunque siga montado (verde falso medido por mutación).
+  it('se va cuando el dueño abre el alta', async () => {
+    await borrarBambuRechazado();
+    fireEvent.click(screen.getByRole('button', { name: /Nuevo tipo de carrete/ }));
+    expect(screen.queryByRole('alert', { hidden: true })).toBeNull();
+  });
+
+  it('se va cuando el dueño abre el editor', async () => {
+    await borrarBambuRechazado();
+    fireEvent.click(screen.getByRole('button', { name: 'Editar Carrete Genérico' }));
+    expect(screen.queryByRole('alert', { hidden: true })).toBeNull();
   });
 
   it('editar un tipo manda PATCH con su id', async () => {

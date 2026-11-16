@@ -4,6 +4,9 @@ import {
   MaterialStatusUpdateSchema,
   StockMonthCloseSchema,
   StockMonthReopenSchema,
+  TipoDeCarreteCreateSchema,
+  TipoDeCarreteSchema,
+  TipoDeCarreteUpdateSchema,
 } from './stock';
 
 describe('StockMonthCloseSchema', () => {
@@ -145,5 +148,31 @@ describe('MaterialStatusBatchSchema', () => {
     expect(MaterialStatusBatchSchema.safeParse({ ids: [], status: 'ACTIVE' }).success).toBe(false);
     expect(MaterialStatusBatchSchema.safeParse({ ids: ['a'], status: 'BORRADO' }).success).toBe(false);
     expect(MaterialStatusBatchSchema.safeParse({ ids: Array(201).fill('a'), status: 'ACTIVE' }).success).toBe(false);
+  });
+});
+
+describe('TipoDeCarrete: topes del contrato', () => {
+  const ok = { nombre: 'Carrete Bambu', gramos: 250 };
+
+  it('el nombre llega a 80 letras y no a 81 (salida, alta y edición)', () => {
+    const justo = 'x'.repeat(80);
+    const pasado = 'x'.repeat(81);
+    expect(TipoDeCarreteCreateSchema.safeParse({ ...ok, nombre: justo }).success).toBe(true);
+    expect(TipoDeCarreteCreateSchema.safeParse({ ...ok, nombre: pasado }).success).toBe(false);
+    expect(TipoDeCarreteUpdateSchema.safeParse({ nombre: justo }).success).toBe(true);
+    expect(TipoDeCarreteUpdateSchema.safeParse({ nombre: pasado }).success).toBe(false);
+    expect(TipoDeCarreteSchema.safeParse({ id: 'a', ...ok, nombre: pasado }).success).toBe(false);
+  });
+
+  it('el peso llega a 1.000.000 g (el techo de la balanza) y no a 1.000.001', () => {
+    expect(TipoDeCarreteCreateSchema.safeParse({ ...ok, gramos: 1_000_000 }).success).toBe(true);
+    expect(TipoDeCarreteCreateSchema.safeParse({ ...ok, gramos: 1_000_001 }).success).toBe(false);
+    expect(TipoDeCarreteUpdateSchema.safeParse({ gramos: 1_000_001 }).success).toBe(false);
+    expect(TipoDeCarreteSchema.safeParse({ id: 'a', ...ok, gramos: 1_000_001 }).success).toBe(false);
+  });
+
+  it('el alta no lleva id y la edición acepta solo un campo', () => {
+    expect(TipoDeCarreteCreateSchema.parse({ id: 'robado', ...ok })).toEqual(ok);
+    expect(TipoDeCarreteUpdateSchema.safeParse({ gramos: 300 }).success).toBe(true);
   });
 });
