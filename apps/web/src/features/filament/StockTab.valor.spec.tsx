@@ -49,6 +49,7 @@ const FILAS: StockCountRow[] = [
     exhausted: false,
     previous: null,
     carretesPrevios: null,
+    pesosGuardados: { inUse: null, running: null },
     lastRollPrice: 20,
     received: null,
   },
@@ -58,11 +59,13 @@ const VALOR: ValorDelInventario = {
   sellados: 20,
   abiertosPesados: 0,
   total: 20,
-  rollosSinPesar: 6,
+  // ⚠️ A propósito DISTINTO del que manda el estado del mes: la tarjeta tiene que leer el del
+  // estado (un solo número por pantalla), y con valores iguales no se notaría de dónde sale.
+  rollosSinPesar: 99,
   sinPrecio: 0,
 };
 
-function montar(opts: { cerrado?: boolean; valor?: ValorDelInventario } = {}) {
+function montar(opts: { cerrado?: boolean; valor?: ValorDelInventario; sinPesar?: number } = {}) {
   const cerrado = opts.cerrado ?? true;
   mocks.get.mockImplementation(async (url: string) => {
     if (url === '/filament/stock') return { data: FILAS };
@@ -75,6 +78,8 @@ function montar(opts: { cerrado?: boolean; valor?: ValorDelInventario } = {}) {
           reopenedAt: null,
           canClose: true,
           closableFrom: '2026-10-31',
+          rollosSinPesar: opts.sinPesar ?? 6,
+          pesosSobreElRolloLleno: [],
         },
       };
     }
@@ -142,8 +147,17 @@ describe('Valor del filamento que queda', () => {
     expect(screen.getByText(/6 rollo\(s\) empezado\(s\) todavía no se pueden pesar/)).toBeInTheDocument();
   });
 
+  // ⚠️ Un solo número de «sin pesar» por pantalla: el del estado del mes (el mismo del
+  // encabezado). El `valor.rollosSinPesar` del resumen es otro cálculo del servidor.
+  it('el número de la tarjeta es el del estado del mes, no el del resumen', async () => {
+    const { cargar, container } = montar({ sinPesar: 4 });
+    await cargar();
+    expect(screen.getByText(/4 rollo\(s\) empezado\(s\) todavía no se pueden pesar/)).toBeInTheDocument();
+    expect(container.textContent ?? '').not.toContain('99');
+  });
+
   it('sin rollos sin pesar no mete ese aviso', async () => {
-    const { cargar } = montar({ valor: { ...VALOR, rollosSinPesar: 0 } });
+    const { cargar } = montar({ sinPesar: 0 });
     await cargar();
     expect(screen.queryByText(/sin pesar|no se pueden pesar/)).not.toBeInTheDocument();
   });

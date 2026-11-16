@@ -80,6 +80,33 @@ export function rollosSinPesarDeCasilla(rollos: number, lectura: LecturaDeCasill
   return lectura.estado === 'pesado' ? rollos - 1 : rollos;
 }
 
+/**
+ * Lo ya guardado de cada ficha, como lo que se «escribió»: así una casilla pesada
+ * aparece con su peso al reabrir un mes y el aviso cuenta la verdad. `null` = esa
+ * casilla no se pesó. Un tipo de carrete ausente se siembra como «Sin carrete»
+ * EXPLÍCITO: vacío caería en el carrete del mes pasado y re-enviaría un dato
+ * distinto del guardado.
+ */
+export function sembrarPesos(
+  fichas: readonly {
+    materialId: string;
+    pesosGuardados: { inUse: PesoMedido | null; running: PesoMedido | null };
+  }[],
+): PesosEscritos {
+  const sembrados: PesosEscritos = {};
+  for (const f of fichas) {
+    for (const casilla of ['inUse', 'running'] as const) {
+      const p = f.pesosGuardados?.[casilla];
+      if (!p || p.pesoBalanza === null) continue;
+      sembrados[f.materialId] = {
+        ...sembrados[f.materialId],
+        [casilla]: { balanza: p.pesoBalanza, carrete: p.carreteTipoId ?? SIN_CARRETE },
+      };
+    }
+  }
+  return sembrados;
+}
+
 export interface FichaPesable {
   materialId: string;
   inUse: number;
@@ -117,7 +144,12 @@ export function pesoParaCerrar(
   tipos: readonly TipoDeCarrete[],
 ): PesoMedido | undefined {
   if (!escrito) return undefined;
-  const id = carreteEfectivo(escrito, previo, tipos);
+  // Un id elegido o sembrado se manda TAL CUAL: el servidor lo valida contra el catálogo. Pasarlo
+  // por `carreteEfectivo` lo borraría (null) si los tipos todavía no cargaron al cerrar.
+  const id =
+    escrito.carrete !== '' && escrito.carrete !== SIN_CARRETE
+      ? escrito.carrete
+      : carreteEfectivo(escrito, previo, tipos);
   return {
     pesoBalanza: escrito.balanza > 0 ? Math.round(escrito.balanza) : null,
     carreteTipoId: id === '' || id === SIN_CARRETE ? null : id,

@@ -45,6 +45,7 @@ const fila = (id: string, color: string, status: StockCountRow['status']): Stock
   exhausted: false,
   previous: null,
   carretesPrevios: null,
+  pesosGuardados: { inUse: null, running: null },
   lastRollPrice: 20,
   received: null,
 });

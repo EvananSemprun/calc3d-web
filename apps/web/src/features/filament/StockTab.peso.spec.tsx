@@ -46,6 +46,7 @@ const base: Omit<StockCountRow, 'materialId' | 'name' | 'brand' | 'color'> = {
   exhausted: false,
   previous: null,
   carretesPrevios: null,
+  pesosGuardados: { inUse: null, running: null },
   lastRollPrice: 20,
   received: null,
 };
@@ -127,7 +128,7 @@ function montar(
 }
 
 const cargar = async () => {
-  await screen.findByLabelText(M1);
+  await screen.findAllByRole('article');
   // Los tipos de carrete llegan por una consulta aparte.
   await waitFor(() => expect(mocks.get).toHaveBeenCalledWith('/settings/carretes'));
   await act(async () => {});
@@ -400,5 +401,79 @@ describe('Sin tipos de carrete registrados', () => {
     pesar('En uso', M1, 1100);
 
     expect(screen.getByText(/no registraste ningún tipo de carrete/)).toBeInTheDocument();
+  });
+});
+
+// Reabrir es la ÚNICA forma de corregir un mes cerrado: la pantalla tiene que mostrar lo ya
+// pesado (si no, las casillas salen en blanco y el aviso cuenta como sin pesar rollos pesados).
+describe('Un mes con pesos ya guardados (reabierto)', () => {
+  const guardada = (over: Partial<StockCountRow>): StockCountRow[] => [{ ...FILAS[1], ...over }];
+
+  it('la casilla pesada aparece con su peso y su carrete, y el aviso cuenta la verdad', async () => {
+    montar({ filas: guardada({ pesosGuardados: { inUse: { pesoBalanza: 900, carreteTipoId: 'c-b' }, running: null } }) });
+    await cargar();
+
+    expect(casillaDePeso('En uso', M2)).toHaveValue(900);
+    expect(selectorDeCarrete('En uso', M2)).toHaveTextContent('Plástico Bambu · 250 g');
+    expect(screen.getByText('Quedan 650 g de filamento.')).toBeInTheDocument();
+    expect(botonCerrar()).not.toHaveTextContent('sin pesar');
+  });
+
+  it('re-cerrar sin tocar nada re-envía EXACTAMENTE lo guardado (el servidor lo conserva)', async () => {
+    montar({ filas: guardada({ pesosGuardados: { inUse: { pesoBalanza: 900, carreteTipoId: 'c-b' }, running: null } }) });
+    await cargar();
+
+    const counts = await cerrarYLeerCuerpo();
+
+    // Con balanza y tipo idénticos, la regla de la tarea 4 conserva el peso congelado.
+    expect(counts.m2.inUsePeso).toEqual({ pesoBalanza: 900, carreteTipoId: 'c-b' });
+    expect('runningPeso' in counts.m2).toBe(false);
+  });
+
+  it('las DOS casillas vuelven con lo suyo, cada una con su peso y su carrete', async () => {
+    montar({
+      filas: guardada({
+        inUse: 1,
+        running: 1,
+        pesosGuardados: {
+          inUse: { pesoBalanza: 900, carreteTipoId: 'c-a' },
+          running: { pesoBalanza: 400, carreteTipoId: 'c-b' },
+        },
+      }),
+    });
+    await cargar();
+
+    expect(casillaDePeso('En uso', M2)).toHaveValue(900);
+    expect(casillaDePeso('Por acabarse', M2)).toHaveValue(400);
+    expect(selectorDeCarrete('Por acabarse', M2)).toHaveTextContent('Plástico Bambu · 250 g');
+    const counts = await cerrarYLeerCuerpo();
+    expect(counts.m2.runningPeso).toEqual({ pesoBalanza: 400, carreteTipoId: 'c-b' });
+  });
+
+  it('una balanza guardada SIN carrete vuelve como «Sin carrete» y no se rellena con el del mes pasado', async () => {
+    montar({
+      filas: guardada({
+        carretesPrevios: { inUse: 'c-a', running: null },
+        pesosGuardados: { inUse: { pesoBalanza: 650, carreteTipoId: null }, running: null },
+      }),
+    });
+    await cargar();
+
+    expect(selectorDeCarrete('En uso', M2)).toHaveTextContent('Sin carrete');
+    expect(botonCerrar()).toHaveTextContent('1 sin pesar'); // sigue sin pesar: es lo que había
+    const counts = await cerrarYLeerCuerpo();
+    expect(counts.m2.inUsePeso).toEqual({ pesoBalanza: 650, carreteTipoId: null });
+  });
+
+  it('si los tipos de carrete no cargaron, igual re-envía el id guardado (no lo borra)', async () => {
+    montar({
+      carretes: [],
+      filas: guardada({ pesosGuardados: { inUse: { pesoBalanza: 900, carreteTipoId: 'c-b' }, running: null } }),
+    });
+    await cargar();
+
+    const counts = await cerrarYLeerCuerpo();
+
+    expect(counts.m2.inUsePeso).toEqual({ pesoBalanza: 900, carreteTipoId: 'c-b' });
   });
 });

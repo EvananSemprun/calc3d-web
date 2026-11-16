@@ -51,6 +51,7 @@ const fila = (
   exhausted: false,
   previous: null,
   carretesPrevios: null,
+  pesosGuardados: { inUse: null, running: null },
   lastRollPrice: 20,
   received: null,
 });

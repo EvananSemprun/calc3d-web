@@ -723,10 +723,15 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
   - El botón de cerrar AVISA cuántos quedan sin pesar y NO bloquea (hoy 18 de 26
     rollos empezados están sin pesar). Tras cerrar, el dato final es
     `estado.rollosSinPesar`; son dos fuentes distintas a propósito.
-  - ⚠️ **Deuda conocida**: con un mes REABIERTO el panel no ve los pesos ya
-    guardados (`StockCountRow` no los trae), así que el aviso previo los cuenta
-    como sin pesar aunque el servidor los conserve si no se tocan.
-  - Tests: `StockTab.peso.spec.tsx` (18). Los dos tests del plan sobre «carrete
+  - ⚠️ **Un mes REABIERTO muestra lo ya pesado**: `pesosGuardados` (shared 0.98.0)
+    siembra el borrador con la balanza y el carrete de cada casilla; sin eso salían en
+    blanco y el aviso contaba como sin pesar rollos pesados. Re-enviar lo sembrado no
+    mueve el mes (el servidor conserva el peso congelado si balanza y tipo son iguales).
+    «Sin carrete» guardado se siembra explícito; el id guardado viaja tal cual aunque los
+    tipos no hayan cargado.
+  - ⚠️ **UN solo número de «sin pesar» por pantalla**: `ValorCard` recibe
+    `estado.rollosSinPesar` por prop; no lee `valor.rollosSinPesar` (otro cálculo del servidor).
+  - Tests: `StockTab.peso.spec.tsx` (23). Los dos tests del plan sobre «carrete
     de esa marca / reutilizable» se cayeron por lo de arriba.
 - **El mes se CIERRA, no se guarda casilla por casilla** (2026-09-13, shared
   0.13.0). Lo escrito vive en un borrador del navegador

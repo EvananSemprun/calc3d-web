@@ -176,6 +176,7 @@ describe('FichaDialog — Unir con otra ficha', () => {
     exhausted: false,
     previous: null,
     carretesPrevios: null,
+    pesosGuardados: { inUse: null, running: null },
     lastRollPrice: 20,
     received: null,
   };

@@ -246,6 +246,18 @@ export interface StockCountRow extends StockCountParts {
    */
   carretesPrevios: { inUse: string | null; running: string | null } | null;
   /**
+   * Los pesos ya GUARDADOS de ESTE mes, por casilla, con la forma que el panel
+   * necesita para editarlos: lo que marcó la balanza y el tipo de carrete. El
+   * peso del carrete y los gramos NO van: los pone el servidor al cerrar.
+   *
+   * ⚠️ `null` en una casilla = «esa casilla no se pesó» (sin balanza), NO cero.
+   * Existe porque reabrir es la única forma de corregir un mes cerrado: sin esto
+   * la pantalla mostraba las casillas en blanco y contaba como sin pesar rollos
+   * que SÍ estaban pesados. Re-enviar estos mismos valores al cerrar no mueve
+   * nada: con balanza y tipo idénticos el servidor conserva el peso congelado.
+   */
+  pesosGuardados: { inUse: PesoMedido | null; running: PesoMedido | null };
+  /**
    * Rollos que ENTRARON en este mes (recepciones de factura y compras cargadas
    * a mano), para ofrecerlos como punto de partida al contar.
    *

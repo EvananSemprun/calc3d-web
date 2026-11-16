@@ -44,6 +44,7 @@ const fila = (over: Partial<StockCountRow> & { materialId: string; name: string 
   exhausted: false,
   previous: null,
   carretesPrevios: null,
+  pesosGuardados: { inUse: null, running: null },
   lastRollPrice: 20,
   received: null,
   ...over,

@@ -63,6 +63,7 @@ import {
   contarSinPesar,
   leerCasilla,
   pesoParaCerrar,
+  sembrarPesos,
   type Casilla,
   type LecturaDeCasilla,
   type PesoEscrito,
@@ -152,12 +153,13 @@ export function StockTab() {
   useEffect(() => {
     if (!estado) {
       setDraft(Object.fromEntries(filas.map((f) => [f.materialId, partesDe(f)])));
-      setPesos({});
+      setPesos(sembrarPesos(filas));
       return;
     }
     const guardado = !cerrado ? leerBorrador(claveBorrador, estado.reopenedAt) : null;
     setDraft(guardado?.valores ?? Object.fromEntries(filas.map((f) => [f.materialId, partesDe(f)])));
-    setPesos(guardado?.pesos ?? {});
+    // Sin borrador: lo ya guardado en el servidor (un mes reabierto trae sus pesos).
+    setPesos(guardado?.pesos ?? sembrarPesos(filas));
   }, [claveBorrador, filas, cerrado, estado?.reopenedAt]);
 
   // Un mes cerrado manda: si quedó un borrador viejo en este navegador (se cerró
@@ -588,7 +590,7 @@ export function StockTab() {
                 tone={urgentes > 0 ? 'warn' : undefined}
               />
             </div>
-            <ValorCard valor={resumen.valor} />
+            <ValorCard valor={resumen.valor} sinPesar={estado?.rollosSinPesar ?? 0} />
             {resumen.restock.length > 0 && (
               <RestockCard
                 grupos={resumen.restock}
@@ -1343,6 +1345,10 @@ function Muestra({ color }: { color: string | null }) {
  * unos porcentajes por tipo de rollo: esas fracciones eran inventadas y NO deben
  * volver.
  *
+ * ⚠️ `sinPesar` llega de `monthStatus.rollosSinPesar` (el mismo número que el
+ * encabezado) y NO de `valor.rollosSinPesar`: dos cuentas del mismo dato, de dos
+ * cálculos distintos del servidor, es como dos pantallas terminan discrepando.
+ *
  * El aviso de `rollosSinPesar` manda a la casilla «Peso en balanza (g)» de cada
  * rollo empezado (existe desde la Tarea 6 y solo se ve con el mes abierto, por
  * eso el aviso dice que hay que reabrirlo).
@@ -1350,7 +1356,7 @@ function Muestra({ color }: { color: string | null }) {
  * ⚠️ El texto va como hijo DIRECTO de cada <p>, sin <span> en medio: los
  * tests lo buscan con `getByText`, que solo ve los nodos de texto directos.
  */
-function ValorCard({ valor }: { valor: ValorDelInventario }) {
+function ValorCard({ valor, sinPesar }: { valor: ValorDelInventario; sinPesar: number }) {
   const { money } = useMoney();
   return (
     <Card>
@@ -1372,9 +1378,9 @@ function ValorCard({ valor }: { valor: ValorDelInventario }) {
           Al precio de tu última compra de cada filamento: es lo que costaría reponerlo, no lo que
           pagaste. Solo vale lo que está medido; lo que no, vale 0.
         </p>
-        {valor.rollosSinPesar > 0 && (
+        {sinPesar > 0 && (
           <p className="mt-2 text-xs text-brand-yellow-ink">
-            {valor.rollosSinPesar} rollo(s) empezado(s) todavía no se pueden pesar, así que no
+            {sinPesar} rollo(s) empezado(s) todavía no se pueden pesar, así que no
             entran en el total. Reabre el mes y escribe su «Peso en balanza (g)» para que cuenten.
           </p>
         )}
