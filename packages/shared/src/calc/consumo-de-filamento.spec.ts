@@ -78,6 +78,18 @@ describe('consumoPorMes', () => {
     expect(r.map((x) => x.ajuste)).toEqual([0, 8, -8, 6]);
   });
 
+  it('cuenta CUÁNTOS rollos cambiaron de medición, separando los que aparecen de los que desaparecen', () => {
+    const r = consumoPorMes([
+      mes('2026-09', 0, 100, [rollo('a:inUse', 0, false), rollo('b:inUse', 9, true), rollo('c:running', 0, false)]),
+      mes('2026-10', 0, 100, [rollo('a:inUse', 8, true), rollo('b:inUse', 0, false), rollo('c:running', 0, false)]),
+    ]);
+    expect(r[0].rollosPesados).toBe(0);
+    expect(r[0].rollosSinPesar).toBe(0);
+    // a pasa a pesado (aparece), b a sin pesar (desaparece), c no cambia.
+    expect(r[1].rollosPesados).toBe(1);
+    expect(r[1].rollosSinPesar).toBe(1);
+  });
+
   it('con un mes sin conteo en el medio, el siguiente parte del último cierre anterior, no de 0', () => {
     const r = consumoPorMes([mes('2026-09', 0, 100), mes('2026-11', 30, 110)]);
     expect(r.map((x) => x.mes)).toEqual(['2026-09', '2026-11']);

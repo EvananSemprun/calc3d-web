@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  FilaDeConsumoPorMes,
   FilamentPurchase,
   MaterialStatus,
   RestockGroup,
@@ -50,6 +51,23 @@ export function useFilamentPurchases(range: Pick<DateRange, 'from' | 'to'>) {
         params: params(range),
       });
       return data;
+    },
+  });
+}
+
+/**
+ * La tabla mes a mes de Análisis: compras, inventario, consumo y ajuste.
+ *
+ * ⚠️ El panel NO calcula nada de esto: lo arma `ConsumoService` (la misma
+ * cuenta del Resultado). Su clave cuelga de `filament-summary` a propósito:
+ * cerrar o reabrir un mes y corregir compras ya invalidan ese prefijo.
+ */
+export function useConsumoPorMes() {
+  return useQuery({
+    queryKey: ['filament-summary', 'consumo'],
+    queryFn: async () => {
+      const { data } = await api.get<{ meses: FilaDeConsumoPorMes[] }>('/filament/consumo');
+      return data.meses;
     },
   });
 }

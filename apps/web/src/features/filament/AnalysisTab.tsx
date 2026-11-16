@@ -5,6 +5,7 @@ import { Card, CardContent, EmptyState, PageSkeleton, ProgressBar, Stat } from '
 import { useMoney } from '@/features/settings/useSettings';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { useFilamentPurchases } from '@/features/filament/api';
+import { ConsumoPorMes } from '@/features/filament/ConsumoPorMes';
 
 /**
  * ANÁLISIS DE FILAMENTO — la parte de la hoja "Resumen" del Excel que mira las
@@ -37,6 +38,7 @@ export function AnalysisTab() {
           title="Todavía no hay nada que analizar"
           description="Las compras de filamento se registran desde Gastos, con el tipo «Filamento»."
         />
+        <ConsumoPorMes />
       </div>
     );
   }
@@ -54,6 +56,8 @@ export function AnalysisTab() {
           sub={marcas[0] && `La que más compras: ${marcas[0].key}`}
         />
       </div>
+
+      <ConsumoPorMes />
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Marca: la tabla completa. Es donde se decide a quién comprarle. */}

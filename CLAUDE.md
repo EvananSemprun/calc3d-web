@@ -790,6 +790,18 @@ cada pieza se publicaba ~12 % **más barata de lo costeado**, en silencio.
   participación), **colores más comprados** y reparto por material. Usa el helper
   puro `groupPurchases` de shared sobre las MISMAS compras que la pestaña de al
   lado; no hay endpoint propio, para que los totales no puedan discrepar.
+- **La tabla mes a mes** (`ConsumoPorMes`, arriba de «por marca» en Análisis,
+  2026-11-16, shared 0.100.0): compras, inventario al cierre y consumo de cada
+  mes, de TODA la historia (no sigue el rango de fechas). ⚠️ **Acá no se calcula
+  nada**: las filas salen de `GET /filament/consumo` y lo que «sigue en el
+  estante» es el `filamentoEnEstante` de `/expenses/resultado` (el mismo dato
+  del Dashboard). ⚠️ **El ajuste por medición va en su PROPIA fila**, nunca
+  sumado al consumo, y cuando no es 0 dice «No es plata nueva» y CUÁNTOS rollos
+  cambiaron de medición. ⚠️ **El mes abierto no inventa consumo**: dice cuánto se
+  compró y que sigue en el estante (consumo e inventario en «—»). La clave de
+  caché cuelga de `filament-summary`, que ya invalidan el cierre/reapertura y
+  las compras. Test: `AnalysisTab.consumo.spec.tsx` (8; por mutación, sumar el
+  ajuste al consumo tumba 1 y que el abierto muestre consumo tumba 1).
 - ⚠️ `capitalize` de Tailwind pone mayúscula en CADA palabra ("Septiembre De
   2026"): para un mes en español va `first-letter:uppercase`.
 

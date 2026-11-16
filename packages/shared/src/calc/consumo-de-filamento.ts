@@ -39,6 +39,31 @@ export interface ConsumoDelMes {
   inventarioFinal: number;
   consumo: number;
   ajuste: number;
+  /** Rollos que pasaron de «sin pesar» a pesado en este mes: su valor APARECE en el inventario sin haberse comprado. */
+  rollosPesados: number;
+  /** Rollos que pasaron de pesado a «sin pesar»: su valor DESAPARECE del inventario sin haberse gastado. */
+  rollosSinPesar: number;
+}
+
+/**
+ * Una fila de la tabla mes a mes de Filamento → Análisis
+ * (`GET /filament/consumo`, shared 0.100.0).
+ *
+ * ⚠️ El tramo ABIERTO (lo posterior al último cierre) NO tiene consumo ni
+ * ajuste conocidos: ahí `consumo` y `ajuste` viajan en `null`, no en 0. Un 0
+ * diría «no se consumió nada», que es una afirmación; `null` dice «todavía no se
+ * sabe», que es lo cierto. Ese tramo solo informa lo comprado y lo que sigue en
+ * el estante.
+ */
+export interface FilaDeConsumoPorMes {
+  mes: string;
+  abierto: boolean;
+  compras: number;
+  inventarioFinal: number;
+  consumo: number | null;
+  ajuste: number | null;
+  rollosPesados: number;
+  rollosSinPesar: number;
 }
 
 const inventarioDe = (m: MesDeInventario) =>
@@ -88,6 +113,8 @@ export function consumoPorMes(meses: MesDeInventario[]): ConsumoDelMes[] {
       inventarioFinal: toMoney(finalActual),
       consumo: toMoney(inicial.plus(actual.compras).minus(finalActual).plus(ajuste)),
       ajuste: toMoney(ajuste),
+      rollosPesados: aparecen.length,
+      rollosSinPesar: desaparecen.length,
     });
   });
 
