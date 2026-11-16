@@ -46,6 +46,8 @@ const mes = (m: string, compras: number, sellados: number, abiertos: RolloDelMes
 });
 
 const A = 'a:inUse';
+/** La casilla «por acabarse». Hasta el 16/11 NINGUNA historia la tocaba. */
+const R = 'a:running';
 
 interface Historia {
   /** El número de la fila en la tabla de la re-revisión. */
@@ -222,6 +224,41 @@ const HISTORIAS: Historia[] = [
     estante: 20,
   },
   {
+    n: '11',
+    nombre: 'el rollo MIGRA de inUse a running (el final de la vida de TODO rollo)',
+    // ⚠️ `running` es «por acabarse (menos de un cuarto)»: un rollo migra cuando se
+    // vacía. La clave del crédito es ficha+casilla, así que al migrar el de `inUse`
+    // se libera de golpe (−5) aunque el rollo siga ahí, y el de `running` nace en 0
+    // porque su casilla venía VACÍA. El acumulado cierra igual; lo que se corre es en
+    // qué mes cae el consumo — octubre marca −2 cuando lo real fueron +3.
+    // Por eso la alarma de conteo mal tipeado avisa por lo que el ajuste NO explica.
+    // I = 30, 35, 32, 30. Ajustes: 0, +5, −5, 0.
+    meses: [
+      mes('2026-08', 40, 30, [sinPesar(A), vacia(R)]),
+      mes('2026-09', 0, 30, [pesado(A, 5), vacia(R)]),
+      mes('2026-10', 0, 30, [vacia(A), pesado(R, 2)]),
+      mes('2026-11', 0, 30, [vacia(A), vacia(R)]),
+    ],
+    consumos: [10, 0, -2, 2],
+    estante: 30,
+  },
+  {
+    n: '12',
+    nombre: 'una ficha con DOS rollos abiertos A LA VEZ, cada uno con su crédito',
+    // ⚠️ El crédito es POR CASILLA, no por ficha: `inUse` baja de 6 a 4 (libera 2) y
+    // `running` se termina (libera 3) de forma independiente. Con el crédito agrupado
+    // por FICHA, el segundo rollo del mes 09 PISA al primero y septiembre da −6.
+    // I = 20, 29, 24, 20. Ajustes: 0, +9, −5, −4.
+    meses: [
+      mes('2026-08', 40, 20, [sinPesar(A), sinPesar(R)]),
+      mes('2026-09', 0, 20, [pesado(A, 6), pesado(R, 3)]),
+      mes('2026-10', 0, 20, [pesado(A, 4), vacia(R)]),
+      mes('2026-11', 0, 20, [vacia(A), vacia(R)]),
+    ],
+    consumos: [20, 0, 0, 0],
+    estante: 20, // 2 sellados a $10; los otros dos rollos se consumieron
+  },
+  {
     n: 'E2',
     nombre: 'el peso SUBE porque se abrió otro rollo (lo sellado baja): sin alarma',
     // I = 30, 35, 27, 20. Créditos 0, 5, min(5,7)=5, 0 → ajustes 0, +5, 0, −5.
@@ -272,6 +309,19 @@ describe('consumoPorMes — las historias de rollo, con los consumos a mano', ()
       const h = HISTORIAS.find((x) => x.n === n)!;
       expect(consumoPorMes(h.meses).map((x) => x.ajuste)).toEqual(h.meses.map(() => 0));
     }
+  });
+
+  it('al MIGRAR de casilla el crédito se libera de golpe, y el acumulado igual cierra (camino 11)', () => {
+    const h = HISTORIAS.find((x) => x.n === '11')!;
+    // El −5 de octubre es el crédito de `inUse` liberándose; `running` nace sin crédito
+    // porque su casilla venía vacía. Lo real en octubre fueron +3.
+    expect(consumoPorMes(h.meses).map((x) => x.ajuste)).toEqual([0, 5, -5, 0]);
+  });
+
+  it('el crédito es POR CASILLA: dos rollos de la MISMA ficha no se pisan (camino 12)', () => {
+    const h = HISTORIAS.find((x) => x.n === '12')!;
+    // +9 = 6 (inUse) + 3 (running), cada uno con el suyo. Agrupando por ficha daría +3.
+    expect(consumoPorMes(h.meses).map((x) => x.ajuste)).toEqual([0, 9, -5, -4]);
   });
 
   it('el crédito BAJA con el peso y nunca sube: re-pesar libera la diferencia (camino 6)', () => {

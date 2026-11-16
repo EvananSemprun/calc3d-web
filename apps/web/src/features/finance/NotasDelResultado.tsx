@@ -23,9 +23,16 @@ interface Props {
  * - Tramos sueltos: el filamento de esos meses no entra en el número.
  * - Consumo negativo: un conteo mal tipeado FABRICA ganancia. Va en rojo
  *   porque algo ya está mal (ver «Rojo vs ámbar» del CLAUDE.md).
- * - Ajuste por medición: sube (rollo recién pesado) o baja (rollo que ya no está pesado)
- *   el inventario valorado sin que sea plata. Solo se dice cuando no es 0, y con la
+ * - Ajuste por medición: sube (nació un crédito: se pesó un rollo que estaba sin pesar) o
+ *   baja (se liberó crédito: el rollo gastó parte de lo que se le había reservado) el
+ *   inventario valorado sin que sea plata. Solo se dice cuando no es 0, y con la
  *   redacción de SU signo.
+ *
+ * ⚠️ **La redacción del signo NEGATIVO decía lo que ya no pasa.** Afirmaba «rollos que
+ * estaban pesados y ya no (se terminaron o quedaron sin pesar)», y con el motor del
+ * crédito (shared 0.101.0) la causa **más frecuente** es que el rollo **sigue pesado y
+ * sigue ahí**: solo pesa menos, o pasó de «en uso» a «por acabarse». Y había un test
+ * clavando esa frase, o sea que la afirmación equivocada tenía red roja.
  */
 export function NotasDelResultado({ resultado, money }: Props) {
   const sinContar = resultado.mesesSinContar.map(labelMes);
@@ -56,9 +63,11 @@ export function NotasDelResultado({ resultado, money }: Props) {
         <p role="note" className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           {resultado.ajustePorMedicion > 0
             ? `Del inventario de filamento valorado, ${money(resultado.ajustePorMedicion)} es un rollo que recién se pesó, no plata nueva: no se cuenta como ganancia.`
-            : // ⚠️ El ajuste NEGATIVO es el caso OPUESTO: rollos que estaban pesados y ya no (se terminaron o
-              // volvieron a «sin pesar»). Decir «recién se pesó» acá afirmaría lo contrario de lo que pasó.
-              `Del inventario de filamento valorado, ${money(Math.abs(resultado.ajustePorMedicion))} es de rollos que estaban pesados y ya no (se terminaron o quedaron sin pesar): no es consumo nuevo, así que no se cuenta como gasto.`}
+            : // ⚠️ El ajuste NEGATIVO es el caso OPUESTO: crédito que se liberó. Decir «recién se pesó»
+              // acá afirmaría lo contrario. Y la causa MÁS FRECUENTE es que el rollo **siga ahí** pesando
+              // menos o que haya pasado a «por acabarse»: nombrar solo «se terminaron o quedaron sin
+              // pesar» afirmaba de más, justo en el caso normal.
+              `Del inventario de filamento valorado, ${money(Math.abs(resultado.ajustePorMedicion))} es valor que ya se había contado como consumo y que los rollos recién gastaron (pesan menos, pasaron a «por acabarse», se terminaron o quedaron sin pesar): no es consumo nuevo, así que no se cuenta como gasto.`}
         </p>
       )}
     </div>

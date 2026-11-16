@@ -33,10 +33,15 @@
  * Un `.spec.ts` no se recorre, así que este archivo no necesita eximirse.
  * LÍMITES CONOCIDOS (lo que este barrido NO ve; no es un barrido total):
  *  - Una resta con operandos de otro nombre (`const a = ingresos; a - b`, o
- *    `entradas - salidas`): solo reconoce raíces como ingreso/cobrad/vendid/factur
- *    contra gast/egreso/costo/salida/expense, con o sin prefijo.
- *  - Una resta hecha con `reduce`, con `Decimal`/`minus` o dentro de un helper
- *    importado (`restar(a, b)`): solo mira el operador `-`.
+ *    `entradas - salidas`): solo reconoce raíces como ingreso/cobrad/vendid/venta/factur
+ *    contra gast/egreso/costo/salida/expense/compra, con o sin prefijo.
+ *  - Una resta escrita SIN espacio antes del `-` (`ingresos-gastos`): ese espacio se
+ *    exige porque sin él el guion de un kebab-case entra como resta. Prettier lo pone.
+ *  - Una resta hecha con `reduce` o dentro de un helper importado (`restar(a, b)`).
+ *    ⚠️ Acá decía también «con `Decimal`/`minus`» y **eso ya no era cierto**: esa misma
+ *    ronda había agregado el patrón de decimal.js. Una cabecera que declara un límite que
+ *    su propio código contradice es peor que no declararlo: manda a no buscar donde sí
+ *    hay red, y deja creer que no hay red donde sí la prometió.
  *  - Una pantalla que sume gastos sin restarlos de ningún ingreso.
  *  - Un resultado calculado en `shared` y mostrado acá: eso es del servidor, y lo
  *    vigila el barrido de la API.
@@ -68,15 +73,33 @@ const PATRONES: { nombre: string; re: RegExp }[] = [
     // VERDE 26/26. Es la forma más probable de que la regresión vuelva.
     // El tramo `[-+]` del medio ve las restas con escalas (`ingresos - x - gastos`) y las
     // sumas de por medio (`ventas + abonos - gastos`); el `\(?` ve `ingresos - (gastos + 1)`.
-    re: /(ingreso|income|revenue|cobrad|vendid|venta|factur)\w*(?:\s*[-+]\s*[\w.]{1,40}){0,4}?\s*-\s*\(?\s*[\w.]*(gast|expense|egreso|costo|salida)/gi,
+    // ⚠️ `compra`/`comprad` entraron el 16/11 por el MISMO argumento con el que entró
+    // `venta`, aplicado al otro operando: `ventas - comprado` pasaba en verde.
+    // ⚠️ EL `-` EXIGE UN ESPACIO ANTES, y no es cosmetica: sin eso el guion de un
+    // kebab-case entra como resta. Medido al agregar `compra`: el import
+    // `'../common/factura-de-la-compra'` se denunciaba como `factura - compra`. El repo
+    // formatea con prettier, asi que una resta real siempre lleva sus espacios; una
+    // escrita como `ingresos-gastos` no se ve, y queda declarado arriba.
+    re: /(ingreso|income|revenue|cobrad|vendid|venta|factur)\w*(?:\s+[-+]\s*[\w.]{1,40}){0,4}?\s+-\s*\(?\s*[\w.]*(gast|expense|egreso|costo|salida|compra|comprad)/gi,
   },
   {
     // Por si alguna pantalla resta con decimal.js en vez del operador.
+    // ⚠️ `sub` es un ALIAS EXACTO de `minus` en decimal.js: cubrir uno y no el otro es
+    // no cubrir nada.
     nombre: 'resta ingresos - gastos con decimal.js',
-    re: /(ingreso|income|revenue|cobrad|vendid|venta|factur)\w*\s*\)?\s*\.\s*minus\s*\(\s*\w*\(?\s*[\w.]*(gast|expense|egreso|costo|salida)/gi,
+    re: /(ingreso|income|revenue|cobrad|vendid|venta|factur)\w*\s*\)?\s*\.\s*(?:minus|sub)\s*\(\s*\w*\(?\s*[\w.]*(gast|expense|egreso|costo|salida|compra|comprad)/gi,
   },
   { nombre: 'resta gastos - inversión', re: /(gast|expense)\w*\s*-\s*[\w.]*(inversion|investment)/gi },
-  { nombre: 'filtro de operativos a mano', re: /!\s*\w+\??\.isInvestment\b|\bisInvestment\s*(===|==)\s*false\b/g },
+  {
+    nombre: 'filtro de operativos a mano',
+    re: /!\s*\w+\??\.isInvestment\b|\bisInvestment\s*(===|==)\s*false\b|\bisInvestment\s*(!==|!=)\s*true\b/g,
+  },
+  {
+    // `neto -= gastos` no tiene la raíz a la izquierda del `-`: ningún patrón de arriba
+    // lo ve. Acá lo que delata la resta es qué se le está restando.
+    nombre: 'resta acumulada (x -= gastos)',
+    re: /-=\s*\(?\s*[\w.]*(gast|expense|egreso|costo|salida|compra|comprad)/gi,
+  },
 ];
 
 interface Exencion {
@@ -206,6 +229,12 @@ describe('el detector del inventario (un inventario que no ve nada pasaría siem
     ['const neto = p.totalCobrado - p.totalGastado;'],
     ['const x = cobrado - egresos;'],
     ['const x = ingresosDelMes - costoOperativo;'],
+    // ⚠️ Las que una ronda de revisión inyectó en archivos REALES con el barrido en verde.
+    ['const x = D(ingresos).sub(gastos);'],
+    ['const x = ventas - comprado;'],
+    ['const x = ingresos - compras;'],
+    ['const operativos = filas.filter((r) => r.isInvestment !== true);'],
+    ['let neto = ingresos;\\nneto -= gastos;'],
   ])('caza %j', (codigo) => {
     expect(hallazgosEn('x.tsx', codigo).length).toBeGreaterThan(0);
   });

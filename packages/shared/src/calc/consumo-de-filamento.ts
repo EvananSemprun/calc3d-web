@@ -144,11 +144,24 @@ const inventarioDe = (m: MesDeInventario) =>
  * para siempre, `Σ ajustes` dejaría de telescopar contra el inventario final y
  * el acumulado no cerraría nunca.
  *
- * ⚠️ **Granularidad de CASILLA, no de rollo físico.** Si en la misma casilla se
- * termina un rollo y se abre otro, el crédito del primero se le atribuye al
- * segundo. El acumulado igual cierra en 0 cuando el segundo se termina (medido);
- * lo que se desplaza es en qué mes cae el consumo. Para arreglarlo haría falta
- * una tabla de rollos individuales, que el spec descartó a propósito.
+ * ⚠️ **Granularidad de CASILLA, no de rollo físico**, y eso corta para los DOS
+ * lados. El acumulado cierra igual en los dos (medido); lo que se desplaza es en
+ * qué mes cae el consumo. Para arreglarlo haría falta una tabla de rollos
+ * individuales, que el spec descartó a propósito.
+ *
+ * 1. **UN rollo partido en DOS claves — el caso FRECUENTE.** `running` es, por el
+ *    esquema, «por acabarse (menos de un cuarto)»: **un rollo migra de `inUse` a
+ *    `running` cuando se vacía**, o sea que esto no es raro, es **el final de la
+ *    vida de todo rollo**. Al migrar, el crédito de `inUse` se libera de golpe
+ *    aunque el rollo siga ahí, y el de `running` nace en 0 porque su casilla
+ *    venía vacía. Medido: sin pesar → pesado $5 → pasa a `running` con $2 da
+ *    consumo **−2** con ajuste **−5**, cuando lo real fueron **+3**. En el
+ *    respaldo del 16/11 hay **23 filas con `running > 0`** y **2 migraciones ya
+ *    ocurridas**. Por eso `mesesConConsumoNegativo` avisa solo por lo que el
+ *    ajuste NO explica (ver `consumo.service.ts`): sin eso, la app acusaba al
+ *    dueño de un error de tipeo que no cometió.
+ * 2. **DOS rollos sucesivos en UNA clave.** Si en la misma casilla se termina un
+ *    rollo y se abre otro, el crédito del primero se le atribuye al segundo.
  *
  * ⚠️ `unir` fichas sigue sin generar ajuste, y por la razón de siempre:
  * `materials.service.ts` suma los conteos de TODOS los meses y borra la ficha

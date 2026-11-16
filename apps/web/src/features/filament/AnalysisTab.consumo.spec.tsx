@@ -143,8 +143,10 @@ describe('Filamento → Análisis: la tabla mes a mes', () => {
     const nota = await screen.findByTestId('ajuste-explicacion-2026-10');
 
     expect(nota.textContent).toContain('No es plata nueva');
-    expect(nota.textContent).toContain('1 rollo que estaba sin pesar se pesó por primera vez');
+    expect(nota.textContent).toContain('1 rollo que estaba sin pesar se pesó');
     expect(nota.textContent).toContain('ya se había contado como consumo');
+    // ⚠️ El crédito puede nacer MÁS DE UNA VEZ: «por primera vez» era falso desde el 2.º ciclo.
+    expect(nota.textContent).not.toContain('por primera vez');
     expect(nota.textContent).toContain('no baja el consumo de este mes');
     expect(nota.textContent).toContain('No lo leas como una venta');
     // ⚠️ Las frases viejas afirmaban cosas que con el motor del crédito no pasan.
@@ -166,11 +168,11 @@ describe('Filamento → Análisis: la tabla mes a mes', () => {
     const nota = await screen.findByTestId('ajuste-explicacion-2026-09');
 
     // ⚠️ ASIMÉTRICO a propósito (3 y 1): con 1 y 1, invertir los dos contadores no cambia el texto.
-    expect(nota.textContent).toContain('3 rollos que estaban sin pesar se pesaron por primera vez');
+    expect(nota.textContent).toContain('3 rollos que estaban sin pesar se pesaron');
     expect(nota.textContent).toContain('1 rollo ya pesado gastó parte de su valor');
     // ⚠️ CONCORDANCIA: el que va en singular lleva el paréntesis en singular, aunque el
     // otro pedazo de la misma frase esté en plural.
-    expect(nota.textContent).toContain('(se consumió, se terminó o quedó sin pesar)');
+    expect(nota.textContent).toContain('(pesa menos, pasó a «por acabarse», se terminó o quedó sin pesar)');
   });
 
   it('el mes abierto dice cuánto se compró y que sigue en el estante, sin inventar consumo', async () => {
@@ -234,7 +236,8 @@ describe('Filamento → Análisis: la tabla mes a mes', () => {
     const nota = screen.getByTestId('ajuste-explicacion-2026-09').textContent ?? '';
     expect(nota).toContain('1 rollo ya pesado gastó parte de su valor');
     // ⚠️ CONCORDANCIA: en singular el paréntesis también va en singular.
-    expect(nota).toContain('(se consumió, se terminó o quedó sin pesar)');
+    // ⚠️ «Pasó a «por acabarse»» va NOMBRADO: es el caso frecuente (todo rollo migra ahí).
+    expect(nota).toContain('(pesa menos, pasó a «por acabarse», se terminó o quedó sin pesar)');
     expect(nota).not.toContain('se consumieron');
     expect(nota).toContain('ya se había contado como consumo antes');
     expect(nota).toContain('No lo cuentes dos veces');

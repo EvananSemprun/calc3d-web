@@ -188,18 +188,23 @@ function explicacionDelAjuste(fila: FilaDeConsumoPorMes, ajuste: number): string
   const liberados = fila.rollosConCreditoLiberado;
   const partes: string[] = [];
   if (nuevos > 0) {
-    partes.push(
-      `${plural(nuevos, 'rollo que estaba sin pesar se pesó', 'rollos que estaban sin pesar se pesaron')} por primera vez`,
-    );
+    // ⚠️ NO dice «por primera vez»: el crédito puede nacer MÁS DE UNA VEZ para el mismo
+    // rollo (se pesa, queda un mes sin pesar, se vuelve a pesar — el camino 3 de la tabla
+    // de historias). «Por primera vez» era falso a partir del segundo ciclo.
+    partes.push(plural(nuevos, 'rollo que estaba sin pesar se pesó', 'rollos que estaban sin pesar se pesaron'));
   }
   if (liberados > 0) {
     // ⚠️ El paréntesis va DENTRO del plural: con un texto fijo, «1 rollo … gastó» se
     // cerraba con «(se consumieron, se terminaron…)» y la frase no concordaba.
     partes.push(
+      // ⚠️ «PASÓ A «POR ACABARSE»» VA EN LA LISTA, y es el caso FRECUENTE: `running` es, por
+      // el esquema, «menos de un cuarto», así que todo rollo migra ahí al vaciarse y el
+      // crédito de su casilla vieja se libera entero. Sin nombrarlo, la enumeración
+      // mandaba a buscar un rollo terminado que sigue en el estante.
       plural(
         liberados,
-        'rollo ya pesado gastó parte de su valor (se consumió, se terminó o quedó sin pesar)',
-        'rollos ya pesados gastaron parte de su valor (se consumieron, se terminaron o quedaron sin pesar)',
+        'rollo ya pesado gastó parte de su valor (pesa menos, pasó a «por acabarse», se terminó o quedó sin pesar)',
+        'rollos ya pesados gastaron parte de su valor (pesan menos, pasaron a «por acabarse», se terminaron o quedaron sin pesar)',
       ),
     );
   }

@@ -179,14 +179,27 @@ describe('«Resultado de la operación» del Dashboard', () => {
     expect(screen.queryByText(/recién se pesó/)).toBeNull();
   });
 
-  it('el ajuste NEGATIVO no dice «recién se pesó»: dice que los rollos ya no están pesados', async () => {
+  /**
+   * ⚠️ ESTE TEST CLAVABA UNA FRASE EQUIVOCADA. Pedía «estaban pesados y ya no (se
+   * terminaron o quedaron sin pesar)», y con el motor del crédito la causa **más
+   * frecuente** del ajuste negativo es que el rollo **siga pesado y siga ahí**: solo
+   * pesa menos, o migró de «en uso» a «por acabarse». O sea que la afirmación
+   * equivocada tenía red roja — el peor lugar donde ponerla.
+   */
+  it('el ajuste NEGATIVO no dice «recién se pesó», y NO afirma que los rollos ya no estén', async () => {
     const vista = montar({ ...RESULTADO_BASE, ajustePorMedicion: -5 });
-    await vista.cargar(/estaban pesados y ya no/);
+    await vista.cargar(/recién gastaron/);
 
-    const nota = screen.getByText(/estaban pesados y ya no/);
+    const nota = screen.getByText(/recién gastaron/);
     expect(nota.textContent).toContain('$5.00');
+    expect(nota.textContent).toContain('ya se había contado como consumo');
     expect(nota.textContent).toContain('no es consumo nuevo');
+    // La causa más frecuente va NOMBRADA, no solo el final de la vida del rollo.
+    expect(nota.textContent).toContain('pesan menos');
+    expect(nota.textContent).toContain('«por acabarse»');
     expect(screen.queryByText(/recién se pesó/)).toBeNull();
+    // Lo que ya no se puede afirmar: que el rollo no esté más.
+    expect(nota.textContent).not.toContain('estaban pesados y ya no');
   });
 
   it('la brecha con «Gastos» se explica: el filamento en el estante está en Gastos y no se resta en el resultado', async () => {
