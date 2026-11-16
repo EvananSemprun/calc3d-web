@@ -44,6 +44,7 @@ const fila = (id: string, color: string, status: StockCountRow['status']): Stock
   canDelete: false,
   exhausted: false,
   previous: null,
+  carretesPrevios: null,
   lastRollPrice: 20,
   received: null,
 });

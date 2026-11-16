@@ -175,6 +175,7 @@ describe('FichaDialog — Unir con otra ficha', () => {
     canDelete: false,
     exhausted: false,
     previous: null,
+    carretesPrevios: null,
     lastRollPrice: 20,
     received: null,
   };

@@ -42,6 +42,7 @@ const fila = (status: StockCountRow['status']): StockCountRow => ({
   canDelete: false,
   exhausted: false,
   previous: null,
+  carretesPrevios: null,
   lastRollPrice: 20,
   received: null,
 });

@@ -236,6 +236,16 @@ export interface StockCountRow extends StockCountParts {
    */
   previous: StockCountParts | null;
   /**
+   * El tipo de carrete que se eligió para cada casilla el mes ANTERIOR, para
+   * ofrecerlo sin volver a preguntar. `null` = ese mes no está cerrado, la ficha
+   * no estaba en su conteo, o esa casilla no se pesó.
+   *
+   * ⚠️ Es la ÚNICA preselección que existe, porque es la única que no inventa
+   * nada: lo eligió el dueño. «Con carrete / recarga» de la compra NO sirve (casi
+   * siempre es null) y el tipo de carrete no tiene marca con qué emparejarlo.
+   */
+  carretesPrevios: { inUse: string | null; running: string | null } | null;
+  /**
    * Rollos que ENTRARON en este mes (recepciones de factura y compras cargadas
    * a mano), para ofrecerlos como punto de partida al contar.
    *

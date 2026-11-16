@@ -25,6 +25,7 @@ import {
   suggestRestockLines,
   type RestockGroup,
   type StockCountRow,
+  type TipoDeCarrete,
   type ValorDelInventario,
   type SuggestedPurchaseLine,
 } from '@calc3d/shared';
@@ -54,13 +55,27 @@ import {
   useFilamentSummary,
   useReopenStockMonth,
   useSetMaterialStatusBatch,
+  useTiposDeCarrete,
 } from '@/features/filament/api';
+import {
+  SIN_CARRETE,
+  carreteEfectivo,
+  contarSinPesar,
+  leerCasilla,
+  pesoParaCerrar,
+  type Casilla,
+  type LecturaDeCasilla,
+  type PesoEscrito,
+  type PesosEscritos,
+} from '@/features/filament/peso';
 import { FichaDialog } from '@/features/filament/FichaDialog';
 
 // Arreglo estable: si `data` viene undefined (cargando o con error), el default
 // `= []` del destructuring crearía un arreglo NUEVO en cada render y el efecto
 // de más abajo (que depende de `filas`) entraría en bucle de renders.
 const SIN_FILAS: StockCountRow[] = [];
+// Idem para los tipos de carrete: un `[]` nuevo por render rompería los `useMemo`.
+const SIN_CARRETES: TipoDeCarrete[] = [];
 
 /**
  * STOCK AL CIERRE DE MES — la hoja "Stock mensual" del Excel.
@@ -107,6 +122,8 @@ export function StockTab() {
   const reabrir = useReopenStockMonth();
   const descontinuarLote = useSetMaterialStatusBatch();
   const confirm = useConfirm();
+  const { data: carretesData, isError: carretesFallo } = useTiposDeCarrete();
+  const carretes = carretesData ?? SIN_CARRETES;
 
   // La ficha abierta en el diálogo (2026-09-14: reemplaza a la página Materiales).
   const [fichaAbierta, setFichaAbierta] = useState<StockCountRow | null>(null);
@@ -129,15 +146,18 @@ export function StockTab() {
   // navegador viera la reapertura vigente, queda desactualizado y se descarta
   // (ver `leerBorrador`) para no pisar correcciones ya guardadas en la base.
   const [draft, setDraft] = useState<Record<string, Partes>>({});
+  // Los pesos de los rollos empezados viven al lado del conteo y se guardan en el
+  // MISMO borrador: nada se persiste en el servidor antes de cerrar el mes.
+  const [pesos, setPesos] = useState<PesosEscritos>({});
   useEffect(() => {
     if (!estado) {
       setDraft(Object.fromEntries(filas.map((f) => [f.materialId, partesDe(f)])));
+      setPesos({});
       return;
     }
-    setDraft(
-      (!cerrado && leerBorrador(claveBorrador, estado.reopenedAt)) ||
-        Object.fromEntries(filas.map((f) => [f.materialId, partesDe(f)])),
-    );
+    const guardado = !cerrado ? leerBorrador(claveBorrador, estado.reopenedAt) : null;
+    setDraft(guardado?.valores ?? Object.fromEntries(filas.map((f) => [f.materialId, partesDe(f)])));
+    setPesos(guardado?.pesos ?? {});
   }, [claveBorrador, filas, cerrado, estado?.reopenedAt]);
 
   // Un mes cerrado manda: si quedó un borrador viejo en este navegador (se cerró
@@ -260,7 +280,15 @@ export function StockTab() {
     setDraft(next);
     // La grilla solo se dibuja con `estado` cargado (ver `listo`/skeleton más
     // abajo), así que acá `estado` ya existe.
-    guardarBorrador(claveBorrador, next, estado?.reopenedAt ?? null);
+    guardarBorrador(claveBorrador, next, pesos, estado?.reopenedAt ?? null);
+  };
+
+  /** Escribe el peso de UNA casilla (balanza o carrete); lo demás de esa casilla se conserva. */
+  const setPeso = (id: string, casilla: Casilla, patch: Partial<PesoEscrito>) => {
+    const actual = pesos[id]?.[casilla] ?? { balanza: 0, carrete: '' };
+    const next: PesosEscritos = { ...pesos, [id]: { ...pesos[id], [casilla]: { ...actual, ...patch } } };
+    setPesos(next);
+    guardarBorrador(claveBorrador, draft, next, estado?.reopenedAt ?? null);
   };
 
   // Lo del mes anterior, de referencia (2026-10-01, decisión del dueño): se COPIA
@@ -301,17 +329,39 @@ export function StockTab() {
     const next = { ...draft };
     for (const f of conAnterior) next[f.materialId] = { ...(f.previous as Partes) };
     setDraft(next);
-    guardarBorrador(claveBorrador, next, estado?.reopenedAt ?? null);
+    guardarBorrador(claveBorrador, next, pesos, estado?.reopenedAt ?? null);
     notify.success(`Copiado lo de ${mesAnterior}: corrige lo que cambió`);
   };
 
+  // Rollos empezados que valdrían 0 si se cerrara AHORA, de todas las fichas (el cierre las guarda
+  // todas, estén visibles o no). Es un AVISO: cerrar sigue siendo posible, un rollo sin pesar vale 0.
+  const sinPesar = useMemo(
+    () => contarSinPesar(filas, (f) => draft[f.materialId] ?? CERO, pesos, carretes),
+    [filas, draft, pesos, carretes],
+  );
+
   const cerrarMes = async () => {
-    const counts = filas.map((f) => ({ materialId: f.materialId, ...(draft[f.materialId] ?? CERO) }));
+    const counts = filas.map((f) => {
+      const partes = draft[f.materialId] ?? CERO;
+      // Solo viaja el peso de una casilla que se TOCÓ: sin la clave el servidor conserva lo guardado.
+      const inUsePeso = pesoParaCerrar(pesos[f.materialId]?.inUse, f.carretesPrevios?.inUse, carretes);
+      const runningPeso = pesoParaCerrar(pesos[f.materialId]?.running, f.carretesPrevios?.running, carretes);
+      return {
+        materialId: f.materialId,
+        ...partes,
+        ...(inUsePeso ? { inUsePeso } : {}),
+        ...(runningPeso ? { runningPeso } : {}),
+      };
+    });
     const rollos = counts.reduce((s, c) => s + stockTotal(c), 0);
     const colores = new Set(
       filas.filter((f) => stockTotal(draft[f.materialId] ?? CERO) > 0).map(claveDeColor),
     ).size;
     const mes = etiquetaMes(month);
+    const avisoSinPesar =
+      sinPesar > 0
+        ? ` ${plural(sinPesar, 'rollo empezado sin pesar vale', 'rollos empezados sin pesar valen')} 0 en el inventario: nada se estima.`
+        : '';
     const escondidas = filas.filter(esconderAgotada).length;
     const sinMostrar = filas.filter((f) => !esconderAgotada(f) && esconderFueraDeConteo(f)).length;
     const avisoOcultas =
@@ -330,7 +380,7 @@ export function StockTab() {
           }
         : {
             title: `¿Cerrar ${mes}?`,
-            description: `Vas a cerrar ${mes} con ${rollos} rollo(s) en ${colores} color(es). Lo que dejaste vacío queda en 0. Después solo se corrige reabriendo el mes.${avisoOcultas}`,
+            description: `Vas a cerrar ${mes} con ${rollos} rollo(s) en ${colores} color(es). Lo que dejaste vacío queda en 0.${avisoSinPesar} Después solo se corrige reabriendo el mes.${avisoOcultas}`,
             confirmLabel: 'Guardar y cerrar',
           },
     );
@@ -473,6 +523,11 @@ export function StockTab() {
                   reabierto el {fechaNegocio(estado.reopenedAt)}
                 </span>
               )}
+              {estado.rollosSinPesar > 0 && (
+                <span className="text-xs text-brand-yellow-ink">
+                  {plural(estado.rollosSinPesar, 'rollo empezado sin pesar', 'rollos empezados sin pesar')}: valen 0
+                </span>
+              )}
               <Button size="sm" variant="outline" onClick={reabrirMes} disabled={reabrir.isPending}>
                 <LockOpen className="h-4 w-4" /> Reabrir mes
               </Button>
@@ -485,7 +540,14 @@ export function StockTab() {
                 disabled={!estado.canClose || cerrar.isPending || !listo || filas.length === 0}
               >
                 <Lock className="h-4 w-4" /> Guardar y cerrar {etiquetaMes(month)}
+                {sinPesar > 0 && <span className="font-normal opacity-80">· {sinPesar} sin pesar</span>}
               </Button>
+              {sinPesar > 0 && (
+                <p className="max-w-xs text-right text-xs text-brand-yellow-ink">
+                  {plural(sinPesar, 'rollo empezado sin pesar', 'rollos empezados sin pesar')}: valen 0.
+                  Puedes cerrar igual; para que cuenten, pésalos abajo.
+                </p>
+              )}
               {!estado.canClose && (
                 <p className="text-xs text-muted-foreground">
                   Se puede cerrar desde el {diaLargo(estado.closableFrom)}.
@@ -826,6 +888,22 @@ export function StockTab() {
                           ))}
                         </div>
 
+                        {!cerrado &&
+                          CASILLAS_ABIERTAS.map(({ clave, etiqueta }) => (
+                            <PesoDelRollo
+                              key={clave}
+                              etiqueta={etiqueta}
+                              ficha={ficha}
+                              rollos={p[clave]}
+                              escrito={pesos[f.materialId]?.[clave]}
+                              previo={f.carretesPrevios?.[clave]}
+                              carretes={carretes}
+                              carretesFallo={carretesFallo}
+                              disabled={!editable}
+                              onChange={(patch) => setPeso(f.materialId, clave, patch)}
+                            />
+                          ))}
+
                         {todas.length > 1 && (
                           <p className="mt-2 text-xs text-muted-foreground">
                             {g.clave} entre {marcas}: {rollosDelColor} {rollosDelColor === 1 ? 'rollo' : 'rollos'}
@@ -922,6 +1000,8 @@ const claveDeColor = (f: StockCountRow) => [f.type, f.color].filter(Boolean).joi
 interface Borrador {
   reopenedAt: string | null;
   valores: Record<string, Partes>;
+  /** Pesos escritos de los rollos empezados. Ausente en borradores anteriores a esta pantalla. */
+  pesos?: PesosEscritos;
 }
 
 function esBorradorNuevo(x: unknown): x is Borrador {
@@ -944,7 +1024,7 @@ function esBorradorNuevo(x: unknown): x is Borrador {
  *   reapertura anterior): el mes se reabrió después de este borrador → hay
  *   correcciones más nuevas en la base, no se pisan.
  */
-function leerBorrador(clave: string, reopenedAtVigente: string | null): Record<string, Partes> | null {
+function leerBorrador(clave: string, reopenedAtVigente: string | null): Borrador | null {
   try {
     const raw = localStorage.getItem(clave);
     if (!raw) return null;
@@ -957,15 +1037,20 @@ function leerBorrador(clave: string, reopenedAtVigente: string | null): Record<s
       localStorage.removeItem(clave);
       return null;
     }
-    return parsed.valores;
+    return parsed;
   } catch {
     return null;
   }
 }
 
-function guardarBorrador(clave: string, valores: Record<string, Partes>, reopenedAt: string | null) {
+function guardarBorrador(
+  clave: string,
+  valores: Record<string, Partes>,
+  pesos: PesosEscritos,
+  reopenedAt: string | null,
+) {
   try {
-    const borrador: Borrador = { reopenedAt, valores };
+    const borrador: Borrador = { reopenedAt, valores, pesos };
     localStorage.setItem(clave, JSON.stringify(borrador));
   } catch {
     // Sin almacenamiento (modo privado, cuota): el borrador queda solo en memoria.
@@ -1005,6 +1090,121 @@ const PARTES: { clave: keyof Partes; etiqueta: string }[] = [
   { clave: 'inUse', etiqueta: 'En uso' },
   { clave: 'running', etiqueta: 'Por acabarse' },
 ];
+
+/** Las dos casillas con rollos empezados: las únicas que se pesan. */
+const CASILLAS_ABIERTAS: { clave: Casilla; etiqueta: string }[] = [
+  { clave: 'inUse', etiqueta: 'En uso' },
+  { clave: 'running', etiqueta: 'Por acabarse' },
+];
+
+/** Qué dice la previa debajo de la casilla del peso. Solo texto: el cálculo es de `leerCasilla`. */
+function textoDeLectura(l: LecturaDeCasilla): { texto: string; tono: 'ok' | 'aviso' } | null {
+  if (l.estado === 'sin-rollos') return null;
+  if (l.estado === 'pesado') return { texto: `Quedan ${l.gramos} g de filamento.`, tono: 'ok' };
+  if (l.motivo === 'bajo-el-carrete')
+    return {
+      texto: 'La balanza marca menos que el carrete: revisa el carrete elegido. Así queda sin pesar y vale 0.',
+      tono: 'aviso',
+    };
+  if (l.motivo === 'sin-carrete')
+    return { texto: 'Sin pesar: elige en qué carrete está para restarlo. Vale 0.', tono: 'aviso' };
+  return { texto: 'Sin pesar: vale 0 en el inventario.', tono: 'aviso' };
+}
+
+/**
+ * EL PESO DE UN ROLLO EMPEZADO. Se pesa en la balanza y se resta el carrete: lo
+ * que queda es el filamento. Nada se estima: sin peso, o sin carrete, el rollo
+ * vale 0 y queda marcado «sin pesar» antes de cerrar.
+ *
+ * ⚠️ El carrete viene preseleccionado SOLO si el mes pasado se pesó esa misma
+ * ficha con uno (`previo`). No se deduce de la compra: «con carrete» / «recarga»
+ * casi nunca está dicho, y rellenarlo con una suposición es lo que esta
+ * pantalla viene a sacar. La primera vez se elige a mano.
+ *
+ * Los gramos que se muestran son una PREVIA para que un carrete equivocado se
+ * note al escribir: no viajan ni se guardan; el número final lo calcula el servidor.
+ */
+function PesoDelRollo({
+  etiqueta,
+  ficha,
+  rollos,
+  escrito,
+  previo,
+  carretes,
+  carretesFallo,
+  disabled,
+  onChange,
+}: {
+  etiqueta: string;
+  ficha: string;
+  rollos: number;
+  escrito: PesoEscrito | undefined;
+  previo: string | null | undefined;
+  carretes: readonly TipoDeCarrete[];
+  carretesFallo: boolean;
+  disabled: boolean;
+  onChange: (patch: Partial<PesoEscrito>) => void;
+}) {
+  if (rollos <= 0) return null;
+  const lectura = leerCasilla(rollos, escrito, previo, carretes);
+  const mensaje = textoDeLectura(lectura);
+  const hayBalanza = (escrito?.balanza ?? 0) > 0;
+  return (
+    <div className="mt-3 space-y-1.5 rounded-lg border border-border/40 bg-background/40 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Peso en balanza (g) · {etiqueta}
+        </span>
+        <NumberInput
+          aria-label={`Peso en balanza (g) · ${etiqueta} · ${ficha}`}
+          className="h-8 w-24 text-right tabular-nums"
+          min={0}
+          value={escrito?.balanza ?? 0}
+          disabled={disabled}
+          onChange={(n) => onChange({ balanza: Math.max(0, n) })}
+        />
+      </div>
+      {hayBalanza && (
+        <Select
+          aria-label={`¿En qué carrete está? · ${etiqueta} · ${ficha}`}
+          value={carreteEfectivo(escrito, previo, carretes)}
+          disabled={disabled}
+          onChange={(e) => onChange({ carrete: e.target.value })}
+        >
+          <option value="">¿En qué carrete está?</option>
+          {carretes.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.nombre} · {t.gramos} g
+            </option>
+          ))}
+          <option value={SIN_CARRETE}>Sin carrete</option>
+        </Select>
+      )}
+      {hayBalanza && carretes.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          {carretesFallo
+            ? 'No se pudieron cargar los tipos de carrete.'
+            : 'Aún no registraste ningún tipo de carrete: se agregan en Configuración → Filamento.'}
+        </p>
+      )}
+      {rollos > 1 && (
+        <p className="text-xs text-muted-foreground">
+          Hay {rollos} rollos aquí y la balanza pesa uno: los demás cuentan sin pesar.
+        </p>
+      )}
+      {mensaje && (
+        <p
+          className={cn(
+            'text-xs',
+            mensaje.tono === 'ok' ? 'font-medium text-success' : 'text-brand-yellow-ink',
+          )}
+        >
+          {mensaje.texto}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /**
  * Una casilla con − / +: contar rollos es sumar de a uno, y con botones grandes
@@ -1143,9 +1343,9 @@ function Muestra({ color }: { color: string | null }) {
  * unos porcentajes por tipo de rollo: esas fracciones eran inventadas y NO deben
  * volver.
  *
- * Tarea 6: cuando exista la casilla del peso, el aviso de `rollosSinPesar` debe
- * reescribirse para mandar a ella. Hoy NO la menciona a propósito: un mensaje
- * que manda a una puerta que no existe es peor que no tener mensaje.
+ * El aviso de `rollosSinPesar` manda a la casilla «Peso en balanza (g)» de cada
+ * rollo empezado (existe desde la Tarea 6 y solo se ve con el mes abierto, por
+ * eso el aviso dice que hay que reabrirlo).
  *
  * ⚠️ El texto va como hijo DIRECTO de cada <p>, sin <span> en medio: los
  * tests lo buscan con `getByText`, que solo ve los nodos de texto directos.
@@ -1175,7 +1375,7 @@ function ValorCard({ valor }: { valor: ValorDelInventario }) {
         {valor.rollosSinPesar > 0 && (
           <p className="mt-2 text-xs text-brand-yellow-ink">
             {valor.rollosSinPesar} rollo(s) empezado(s) todavía no se pueden pesar, así que no
-            entran en el total.
+            entran en el total. Reabre el mes y escribe su «Peso en balanza (g)» para que cuenten.
           </p>
         )}
         {valor.sinPrecio > 0 && (
