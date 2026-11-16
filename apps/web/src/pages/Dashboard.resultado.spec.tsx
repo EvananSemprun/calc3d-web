@@ -60,7 +60,7 @@ const RESULTADO_BASE: ResultadoDeOperacion = {
   ajustePorMedicion: 0,
 };
 
-function montar(resultado: ResultadoDeOperacion | null) {
+function montar(resultado: ResultadoDeOperacion | null, opciones: { falla?: boolean } = {}) {
   let abrir = () => {};
   const puerta = new Promise<void>((r) => {
     abrir = r;
@@ -68,7 +68,10 @@ function montar(resultado: ResultadoDeOperacion | null) {
 
   mocks.get.mockImplementation(async (url: string) => {
     await puerta;
-    if (url === '/expenses/resultado') return { data: resultado };
+    if (url === '/expenses/resultado') {
+      if (opciones.falla) throw new Error('el servidor no respondió');
+      return { data: resultado };
+    }
     if (url === '/expenses') return { data: FILAS_DE_GASTO };
     if (url === '/sales') return { data: [venta] };
     if (url === '/settings') return { data: { currency: 'USD', locale: 'en-US', defaultRateLabel: null } };
@@ -174,5 +177,28 @@ describe('«Resultado de la operación» del Dashboard', () => {
     const sin = montar(RESULTADO_BASE);
     await sin.cargar('$321.00');
     expect(screen.queryByText(/recién se pesó/)).toBeNull();
+  });
+
+  it('sin tramos que decir no escribe una nota con un hueco, aunque el bool venga en true', async () => {
+    const vista = montar({ ...RESULTADO_BASE, tramosSueltos: true, mesesSinContar: [] });
+    await vista.cargar('$321.00');
+
+    expect(screen.queryByText(/no entra en este número/)).toBeNull();
+  });
+
+  it('si la consulta falla, la tarjeta dice «—» y NO un $0.00 que parece un resultado', async () => {
+    const vista = montar(null, { falla: true });
+    // El rótulo se dibuja antes que los datos: se abre la puerta y se deja caer la consulta que falla.
+    await vista.cargar(/cobrado − gastos operativos/);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // Se sube desde el pie hasta el contenedor que también tiene el rótulo.
+    let nodo: HTMLElement | null = screen.getByText(/cobrado − gastos operativos/);
+    while (nodo && !nodo.textContent?.includes('Resultado de la operación')) nodo = nodo.parentElement;
+    expect(nodo).not.toBeNull();
+    expect(nodo!.textContent).toContain('—');
+    expect(nodo!.textContent).not.toContain('$0.00');
   });
 });

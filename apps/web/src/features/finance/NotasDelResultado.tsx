@@ -30,8 +30,11 @@ export function NotasDelResultado({ resultado, money }: Props) {
   const sinContar = resultado.mesesSinContar.map(labelMes);
   const completos = resultado.mesesCompletos.map(labelMes);
   const hayNegativos = resultado.mesesConConsumoNegativo.length > 0;
+  // ⚠️ Se DECIDE con el mismo dato con el que se REDACTA (`mesesSinContar`): decidir con
+  // `tramosSueltos` y redactar con la lista dejaba salir «El filamento de  no entra…» con un hueco.
+  const hayTramos = sinContar.length > 0;
 
-  if (!resultado.tramosSueltos && !hayNegativos && resultado.ajustePorMedicion === 0) return null;
+  if (!hayTramos && !hayNegativos && resultado.ajustePorMedicion === 0) return null;
 
   return (
     <div className="space-y-2">
@@ -42,7 +45,7 @@ export function NotasDelResultado({ resultado, money }: Props) {
           )} da un consumo negativo: casi seguro es un error de tipeo y el resultado de arriba queda inflado. Conviene revisar ese conteo en Stock del mes.`}
         </p>
       )}
-      {resultado.tramosSueltos && (
+      {hayTramos && (
         <p role="note" className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           {completos.length > 0 ? `Se restó el consumo de filamento de ${enEspanol(completos)}. ` : ''}
           {`El filamento de ${enEspanol(sinContar)} no entra en este número: el consumo se conoce solo por meses con conteo cerrado y enteros dentro del rango, así que lo comprado en ese tramo queda como inventario y no se resta.`}
