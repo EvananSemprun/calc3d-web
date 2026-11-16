@@ -77,8 +77,10 @@ import {
   LINK_KIND_LABELS,
   expenseLink,
   useExpenses,
+  useResultadoDeOperacion,
   useSales,
 } from '@/features/finance/api';
+import { NotasDelResultado } from '@/features/finance/NotasDelResultado';
 
 /** Canal de los gráficos: todo, solo mostrador o solo abonos de encargos. */
 type Canal = 'ALL' | 'COUNTER' | 'ORDERS';
@@ -140,6 +142,8 @@ export function DashboardPage() {
   const sales = useSales(range);
   const expenses = useExpenses(range);
   const payments = useOrderPayments(range);
+  // El resultado lo calcula el servidor: acá solo se dibuja.
+  const { data: resultado } = useResultadoDeOperacion(range);
 
   const loading = sales.isLoading || expenses.isLoading;
   const saleRows = sales.data ?? [];
@@ -176,8 +180,11 @@ export function DashboardPage() {
     // (`ganancia acumulada = ingresos − gastos operativos`, definición del dueño).
     // Restándola acá, la misma pantalla decía dos ganancias distintas: el KPI
     // contaba las impresoras como gasto y el texto de abajo afirmaba lo contrario.
+    // ⚠️ Esto es lo que SE GASTÓ (alimenta el KPI «Gastos» y su desglose). El
+    // «Resultado de la operación» ya NO sale de acá: lo calcula el servidor
+    // (`useResultadoDeOperacion`), porque restar acá el filamento el día que se
+    // compra era una segunda definición de la ganancia.
     const gastosOperativos = gastos - inversion;
-    const utilidad = ingresos - gastosOperativos;
 
     /**
      * DE DÓNDE SALIÓ LA PLATA DE ESOS GASTOS (2026-10-11, shared 0.50.0).
@@ -302,7 +309,6 @@ export function DashboardPage() {
       ingresos,
       gastos,
       gastosOperativos,
-      utilidad,
       inversion,
       reparto,
       // Ticket promedio SOLO de mostrador: las 25 filas del histórico son
@@ -536,17 +542,19 @@ export function DashboardPage() {
         */}
         <Stat
           label="Resultado de la operación"
-          value={<NumberTicker value={agg.utilidad} format={money} />}
-          accent={agg.utilidad >= 0 ? 'success' : 'plain'}
+          value={resultado ? <NumberTicker value={resultado.utilidad} format={money} /> : '—'}
+          accent={resultado && resultado.utilidad >= 0 ? 'success' : 'plain'}
           sub={
             <>
-              cobrado − gastos operativos{moneyAlt ? ` · ≈ ${moneyAlt(agg.utilidad)}` : ''}
+              cobrado − gastos operativos{resultado && moneyAlt ? ` · ≈ ${moneyAlt(resultado.utilidad)}` : ''}
               <br />
               no incluye aportes, devoluciones ni cuotas del préstamo
             </>
           }
         />
       </div>
+      {/* Lo que el número de arriba no dice solo: qué filamento no entró, el conteo sospechoso y el ajuste. */}
+      {resultado && <NotasDelResultado resultado={resultado} money={money} />}
 
       {caja && (
         <Link

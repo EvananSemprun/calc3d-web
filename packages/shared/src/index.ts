@@ -33,6 +33,7 @@ export * from './calc/reconcile';
 export * from './calc/goal';
 export * from './calc/encargos';
 export * from './calc/equipment';
+export * from './calc/resultado-de-operacion';
 export * from './calc/production';
 export * from './calc/order';
 export * from './calc/product';

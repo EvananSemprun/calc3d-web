@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { FilamentPurchaseInvoice } from '@calc3d/shared';
+import type { FilamentPurchaseInvoice, ResultadoDeOperacion } from '@calc3d/shared';
 import { api } from '@/lib/api';
 import type { DateRange } from '@/features/finance/DateRange';
 import type { CounterpartyKind } from '@/features/cash/api';
@@ -102,6 +102,21 @@ export function useExpenses(range: Pick<DateRange, 'from' | 'to'>) {
       const { data } = await api.get<ExpenseRow[]>('/expenses', { params: params(range) });
       return data.map((e) => ({ ...e, amount: num(e.amount) }));
     },
+  });
+}
+
+/**
+ * El «Resultado de la operación» del rango, calculado por el SERVIDOR.
+ *
+ * ⚠️ El Dashboard lo DIBUJA y no calcula nada: restaba `ingresos − gastos` con
+ * las filas crudas (el filamento el día que se compra) mientras el servidor ya
+ * lo restaba cuando se consume. Dos ganancias en la misma app.
+ */
+export function useResultadoDeOperacion(range: Pick<DateRange, 'from' | 'to'>) {
+  return useQuery({
+    // Cuelga de `expenses`: registrar o corregir un gasto lo invalida.
+    queryKey: ['expenses', 'resultado', range.from ?? null, range.to ?? null],
+    queryFn: async () => (await api.get<ResultadoDeOperacion>('/expenses/resultado', { params: params(range) })).data,
   });
 }
 
