@@ -549,6 +549,20 @@ export function DashboardPage() {
               cobrado − gastos operativos{resultado && moneyAlt ? ` · ≈ ${moneyAlt(resultado.utilidad)}` : ''}
               <br />
               no incluye aportes, devoluciones ni cuotas del préstamo
+              {/*
+                ⚠️ LA BRECHA CON LA TARJETA DE AL LADO TIENE QUE DECIRSE. «Gastos» es lo
+                que SE PAGÓ (el filamento el día que se compró); el resultado resta el
+                filamento cuando se CONSUME. La diferencia es exactamente
+                `filamentoEnEstante`, que ya viaja en el contrato: sin esta línea, la
+                resta que el pie nombra no daba lo que las dos tarjetas pegadas dejaban
+                ver (el dueño leyó «GASTOS $202» y se creyó $202 más pobre).
+              */}
+              {resultado && resultado.filamentoEnEstante > 0 && (
+                <>
+                  <br />
+                  {`«Gastos» incluye ${money(resultado.filamentoEnEstante)} de filamento que sigue en el estante: acá no se resta hasta que se consuma`}
+                </>
+              )}
             </>
           }
         />

@@ -179,6 +179,33 @@ describe('«Resultado de la operación» del Dashboard', () => {
     expect(screen.queryByText(/recién se pesó/)).toBeNull();
   });
 
+  it('el ajuste NEGATIVO no dice «recién se pesó»: dice que los rollos ya no están pesados', async () => {
+    const vista = montar({ ...RESULTADO_BASE, ajustePorMedicion: -5 });
+    await vista.cargar(/estaban pesados y ya no/);
+
+    const nota = screen.getByText(/estaban pesados y ya no/);
+    expect(nota.textContent).toContain('$5.00');
+    expect(nota.textContent).toContain('no es consumo nuevo');
+    expect(screen.queryByText(/recién se pesó/)).toBeNull();
+  });
+
+  it('la brecha con «Gastos» se explica: el filamento en el estante está en Gastos y no se resta en el resultado', async () => {
+    const vista = montar(RESULTADO_BASE); // 200 pagados − 21 en el estante = 179 que resta el servidor
+    await vista.cargar('$321.00');
+
+    const pie = screen.getByText(/«Gastos» incluye \$21\.00 de filamento que sigue en el estante/);
+    expect(pie.textContent).toContain('hasta que se consuma');
+    // Y la tarjeta de al lado dice lo PAGADO: 200 − 21 = 179, la cuenta cierra a la vista.
+    expect(screen.getByText('$200.00')).toBeTruthy();
+  });
+
+  it('sin filamento en el estante no inventa una explicación', async () => {
+    const vista = montar({ ...RESULTADO_BASE, filamentoEnEstante: 0 });
+    await vista.cargar('$321.00');
+
+    expect(screen.queryByText(/«Gastos» incluye/)).toBeNull();
+  });
+
   it('sin tramos que decir no escribe una nota con un hueco, aunque el bool venga en true', async () => {
     const vista = montar({ ...RESULTADO_BASE, tramosSueltos: true, mesesSinContar: [] });
     await vista.cargar('$321.00');

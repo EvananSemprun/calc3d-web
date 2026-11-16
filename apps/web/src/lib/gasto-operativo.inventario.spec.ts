@@ -27,9 +27,17 @@
  * da `/cash`, no hacen esta resta, así que no necesitan exención.
  *
  * Un `.spec.ts` no se recorre, así que este archivo no necesita eximirse.
- * Límite conocido: no ve una resta hecha con valores guardados antes en
- * variables de otro nombre (`const a = x; a - y`). Es el precio de un
- * inventario por texto.
+ * LÍMITES CONOCIDOS (lo que este barrido NO ve; no es un barrido total):
+ *  - Una resta con operandos de otro nombre (`const a = ingresos; a - b`, o
+ *    `entradas - salidas`): solo reconoce raíces como ingreso/cobrad/vendid/factur
+ *    contra gast/egreso/costo/salida/expense, con o sin prefijo.
+ *  - Una resta hecha con `reduce`, con `Decimal`/`minus` o dentro de un helper
+ *    importado (`restar(a, b)`): solo mira el operador `-`.
+ *  - Una pantalla que sume gastos sin restarlos de ningún ingreso.
+ *  - Un resultado calculado en `shared` y mostrado acá: eso es del servidor, y lo
+ *    vigila el barrido de la API.
+ * Es el precio de un inventario por texto: caza el descuido, no al que quiere
+ * esquivarlo.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -43,8 +51,12 @@ function sinComentarios(codigo: string): string {
 }
 
 const PATRONES: { nombre: string; re: RegExp }[] = [
-  { nombre: 'resta ingresos - gastos', re: /\b(ingresos?|income|revenue|cobrado)\w*\s*-\s*[\w.]*(gasto|expense)/gi },
-  { nombre: 'resta gastos - inversión', re: /\b(gastos?|expenses?)\w*\s*-\s*[\w.]*(inversion|investment)/gi },
+  {
+    nombre: 'resta ingresos - gastos',
+    // Sin `\b` al principio: así también entra `totalCobrado` o `p.totalGastado`. Sinónimos: egreso, costo, salida.
+    re: /(ingreso|income|revenue|cobrad|vendid|factur)\w*\s*-\s*[\w.]*(gast|expense|egreso|costo|salida)/gi,
+  },
+  { nombre: 'resta gastos - inversión', re: /(gast|expense)\w*\s*-\s*[\w.]*(inversion|investment)/gi },
   { nombre: 'filtro de operativos a mano', re: /!\s*\w+\??\.isInvestment\b|\bisInvestment\s*(===|==)\s*false\b/g },
 ];
 
@@ -64,7 +76,8 @@ const EXENCIONES: Exencion[] = [
     uso: /gastos\s*-\s*inversion\s*;/,
     razon:
       'Es lo que SE GASTÓ (KPI «Gastos» y su desglose por pagador), no el resultado. El «Resultado de la ' +
-      'operación» sale del servidor (useResultadoDeOperacion): esta resta nunca se le pasa como ganancia.',
+      'operación» sale del servidor (useResultadoDeOperacion): esta resta nunca se le pasa como ganancia, y el pie del ' +
+      'resultado dice cuánto filamento en el estante explica la brecha entre las dos tarjetas (Dashboard.resultado.spec).',
   },
   {
     archivo: 'pages/Dashboard.tsx',
@@ -144,6 +157,10 @@ describe('el detector del inventario (un inventario que no ve nada pasaría siem
     ['const operativos = filas.filter((r) => !r.isInvestment);'],
     ['filas.filter((r) => r.isInvestment === false)'],
     ['{resultado.ingresos - gastos}'],
+    ['const neto = totalCobrado - totalGastado;'],
+    ['const neto = p.totalCobrado - p.totalGastado;'],
+    ['const x = cobrado - egresos;'],
+    ['const x = ingresosDelMes - costoOperativo;'],
   ])('caza %j', (codigo) => {
     expect(hallazgosEn('x.tsx', codigo).length).toBeGreaterThan(0);
   });

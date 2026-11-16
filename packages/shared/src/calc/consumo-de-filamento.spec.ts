@@ -108,15 +108,16 @@ describe('consumoPorMes', () => {
       mes('2026-08', 40, 60, [rollo('a:inUse', 0, false), rollo('b:running', 9, true)]),
       mes('2026-09', 25, 70, [rollo('a:inUse', 7, true), rollo('b:running', 0, false)]),
       mes('2026-10', 0, 55, [rollo('a:inUse', 0, false), rollo('b:running', 4, true), rollo('c:inUse', 3, true)]),
-      mes('2026-11', 80, 100, [rollo('a:inUse', 6, true), rollo('c:inUse', 0, false)]),
+      mes('2026-11', 80, 100, [rollo('a:inUse', 6, true), rollo('b:running', 0, false), rollo('c:inUse', 0, false)]),
     ];
     const r = consumoPorMes(meses);
     const consumos = r.reduce((s, x) => s + x.consumo, 0);
     const compras = meses.reduce((s, x) => s + x.compras, 0);
     // El ajuste se calcula A MANO (no se lee de la salida, o un signo invertido
     // cumpliría la igualdad igual): 08→09 a +7, b −9; 09→10 a −7, b +4 (c no
-    // estaba antes: se ignora); 10→11 a +6, c −3.
-    const ajusteAMano = 7 - 9 - 7 + 4 + 6 - 3;
+    // estaba antes: se ignora); 10→11 a +6, b −4 (b se terminó: la casilla vacía
+    // VIAJA como sin pesar, y por eso se revierte su +4), c −3.
+    const ajusteAMano = 7 - 9 - 7 + 4 + 6 - 4 - 3;
     expect(r.reduce((s, x) => s + x.ajuste, 0)).toBe(ajusteAMano);
     expect(consumos).toBeCloseTo(compras - r[r.length - 1].inventarioFinal + ajusteAMano, 6);
   });
@@ -130,5 +131,30 @@ describe('consumoPorMes', () => {
     const r = consumoPorMes(meses);
     const consumos = r.reduce((s, x) => s + x.consumo, 0);
     expect(consumos).toBeCloseTo(75 - r[2].inventarioFinal, 6);
+  });
+
+  it('un ciclo COMPLETO (sin pesar → pesado → terminado): los ajustes se cancelan y vale la igualdad sin el término', () => {
+    const meses = [
+      mes('2026-08', 40, 30, [rollo('a:inUse', 0, false)]),
+      mes('2026-09', 0, 30, [rollo('a:inUse', 8, true)]),
+      // El rollo se terminó: la casilla vacía viaja como «sin pesar» (valor 0) y revierte el +8.
+      mes('2026-10', 0, 22, [rollo('a:inUse', 0, false)]),
+    ];
+    const r = consumoPorMes(meses);
+
+    expect(r.map((x) => x.ajuste)).toEqual([0, 8, -8]);
+    const consumos = r.reduce((s, x) => s + x.consumo, 0);
+    expect(consumos).toBeCloseTo(40 - 22, 6); // compras − inventario final, sin ajustes
+  });
+
+  it('el contrafáctico: si la casilla terminada NO viaja, el +8 queda sin revertir y el gasto se reconoce dos veces', () => {
+    const r = consumoPorMes([
+      mes('2026-08', 40, 30, [rollo('a:inUse', 0, false)]),
+      mes('2026-09', 0, 30, [rollo('a:inUse', 8, true)]),
+      mes('2026-10', 0, 22, []),
+    ]);
+
+    // 18 reales + 8 de más: justo el desvío que la casilla vacía evita.
+    expect(r.reduce((s, x) => s + x.consumo, 0)).toBeCloseTo(40 - 22 + 8, 6);
   });
 });

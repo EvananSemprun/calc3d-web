@@ -23,8 +23,9 @@ interface Props {
  * - Tramos sueltos: el filamento de esos meses no entra en el número.
  * - Consumo negativo: un conteo mal tipeado FABRICA ganancia. Va en rojo
  *   porque algo ya está mal (ver «Rojo vs ámbar» del CLAUDE.md).
- * - Ajuste por medición: sube el inventario valorado pero no es plata nueva.
- *   Solo se dice cuando no es 0.
+ * - Ajuste por medición: sube (rollo recién pesado) o baja (rollo que ya no está pesado)
+ *   el inventario valorado sin que sea plata. Solo se dice cuando no es 0, y con la
+ *   redacción de SU signo.
  */
 export function NotasDelResultado({ resultado, money }: Props) {
   const sinContar = resultado.mesesSinContar.map(labelMes);
@@ -53,7 +54,11 @@ export function NotasDelResultado({ resultado, money }: Props) {
       )}
       {resultado.ajustePorMedicion !== 0 && (
         <p role="note" className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          {`Del inventario de filamento valorado, ${money(Math.abs(resultado.ajustePorMedicion))} es un rollo que recién se pesó, no plata nueva: no se cuenta como ganancia.`}
+          {resultado.ajustePorMedicion > 0
+            ? `Del inventario de filamento valorado, ${money(resultado.ajustePorMedicion)} es un rollo que recién se pesó, no plata nueva: no se cuenta como ganancia.`
+            : // ⚠️ El ajuste NEGATIVO es el caso OPUESTO: rollos que estaban pesados y ya no (se terminaron o
+              // volvieron a «sin pesar»). Decir «recién se pesó» acá afirmaría lo contrario de lo que pasó.
+              `Del inventario de filamento valorado, ${money(Math.abs(resultado.ajustePorMedicion))} es de rollos que estaban pesados y ya no (se terminaron o quedaron sin pesar): no es consumo nuevo, así que no se cuenta como gasto.`}
         </p>
       )}
     </div>

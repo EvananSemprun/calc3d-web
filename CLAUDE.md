@@ -2979,3 +2979,8 @@ El resultado del negocio lo calcula el **servidor** (`useResultadoDeOperacion`, 
 5. **Mutar `shared` sin recompilar**: los specs importan del `dist` viejo (ver arriba, «shared»).
 6. **Un fixture SIMÉTRICO** («1 pesado y 1 sin pesar»): invertir los dos contadores no cambia nada. Los fixtures van asimétricos.
 Restaurar mutaciones con copia `cp`, **nunca** `git checkout --`.
+
+### Lo que el segundo repaso arregló en el panel (2026-11-16)
+- ⚠️ **El KPI «Gastos» y el «Resultado de la operación» estaban pegados con definiciones distintas**: «Gastos» es lo PAGADO (el filamento el día que se compró) y el resultado resta el filamento cuando se CONSUME; con los datos del 16/11 la resta que el pie nombraba daba $49,03 y la tarjeta de al lado decía $505,50. Ahora el pie del resultado dice «Gastos» incluye $X de filamento que sigue en el estante: acá no se resta hasta que se consuma (`filamentoEnEstante` del servidor, que ya viajaba; sin estante no escribe nada). Tests: `Dashboard.resultado.spec.tsx` (por mutación, apagar la línea tumba 1). El barrido sigue eximiendo `gastosOperativos = gastos - inversion` del Dashboard, ahora con esa razón.
+- ⚠️ **La nota del ajuste por medición respeta su SIGNO** (`NotasDelResultado`): positivo = «un rollo que recién se pesó»; negativo = rollos que estaban pesados y ya no (se terminaron o quedaron sin pesar), no es consumo nuevo. Antes el `Math.abs` afirmaba «recién se pesó» también para el caso opuesto. Mutación: forzar la rama positiva tumba 1.
+- El barrido del panel reconoce operandos con prefijo y sinónimos (`totalCobrado - totalGastado`, `cobrado - egresos`) y declara arriba, en su cabecera, lo que NO ve.

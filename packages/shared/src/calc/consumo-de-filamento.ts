@@ -80,6 +80,10 @@ const inventarioDe = (m: MesDeInventario) =>
  *   en 0 daría un consumo gigante seguido de uno negativo.
  * - El ajuste solo mira las claves que están en LOS DOS meses: una medición que
  *   no existe en uno de ellos no se puede comparar, así que no genera ajuste.
+ *   ⚠️ Por eso **quien arma los meses tiene que emitir la casilla VACÍA** (valor 0,
+ *   sin pesar) mientras la ficha tenga fila de conteo: si un rollo pesado se
+ *   termina y su clave desaparece, el `+v` de cuando se pesó nunca se revierte
+ *   (ver `valuarConteo` en `apps/api/src/filament/consumo.service.ts`).
  *   Ojo, esto NO es lo que protege de un pico de consumo al unir fichas: eso lo
  *   garantiza una pieza de FUERA, `unir` en `apps/api/src/materials/
  *   materials.service.ts`, que suma los conteos de TODOS los meses (también los
