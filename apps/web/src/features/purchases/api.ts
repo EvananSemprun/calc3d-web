@@ -187,8 +187,16 @@ export const useUpdateInvoice = () =>
  */
 export const useVoidInvoice = () =>
   useInvoiceMutation(
-    ({ id, reason, confirmoFueraDePlazo }: { id: string; reason: string; confirmoFueraDePlazo?: boolean }) =>
-      api.post(`/purchase-invoices/${id}/void`, { reason, confirmoFueraDePlazo }),
+    ({
+      id,
+      reason,
+      confirmoFueraDePlazo,
+      // ⚠️ DOS candados blandos distintos sobre la misma acción: el plazo (que el
+      // panel PREDICE con `anulacionNecesitaConfirmacion`) y la conciliación (que
+      // solo el servidor conoce, y contesta con un 400).
+      confirmoConciliacion,
+    }: { id: string; reason: string; confirmoFueraDePlazo?: boolean; confirmoConciliacion?: boolean }) =>
+      api.post(`/purchase-invoices/${id}/void`, { reason, confirmoFueraDePlazo, confirmoConciliacion }),
   );
 
 export const useDeleteInvoice = () =>
@@ -206,15 +214,19 @@ export const useVoidInvoicePayment = () =>
       paymentId,
       reason,
       confirmoFueraDePlazo,
+      /** Ver el comentario de `useVoidInvoice`: son dos candados distintos. */
+      confirmoConciliacion,
     }: {
       id: string;
       paymentId: string;
       reason: string;
       confirmoFueraDePlazo?: boolean;
+      confirmoConciliacion?: boolean;
     }) =>
       api.post(`/purchase-invoices/${id}/payments/${paymentId}/void`, {
         reason,
         confirmoFueraDePlazo,
+        confirmoConciliacion,
       }),
   );
 

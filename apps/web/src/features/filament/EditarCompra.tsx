@@ -1,14 +1,19 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   OPCIONES_DE_RECARGA,
   recargaDesdeValor,
   valorDeRecarga,
   type FilamentPurchase,
 } from '@calc3d/shared';
-import { api, apiErrorMessage } from '@/lib/api';
+import { api } from '@/lib/api';
 import { Button, Field, FieldGrid, Input, NumberInput, Select } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
+import {
+  AvisoDeConciliacion,
+  useAvisoDeConciliacion,
+  useBorrarConAvisoDeConciliacion,
+} from '@/features/cash/aviso-de-conciliacion';
 import { notify } from '@/components/toast';
 import { useCounterparties } from '@/features/cash/api';
 import { useContacts } from '@/features/contacts/api';
@@ -70,35 +75,43 @@ export function EditarCompra({
     }
   };
 
-  const guardar = useMutation({
-    mutationFn: () =>
-      api.patch(`/expenses/${compra.id}`, {
-        date,
-        materialId,
-        quantity,
-        amount,
-        providerId: providerId || null,
-        counterpartyId: counterpartyId || null,
-        description: note.trim(),
-        isRefill: recargaDesdeValor(refill),
-      }),
-    onSuccess: () => {
-      invalidar();
-      notify.success('Compra corregida');
-      onClose();
-    },
-    onError: (e) => notify.error(apiErrorMessage(e)),
-  });
+  const conciliacion = useAvisoDeConciliacion();
+  const borrarConAviso = useBorrarConAvisoDeConciliacion();
+  const [ocupado, setOcupado] = useState(false);
 
-  const borrar = useMutation({
-    mutationFn: () => api.delete(`/expenses/${compra.id}`),
-    onSuccess: () => {
-      invalidar();
-      notify.success('Compra eliminada');
-      onClose();
-    },
-    onError: (e) => notify.error(apiErrorMessage(e)),
-  });
+  /**
+   * ⚠️ **Corregir y borrar una compra pasan por el candado de conciliación**, y
+   * lo encontró el guardián de código, no esta pantalla: una compra de
+   * filamento ES un gasto (`/expenses/:id`), así que mueve el saldo igual que
+   * cualquier otro. Y corregirla avisa por las DOS fechas, la vieja y la nueva.
+   *
+   * El aviso va DENTRO del diálogo con «Guardar igual» (ver
+   * `features/cash/aviso-de-conciliacion`); el borrado, que ya cerró su
+   * confirmación, contesta con una segunda.
+   */
+  const guardar = () => {
+    setOcupado(true);
+    return conciliacion.intentar({
+      enviar: (confirmoConciliacion) =>
+        api.patch(`/expenses/${compra.id}`, {
+          date,
+          materialId,
+          quantity,
+          amount,
+          providerId: providerId || null,
+          counterpartyId: counterpartyId || null,
+          description: note.trim(),
+          isRefill: recargaDesdeValor(refill),
+          confirmoConciliacion,
+        }),
+      alGuardar: () => {
+        invalidar();
+        notify.success('Compra corregida');
+        onClose();
+      },
+      alFallar: () => setOcupado(false),
+    });
+  };
 
   const pedirBorrar = async () => {
     const ok = await confirm({
@@ -108,10 +121,18 @@ export function EditarCompra({
       confirmLabel: 'Eliminar',
       tone: 'destructive',
     });
-    if (ok) borrar.mutate();
+    if (!ok) return;
+    // ⚠️ La confirmación va en la QUERY: un DELETE no lleva cuerpo.
+    await borrarConAviso({
+      enviar: (confirmoConciliacion) =>
+        api.delete(`/expenses/${compra.id}`, { params: { confirmoConciliacion } }),
+      alGuardar: () => {
+        invalidar();
+        notify.success('Compra eliminada');
+        onClose();
+      },
+    });
   };
-
-  const ocupado = guardar.isPending || borrar.isPending;
   const sePuede = !!materialId && amount > 0 && quantity > 0 && !!date;
 
   /**
@@ -234,6 +255,12 @@ export function EditarCompra({
           El precio con el que se cotiza sale de la compra más reciente del filamento.
         </p>
 
+        <AvisoDeConciliacion
+          aviso={conciliacion.aviso}
+          confirmando={conciliacion.confirmando}
+          onConfirmar={conciliacion.confirmar}
+        />
+
         <div className="flex flex-wrap justify-between gap-2 pt-1">
           <Button variant="outline" onClick={pedirBorrar} disabled={ocupado}>
             Eliminar
@@ -242,8 +269,8 @@ export function EditarCompra({
             <Button variant="outline" onClick={onClose} disabled={ocupado}>
               Cancelar
             </Button>
-            <Button variant="accent" onClick={() => guardar.mutate()} disabled={ocupado || !sePuede}>
-              {guardar.isPending ? 'Guardando…' : 'Guardar'}
+            <Button variant="accent" onClick={guardar} disabled={ocupado || !sePuede}>
+              {ocupado ? 'Guardando…' : 'Guardar'}
             </Button>
           </div>
         </div>

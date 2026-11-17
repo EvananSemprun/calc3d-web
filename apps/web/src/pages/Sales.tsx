@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, Pencil, Plus, ShoppingCart, Trash2 } from 'lucide-react';
-import { api, apiErrorMessage } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
 import {
   Badge,
@@ -42,6 +42,11 @@ import {
 import { SalesWeeklySummary } from '@/features/finance/SalesWeeklySummary';
 import { CHANNEL_LABELS, useCampaigns } from '@/features/campaigns/api';
 import { AttributionPicker, EMPTY_ATTRIBUTION, type Attribution } from '@/features/campaigns/AttributionPicker';
+import {
+  AvisoDeConciliacion,
+  useAvisoDeConciliacion,
+  useBorrarConAvisoDeConciliacion,
+} from '@/features/cash/aviso-de-conciliacion';
 
 type Vista = 'REGISTROS' | 'SEMANAL';
 
@@ -130,26 +135,29 @@ export function SalesPage() {
   /** Ventas de mostrador que se ven, para el resumen semanal (sin el histórico). */
   const mostradorVisible = useMemo(() => visibles.filter((s) => s.kind === 'COUNTER'), [visibles]);
 
-  const remove = useMutation({
-    mutationFn: (id: string) => api.delete(`/sales/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sales'] });
-      notify.success('Venta eliminada');
-    },
-    onError: (error) => notify.error(apiErrorMessage(error)),
-  });
+  const borrarConAviso = useBorrarConAvisoDeConciliacion();
 
+  /**
+   * ⚠️ Borrar una venta de un día ya conciliado también deja mintiendo a la
+   * conciliación: el 400 del candado se contesta con una SEGUNDA confirmación
+   * (ver `features/cash/aviso-de-conciliacion`), no con un toast sin salida.
+   * ⚠️ La confirmación viaja en la QUERY: un DELETE no lleva cuerpo.
+   */
   const borrar = async (id: string) => {
-    if (
-      await confirm({
-        title: '¿Eliminar esta venta?',
-        description: 'Esta acción no se puede deshacer.',
-        confirmLabel: 'Eliminar',
-        tone: 'destructive',
-      })
-    ) {
-      remove.mutate(id);
-    }
+    const ok = await confirm({
+      title: '¿Eliminar esta venta?',
+      description: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      tone: 'destructive',
+    });
+    if (!ok) return;
+    await borrarConAviso({
+      enviar: (confirmoConciliacion) => api.delete(`/sales/${id}`, { params: { confirmoConciliacion } }),
+      alGuardar: () => {
+        qc.invalidateQueries({ queryKey: ['sales'] });
+        notify.success('Venta eliminada');
+      },
+    });
   };
 
   return (
@@ -509,32 +517,36 @@ function ManualSaleModal({
       : EMPTY_ATTRIBUTION,
   );
   const [saving, setSaving] = useState(false);
+  const conciliacion = useAvisoDeConciliacion();
 
-  const save = async () => {
+  /**
+   * ⚠️ El aviso de conciliación va DENTRO del diálogo, con su «Guardar igual»
+   * (ver `features/cash/aviso-de-conciliacion`). Corregir una venta avisa por
+   * las DOS fechas —la vieja y la nueva—: el servidor lo resuelve, acá solo se
+   * reenvía el flag.
+   */
+  const save = () => {
     setSaving(true);
-    try {
-      const cuerpo = {
-        date: form.date,
-        amount: form.amount,
-        clientId: form.clientId || null,
-        note: form.note || null,
-        originChannel: attr.originChannel,
-        campaignId: attr.campaignId,
-      };
-      if (venta) {
-        // ⚠️ SIN `kind`: corregir una venta no puede cambiar de qué canal es.
-        // Las 25 ENCARGO del histórico del Excel se leen y se editan, y
-        // mandarles 'COUNTER' las convertiría en ventas de mostrador.
-        await api.patch(`/sales/${venta.id}`, cuerpo);
-      } else {
-        // Siempre mostrador: la API rechaza ventas ENCARGO nuevas (encargo = pedido).
-        await api.post('/sales', { ...cuerpo, kind: 'COUNTER' });
-      }
-      onSaved();
-    } catch (e) {
-      notify.error(apiErrorMessage(e));
-      setSaving(false);
-    }
+    const cuerpo = {
+      date: form.date,
+      amount: form.amount,
+      clientId: form.clientId || null,
+      note: form.note || null,
+      originChannel: attr.originChannel,
+      campaignId: attr.campaignId,
+    };
+    return conciliacion.intentar({
+      enviar: (confirmoConciliacion) =>
+        venta
+          ? // ⚠️ SIN `kind`: corregir una venta no puede cambiar de qué canal es.
+            // Las 25 ENCARGO del histórico del Excel se leen y se editan, y
+            // mandarles 'COUNTER' las convertiría en ventas de mostrador.
+            api.patch(`/sales/${venta.id}`, { ...cuerpo, confirmoConciliacion })
+          : // Siempre mostrador: la API rechaza ventas ENCARGO nuevas (encargo = pedido).
+            api.post('/sales', { ...cuerpo, kind: 'COUNTER', confirmoConciliacion }),
+      alGuardar: onSaved,
+      alFallar: () => setSaving(false),
+    });
   };
 
   return (
@@ -593,6 +605,11 @@ function ManualSaleModal({
             <AttributionPicker value={attr} onChange={setAttr} />
           </div>
         </details>
+        <AvisoDeConciliacion
+          aviso={conciliacion.aviso}
+          confirmando={conciliacion.confirmando}
+          onConfirmar={conciliacion.confirmar}
+        />
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button variant="accent" onClick={save} disabled={saving || form.amount <= 0}>

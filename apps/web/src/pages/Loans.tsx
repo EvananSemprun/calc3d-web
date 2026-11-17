@@ -4,6 +4,10 @@ import { ArrowUpRight, HandCoins, Plus, Trash2, Undo2 } from 'lucide-react';
 import { monthlyLoanPayments, type PaymentFrequency } from '@calc3d/shared';
 import { Badge, Button, Card, CardContent, EmptyState, Field, FieldGrid, Input, NumberInput, PageSkeleton, ProgressBar, Select, Stat } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
+import {
+  AvisoDeConciliacion,
+  useAvisoDeConciliacion,
+} from '@/features/cash/aviso-de-conciliacion';
 import { useMoney } from '@/features/settings/useSettings';
 import { notify } from '@/components/toast';
 import { todayKey } from '@/lib/today';
@@ -792,6 +796,7 @@ function PaymentDialog({ loan, open, onClose }: { loan: Loan; open: boolean; onC
   const [quien, setQuien] = useState('');
   const [generatesDebt, setGeneratesDebt] = useState(true);
   const guardar = useAddLoanPayment();
+  const conciliacion = useAvisoDeConciliacion();
   const { data: contrapartes = [] } = useCounterparties();
 
   const deLaCaja = quien === '';
@@ -802,23 +807,25 @@ function PaymentDialog({ loan, open, onClose }: { loan: Loan; open: boolean; onC
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          guardar.mutate(
-            {
-              id: loan.id,
-              date,
-              amount,
-              reference: reference.trim() || null,
-              counterpartyId: quien || null,
-              generatesDebt: !deLaCaja && generatesDebt,
+          // ⚠️ El aviso de conciliación va DENTRO del diálogo, con «Guardar
+          // igual» (ver `features/cash/aviso-de-conciliacion`). `mutateAsync`
+          // porque el hook necesita la promesa para poder reenviar.
+          conciliacion.intentar({
+            enviar: (confirmoConciliacion) =>
+              guardar.mutateAsync({
+                id: loan.id,
+                date,
+                amount,
+                reference: reference.trim() || null,
+                counterpartyId: quien || null,
+                generatesDebt: !deLaCaja && generatesDebt,
+                confirmoConciliacion,
+              }),
+            alGuardar: () => {
+              notify.success('Pago registrado');
+              onClose();
             },
-            {
-              onSuccess: () => {
-                notify.success('Pago registrado');
-                onClose();
-              },
-              onError: (err) => notify.error(apiErrorMessage(err)),
-            },
-          );
+          });
         }}
       >
         <FieldGrid min="11rem">
@@ -865,6 +872,12 @@ function PaymentDialog({ loan, open, onClose }: { loan: Loan; open: boolean; onC
             </span>
           </label>
         )}
+
+        <AvisoDeConciliacion
+          aviso={conciliacion.aviso}
+          confirmando={conciliacion.confirmando}
+          onConfirmar={conciliacion.confirmar}
+        />
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>

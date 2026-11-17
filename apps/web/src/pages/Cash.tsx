@@ -18,6 +18,11 @@ import {
 } from '@calc3d/shared';
 import { Badge, Button, Card, CardContent, EmptyState, Field, Input, NumberInput, PageSkeleton, Select, Stat, TableSkeleton } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
+import {
+  AvisoDeConciliacion,
+  useAvisoDeConciliacion,
+  useBorrarConAvisoDeConciliacion,
+} from '@/features/cash/aviso-de-conciliacion';
 import { notify } from '@/components/toast';
 import { useMoney, useSettings } from '@/features/settings/useSettings';
 import { todayKey } from '@/lib/today';
@@ -807,7 +812,14 @@ function ConciliacionesCard({ data, onNuevo }: { data: CashSummary; onNuevo: () 
 function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => void }) {
   const { money } = useMoney();
   const confirm = useConfirm();
-  const borrar = useDeleteMovement();
+  /**
+   * ⚠️ Borrar un movimiento de un día ya conciliado la deja mintiendo igual que
+   * anotarlo: el 400 del candado se contesta con una SEGUNDA confirmación (ver
+   * `features/cash/aviso-de-conciliacion`), no con un toast sin salida.
+   * ⚠️ La confirmación va en la QUERY: un DELETE no lleva cuerpo.
+   */
+  const borrarMovimiento = useDeleteMovement();
+  const borrarConAviso = useBorrarConAvisoDeConciliacion();
   const nombre = data.counterparty.name;
 
   return (
@@ -868,7 +880,12 @@ function MovimientosCard({ data, onNuevo }: { data: CashSummary; onNuevo: () => 
                     className="rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={async () => {
                       if (await confirm({ title: '¿Borrar este movimiento?', description: m.concept })) {
-                        borrar.mutate(m.id, { onSuccess: () => notify.success('Movimiento borrado') });
+                        await borrarConAviso({
+                          enviar: (confirmoConciliacion) =>
+                            borrarMovimiento.mutateAsync({ id: m.id, confirmoConciliacion }),
+                          alGuardar: () => notify.success('Movimiento borrado'),
+                          etiqueta: 'Borrar igual',
+                        });
                       }
                     }}
                   >
@@ -1292,6 +1309,7 @@ function MovementDialog({
   /** Un aporte con `false` es CAPITAL: sube la caja y no genera deuda. */
   const [refundable, setRefundable] = useState(true);
   const agregar = useAddMovement();
+  const conciliacion = useAvisoDeConciliacion();
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()} title="Movimiento con tu bolsillo">
@@ -1299,19 +1317,31 @@ function MovementDialog({
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          agregar.mutate(
-            { date, kind, amount, concept: concept.trim(), refundable, note: note.trim() || null },
-            {
-              onSuccess: () => {
-                notify.success('Movimiento anotado');
-                setAmount(0);
-                setConcept('');
-                setNote('');
-                setRefundable(true);
-                onClose();
-              },
+          // ⚠️ El aviso de conciliación va DENTRO del diálogo, con «Guardar
+          // igual» (ver `features/cash/aviso-de-conciliacion`). Un movimiento
+          // del dueño con fecha vieja deja mintiendo a la conciliación igual
+          // que una venta, y esta pantalla ES la de Caja: el callejón sin
+          // salida acá era el más confuso de todos.
+          conciliacion.intentar({
+            enviar: (confirmoConciliacion) =>
+              agregar.mutateAsync({
+                date,
+                kind,
+                amount,
+                concept: concept.trim(),
+                refundable,
+                note: note.trim() || null,
+                confirmoConciliacion,
+              }),
+            alGuardar: () => {
+              notify.success('Movimiento anotado');
+              setAmount(0);
+              setConcept('');
+              setNote('');
+              setRefundable(true);
+              onClose();
             },
-          );
+          });
         }}
       >
         <Field label="Tipo">
@@ -1349,6 +1379,13 @@ function MovementDialog({
         <Field label="Nota (opcional)">
           <Input value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>
+        <AvisoDeConciliacion
+          aviso={conciliacion.aviso}
+          confirmando={conciliacion.confirmando}
+          onConfirmar={conciliacion.confirmar}
+          etiqueta="Anotar igual"
+        />
+
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancelar

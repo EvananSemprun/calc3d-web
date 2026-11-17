@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Receipt, Trash2 } from 'lucide-react';
-import { api, apiErrorMessage } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useMoney } from '@/features/settings/useSettings';
 import {
   Badge,
@@ -16,6 +16,7 @@ import {
   TableSkeleton,
 } from '@/components/ui';
 import { useConfirm, Tooltip } from '@/components/overlays';
+import { useBorrarConAvisoDeConciliacion } from '@/features/cash/aviso-de-conciliacion';
 import { notify } from '@/components/toast';
 import { DateRangePicker, useDateRange } from '@/features/finance/DateRange';
 import { useExpenses, type ExpenseRow } from '@/features/finance/api';
@@ -115,26 +116,19 @@ export function ExpensesPage() {
   const [open, setOpen] = useState(false);
   const confirm = useConfirm();
 
-  const remove = useMutation({
-    mutationFn: (id: string) => api.delete(`/expenses/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['expenses'] });
-      notify.success('Gasto eliminado');
-    },
-    onError: (error) => notify.error(apiErrorMessage(error)),
-  });
+  const borrarConAviso = useBorrarConAvisoDeConciliacion();
 
   // Quién lo pagó se corrige desde la tabla: los gastos viejos nacieron todos
   // como "Negocio" y la Caja depende de que esto esté bien.
-  const cambiarPagador = useMutation({
-    mutationFn: ({ id, counterpartyId }: { id: string; counterpartyId: string | null }) =>
-      api.patch(`/expenses/${id}`, { counterpartyId }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['expenses'] });
-      qc.invalidateQueries({ queryKey: ['cash'] });
-    },
-    onError: (error) => notify.error(apiErrorMessage(error)),
-  });
+  /**
+   * ⚠️ Cambiar quién pagó TAMBIÉN pasa por el candado de conciliación, y lo
+   * encontró el guardián de código. Es un `PATCH /expenses/:id`, así que mueve
+   * el saldo —cambiar quién puso la plata cambia la deuda del negocio— y el
+   * servidor lo corta igual que una carga nueva. Acá no hay diálogo donde poner
+   * la píldora: es un desplegable suelto en la fila, así que el 400 se contesta
+   * con una SEGUNDA confirmación (ver `features/cash/aviso-de-conciliacion`).
+   */
+  const cambiarPagadorConAviso = useBorrarConAvisoDeConciliacion();
 
   // ⚠️ Sobre `visibleRows`, lo mismo que muestra la tabla.
   const { total, inversion, operativo } = totalesGastos(visibleRows);
@@ -147,19 +141,33 @@ export function ExpensesPage() {
   // Los dos handlers también viven acá una sola vez: las dos presentaciones les
   // pasan el id de la fila y nada más.
   const borrar = async (id: string) => {
-    if (
-      await confirm({
-        title: '¿Eliminar gasto?',
-        description: 'Esta acción no se puede deshacer.',
-        confirmLabel: 'Eliminar',
-        tone: 'destructive',
-      })
-    ) {
-      remove.mutate(id);
-    }
+    const ok = await confirm({
+      title: '¿Eliminar gasto?',
+      description: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      tone: 'destructive',
+    });
+    if (!ok) return;
+    // ⚠️ La confirmación va en la QUERY: un DELETE no lleva cuerpo.
+    await borrarConAviso({
+      enviar: (confirmoConciliacion) =>
+        api.delete(`/expenses/${id}`, { params: { confirmoConciliacion } }),
+      alGuardar: () => {
+        qc.invalidateQueries({ queryKey: ['expenses'] });
+        notify.success('Gasto eliminado');
+      },
+    });
   };
   const elegirPagador = (id: string, valor: string) =>
-    cambiarPagador.mutate({ id, counterpartyId: valor || null });
+    cambiarPagadorConAviso({
+      enviar: (confirmoConciliacion) =>
+        api.patch(`/expenses/${id}`, { counterpartyId: valor || null, confirmoConciliacion }),
+      etiqueta: 'Cambiarlo igual',
+      alGuardar: () => {
+        qc.invalidateQueries({ queryKey: ['expenses'] });
+        qc.invalidateQueries({ queryKey: ['cash'] });
+      },
+    });
 
   return (
     <div className="space-y-5">

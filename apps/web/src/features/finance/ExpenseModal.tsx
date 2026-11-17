@@ -11,9 +11,12 @@ import {
   FieldGrid,
 } from '@/components/ui';
 import { Dialog } from '@/components/overlays';
-import { notify } from '@/components/toast';
 import type { ExpenseRow } from '@/features/finance/api';
 import { catalogs } from '@/features/catalogs/config';
+import {
+  AvisoDeConciliacion,
+  useAvisoDeConciliacion,
+} from '@/features/cash/aviso-de-conciliacion';
 import { Combobox } from '@/components/Combobox';
 import { useCampaigns } from '@/features/campaigns/api';
 import { useCounterparties } from '@/features/cash/api';
@@ -143,6 +146,7 @@ export function ExpenseModal({
   const [updatePrice, setUpdatePrice] = useState(true);
   const [catForm, setCatForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
+  const conciliacion = useAvisoDeConciliacion();
   // Por defecto lo paga el negocio; si lo pagó el propietario, la Caja lo cuenta como aporte.
   // `''` = la caja del negocio. No hay opción "préstamo" suelta: si lo puso un
   // prestamista, se elige al prestamista.
@@ -190,9 +194,29 @@ export function ExpenseModal({
     setCatForm(initCatForm(key));
   };
 
-  const save = async () => {
+  /**
+   * ⚠️ **Los DOS caminos pasan por el candado de conciliación**: el gasto suelto
+   * (`/expenses`) y la compra que además crea o toca un catálogo
+   * (`/expenses/with-definition`, que es la compra de filamento o insumo). Por
+   * eso el flag se reenvía en los dos, y el aviso se dibuja una sola vez
+   * (ver `features/cash/aviso-de-conciliacion`).
+   */
+  const save = () => {
     setSaving(true);
-    try {
+    return conciliacion.intentar({
+      enviar: enviarGasto,
+      alGuardar: onSaved,
+      alFallar: () => setSaving(false),
+      // Se conserva el texto propio de esta puerta: un `Error` local (sin
+      // `response`) trae su propio mensaje y no es un error de la API.
+      mensajeDeError: (e) =>
+        e instanceof Error && !('response' in e) ? e.message : apiErrorMessage(e),
+    });
+  };
+
+  /** Manda la operación. El `confirmoConciliacion` viaja en los dos caminos. */
+  const enviarGasto = async (confirmoConciliacion: boolean) => {
+    {
       if (linksCatalog && cfg && type.linkField && type.endpoint) {
         const kind = type.linkField.replace('Id', '') as 'material' | 'printer' | 'component';
         const name = mode === 'new' ? String(catForm.name ?? '') : items.find((i) => i.id === selectedId)?.name ?? '';
@@ -204,6 +228,7 @@ export function ExpenseModal({
               : amount
             : null;
         await api.post('/expenses/with-definition', {
+          confirmoConciliacion,
           expense: {
             date,
             amount,
@@ -254,12 +279,9 @@ export function ExpenseModal({
           payload.rate = selectedBsRate!.rate;
           payload.currencyCode = 'VES';
         }
+        payload.confirmoConciliacion = confirmoConciliacion;
         await api.post('/expenses', payload);
       }
-      onSaved();
-    } catch (e) {
-      notify.error(e instanceof Error && !('response' in e) ? e.message : apiErrorMessage(e));
-      setSaving(false);
     }
   };
 
@@ -557,6 +579,15 @@ export function ExpenseModal({
         <Button variant="outline" onClick={onClose}>
           Cancelar
         </Button>
+        {/* ⚠️ ARRIBA de la fila de botones, nunca DENTRO: esa fila es un flex y
+            la píldora se metía entre «Cancelar» y «Guardar», encimándolos.
+            Medido en el navegador el 2026-11-17 — ningún test de jsdom lo ve. */}
+        <AvisoDeConciliacion
+          aviso={conciliacion.aviso}
+          confirmando={conciliacion.confirmando}
+          onConfirmar={conciliacion.confirmar}
+        />
+
         <Button variant="accent" onClick={save} disabled={saving || !canSave}>
           {saving ? 'Guardando…' : 'Guardar'}
         </Button>

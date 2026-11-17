@@ -293,8 +293,16 @@ function useCashMutation<T>(fn: (v: T) => Promise<{ data: CashSummary }>) {
 export const useAddMovement = () =>
   useCashMutation((dto: OwnerMovementCreateDto) => api.post<CashSummary>('/cash/movements', dto));
 
+/**
+ * ⚠️ Lleva `confirmoConciliacion` en la QUERY, no en el cuerpo: un DELETE no
+ * lleva cuerpo, y la API lo valida con `ConfirmoConciliacionQuerySchema`.
+ * Borrar un movimiento de un día ya conciliado la deja mintiendo igual que
+ * anotarlo.
+ */
 export const useDeleteMovement = () =>
-  useCashMutation((id: string) => api.delete<CashSummary>(`/cash/movements/${id}`));
+  useCashMutation(({ id, confirmoConciliacion }: { id: string; confirmoConciliacion?: boolean }) =>
+    api.delete<CashSummary>(`/cash/movements/${id}`, { params: { confirmoConciliacion } }),
+  );
 
 export const useSaveReconciliation = () =>
   useCashMutation((dto: CashReconciliationUpsertDto) =>

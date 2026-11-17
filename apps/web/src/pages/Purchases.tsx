@@ -30,6 +30,11 @@ import {
   TableSkeleton,
 } from '@/components/ui';
 import { Dialog, useConfirm } from '@/components/overlays';
+import {
+  AvisoDeConciliacion,
+  useAvisoDeConciliacion,
+  useBorrarConAvisoDeConciliacion,
+} from '@/features/cash/aviso-de-conciliacion';
 import { notify } from '@/components/toast';
 import { api, apiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -255,6 +260,7 @@ function FacturaCard({
   const { money } = useMoney();
   const confirm = useConfirm();
   const anular = useVoidInvoice();
+  const anularConAviso = useBorrarConAvisoDeConciliacion();
   const borrar = useDeleteInvoice();
   const deshacer = useUnreceiveLine();
   const [abonando, setAbonando] = useState(false);
@@ -286,10 +292,20 @@ function FacturaCard({
       tone: 'destructive',
     });
     if (!ok) return;
-    anular.mutate(
-      { id: f.id, reason: 'Anulada desde la pantalla', confirmoFueraDePlazo: fueraDePlazo },
-      { onSuccess: () => notify.success('Factura anulada'), onError: (e) => notify.error(apiErrorMessage(e)) },
-    );
+    // ⚠️ El OTRO candado blando: anular una factura mueve los abonos de la Caja,
+    // así que si cae dentro de una conciliación el servidor contesta 400. Se
+    // responde con una SEGUNDA confirmación, no con un toast sin salida.
+    await anularConAviso({
+      enviar: (confirmoConciliacion) =>
+        anular.mutateAsync({
+          id: f.id,
+          reason: 'Anulada desde la pantalla',
+          confirmoFueraDePlazo: fueraDePlazo,
+          confirmoConciliacion,
+        }),
+      alGuardar: () => notify.success('Factura anulada'),
+      etiqueta: 'Anular igual',
+    });
   };
 
   /**
@@ -548,6 +564,7 @@ function Abonos({ factura: f }: { factura: PurchaseInvoice }) {
   const { money } = useMoney();
   const confirm = useConfirm();
   const anular = useVoidInvoicePayment();
+  const anularConAviso = useBorrarConAvisoDeConciliacion();
 
   /** Mismo plazo que la factura, contado desde que se cargó ESTE abono. */
   const pedirAnular = async (id: string, monto: number, cargadoEl: string | null) => {
@@ -560,17 +577,20 @@ function Abonos({ factura: f }: { factura: PurchaseInvoice }) {
       confirmLabel: fueraDePlazo ? 'Anular igual' : 'Anular',
       tone: 'destructive',
     });
-    if (ok) {
-      anular.mutate(
-        {
+    if (!ok) return;
+    // ⚠️ Mismo criterio que anular la factura: el candado de conciliación es
+    // otro candado y lo contesta una SEGUNDA confirmación.
+    await anularConAviso({
+      enviar: (confirmoConciliacion) =>
+        anular.mutateAsync({
           id: f.id,
           paymentId: id,
           reason: 'Anulado desde la pantalla',
           confirmoFueraDePlazo: fueraDePlazo,
-        },
-        { onError: (e) => notify.error(apiErrorMessage(e)) },
-      );
-    }
+          confirmoConciliacion,
+        }),
+      etiqueta: 'Anular igual',
+    });
   };
 
   return (
@@ -620,6 +640,7 @@ function Abonar({
   const { data: cuentas = [] } = useCashAccounts();
   const { data: tasasData } = useExchangeRates();
   const abonar = useAddInvoicePayment();
+  const conciliacion = useAvisoDeConciliacion();
   /**
    * El formulario de pago es compartido (`features/pagos`). `accountId` en
    * `''` = sin decir de qué cuenta salió (no se inventa una por defecto).
@@ -698,38 +719,46 @@ function Abonar({
     disponible: origen ? origen.disponible : null,
   });
 
+  /**
+   * ⚠️ El aviso de conciliación va DENTRO del diálogo, con «Guardar igual» (ver
+   * `features/cash/aviso-de-conciliacion`). Un abono tomado del SALDO A FAVOR
+   * no pasa por el candado —no mueve la caja—, así que ahí el flag viaja y el
+   * servidor no lo mira: no hace falta un caso aparte.
+   *
+   * `mutateAsync` y no `mutate`: el hook necesita la promesa para reconocer el
+   * 400 y poder reenviar lo mismo con la confirmación.
+   */
   const guardar = () =>
-    abonar.mutate(
-      {
-        id: f.id,
-        date: valor.date,
-        // ⚠️ EN OTRA MONEDA viaja SOLO el par {currencyLabel, amountForeign}: ni
-        // la tasa ni un `amount` calculado acá. El servidor busca la tasa por el
-        // nombre y deriva el USD; si viajaran, el cliente elegiría cuánto vale
-        // lo que pagó.
-        ...(enMoneda
-          ? { currencyLabel: valor.currencyLabel, amountForeign: valor.amountForeign }
-          : { amount }),
-        // ⚠️ Un abono tomado del saldo no lo paga nadie: mandar contraparte
-        // junto con el origen es 400 (el schema lo rechaza), y con razón —la
-        // Caja le quedaría debiendo plata que no puso.
-        counterpartyId: conSaldo ? null : valor.counterpartyId || null,
-        // «¿Se te devuelve?» solo significa algo con contraparte.
-        ...(!conSaldo && valor.counterpartyId ? { refundable: valor.refundable } : {}),
-        // ⚠️ Mismo criterio: con el saldo a favor no salió de ninguna cuenta
-        // (el schema lo rechaza con 400).
-        accountId: conSaldo ? null : valor.accountId || null,
-        note: note.trim() || null,
-        tomadoDeFacturaId: tomadoDe || null,
+    conciliacion.intentar({
+      enviar: (confirmoConciliacion) =>
+        abonar.mutateAsync({
+          confirmoConciliacion,
+          id: f.id,
+          date: valor.date,
+          // ⚠️ EN OTRA MONEDA viaja SOLO el par {currencyLabel, amountForeign}: ni
+          // la tasa ni un `amount` calculado acá. El servidor busca la tasa por el
+          // nombre y deriva el USD; si viajaran, el cliente elegiría cuánto vale
+          // lo que pagó.
+          ...(enMoneda
+            ? { currencyLabel: valor.currencyLabel, amountForeign: valor.amountForeign }
+            : { amount }),
+          // ⚠️ Un abono tomado del saldo no lo paga nadie: mandar contraparte
+          // junto con el origen es 400 (el schema lo rechaza), y con razón —la
+          // Caja le quedaría debiendo plata que no puso.
+          counterpartyId: conSaldo ? null : valor.counterpartyId || null,
+          // «¿Se te devuelve?» solo significa algo con contraparte.
+          ...(!conSaldo && valor.counterpartyId ? { refundable: valor.refundable } : {}),
+          // ⚠️ Mismo criterio: con el saldo a favor no salió de ninguna cuenta
+          // (el schema lo rechaza con 400).
+          accountId: conSaldo ? null : valor.accountId || null,
+          note: note.trim() || null,
+          tomadoDeFacturaId: tomadoDe || null,
+        }),
+      alGuardar: () => {
+        notify.success(conSaldo ? 'Abonado con el saldo a favor' : 'Abono registrado');
+        onClose();
       },
-      {
-        onSuccess: () => {
-          notify.success(conSaldo ? 'Abonado con el saldo a favor' : 'Abono registrado');
-          onClose();
-        },
-        onError: (e) => notify.error(apiErrorMessage(e)),
-      },
-    );
+    });
 
   return (
     <Dialog open onOpenChange={(a) => !a && onClose()} title="Abonar a la factura">
@@ -818,6 +847,11 @@ function Abonar({
             tener que volver a usarlo desde acá. Baja el monto si no era eso lo que querías.
           </p>
         )}
+        <AvisoDeConciliacion
+          aviso={conciliacion.aviso}
+          confirmando={conciliacion.confirmando}
+          onConfirmar={conciliacion.confirmar}
+        />
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="outline" onClick={onClose}>
             Cancelar

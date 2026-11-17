@@ -341,6 +341,87 @@ al scrollear. Arreglado el 2026-10-05.
 - **Contraste (auditoría AA)**: única falla histórica = `--success` claro sobre
   blanco (4.09:1) → se oscureció a `152 55% 32%` (5.01:1). El resto pasa AA.
 
+#### El aviso de conciliación era un CALLEJÓN SIN SALIDA (2026-11-17, shared 0.102.0)
+
+El servidor corta con **400** toda operación que mueva el saldo con fecha igual
+o anterior a una conciliación de caja (ver el `CLAUDE.md` de la API, «CARGAR CON
+FECHA VIEJA…»). Es un candado **BLANDO**: el cliente reintenta con
+`confirmoConciliacion`. **El panel nunca implementó esa otra mitad.**
+
+Medido antes del arreglo: `confirmoConciliacion` aparecía en **0 archivos** de
+`apps/web/src`. Las puertas hacían `catch { notify.error(apiErrorMessage(e)) }`,
+así que salía un toast que decía «vuelve a intentarlo confirmando» y **no había
+con qué**: reintentar daba el mismo toast y el movimiento no se guardaba nunca.
+Caso real del dueño: abono del encargo #56, $11, del 16/11, con una conciliación
+confirmada de ese mismo día.
+
+- **UNA sola definición: `features/cash/aviso-de-conciliacion.tsx`.** Dos formas,
+  porque hay dos clases de puerta:
+  - `useAvisoDeConciliacion` + `<AvisoDeConciliacion>` — para los FORMULARIOS: la
+    píldora ámbar con el texto del servidor y **«Guardar igual»**, dentro del
+    mismo diálogo. El formulario sigue editable (cambiar la fecha a una posterior
+    es la otra salida legítima).
+  - `useBorrarConAvisoDeConciliacion` — para BORRADOS y ANULACIONES, que ya
+    cerraron su `confirm()` y no tienen diálogo donde poner la píldora: contesta
+    con una **SEGUNDA confirmación** («Borrar igual» / «Dejarlo así»). Sin ella
+    esas puertas eran el mismo callejón con otro disfraz.
+- ⚠️ **El texto es del SERVIDOR**, no se reescribe acá: lo escribe
+  `mensajeDeConciliacionAfectada` en `shared` y es el único que sabe qué
+  conciliaciones y en qué estado. Hay un test de código que lo exige.
+- ⚠️ **El 400 se reconoce por la clave `conciliacionesAfectadas`, NO por el
+  texto** (el mensaje está escrito para una persona y cambiarlo no debe apagar el
+  botón). Esa clave la definen `cuerpoDeAvisoDeConciliacion` /
+  `leerAvisoDeConciliacion` de `shared`, las dos mitades en el mismo archivo.
+- ⚠️ **El flag viaja en el CUERPO al crear o editar y en la QUERY al borrar**
+  (un DELETE no lleva cuerpo; la API lo valida con
+  `ConfirmoConciliacionQuerySchema`). Mandarlo en el lugar equivocado deja al
+  servidor sin verlo: el 400 vuelve y «Guardar igual» parece roto.
+- ⚠️ **Va en ÁMBAR y en PÍLDORA** (ver «Rojo vs ámbar»): es un hecho LEGÍTIMO que
+  se puede guardar, y varias de estas puertas tienen cifras en oro al lado —el
+  ámbar y el oro miden **1.04:1** entre ellos—, así que el borde y el fondo lo
+  separan por FORMA. Medido en Chrome: `rgb(147,95,6)` con borde de 1px y fondo
+  al 10 %, o sea que las clases **sí se emiten** (la trampa de `Goals.tsx`).
+- ⚠️ **La píldora va ARRIBA de la fila de botones, nunca DENTRO.** En
+  `ExpenseModal` quedó dentro del `flex` y se metió **entre «Cancelar» y
+  «Guardar», encimándolos**. Ningún test de jsdom lo ve: se encontró con una
+  captura en un Chrome real.
+- **Las puertas son 13**, y **tres las encontró el guardián de código, no la
+  revisión a mano**: corregir quién pagó un gasto (`PATCH /expenses/:id` desde el
+  desplegable de la tabla) y corregir y borrar una compra de filamento
+  (`EditarCompra`). ⚠️ **Recibir una línea de factura NO pasa por el candado** —la
+  plata ya se contó al abonar— y por eso no lleva el flag.
+
+| Puerta | Pantalla | Forma |
+|---|---|---|
+| Abono de encargo (crear / borrar) | `OrderDetail` | píldora / 2.ª confirmación |
+| Venta de mostrador (crear, corregir / borrar) | `Sales` | píldora / 2.ª confirmación |
+| Gasto suelto (crear / borrar) | `ExpenseModal`, `Expenses` | píldora / 2.ª confirmación |
+| Compra de filamento o insumo (crear) | `ExpenseModal` (`with-definition`) | píldora |
+| Compra de filamento (corregir / borrar) | `EditarCompra` | píldora / 2.ª confirmación |
+| Quién pagó un gasto | `Expenses` (desplegable de la fila) | 2.ª confirmación |
+| Abono de compra | `Purchases` | píldora |
+| Anular factura / anular abono de compra | `Purchases` | 2.ª confirmación |
+| Pago de préstamo | `Loans` | píldora |
+| Movimiento de caja (anotar / borrar) | `Cash` | píldora / 2.ª confirmación |
+
+- **Tests**: `features/cash/aviso-de-conciliacion.spec.tsx` (7, la pieza única,
+  las dos formas), los de cableado por pantalla
+  (`OrderDetail.conciliacion`, `ExpenseModal.conciliacion`,
+  `puertas-de-conciliacion`) y el **guardián de código**
+  `features/cash/conciliacion-puertas.codigo.spec.ts` (4).
+- ⚠️ **El guardián tiene DOS mitades y la segunda faltaba, con el test verde.**
+  La primera mira las llamadas `api.post/patch/delete` a una ruta vigilada. Pero
+  las puertas de react-query no llaman a `api.*` en la pantalla: llaman a
+  `algo.mutateAsync(...)`, y el `api.*` vive en `features/<x>/api.ts`, **donde el
+  flag SÍ aparece** —está en la firma del hook—. Medido por mutación: cambiar la
+  llamada de Caja por `borrarMovimiento.mutateAsync({ id: m.id })` compilaba,
+  pasaba el lint y dejaba los otros tests en verde. La segunda mitad exige que
+  quien llame a un hook que ACEPTA el flag se lo pase.
+- ⚠️ **No correr `prettier --write` sobre `src` entero.** El repo tiene
+  `printWidth: 100` pero el código commiteado NO está formateado con él: una
+  pasada global reformatea **~110 archivos** que no tienen nada que ver con el
+  cambio y vuelve el diff irrevisable. Formatear solo lo que se toca, a mano.
+
 #### Rojo vs ámbar en los avisos (2026-10-11, decisión del dueño)
 
 Había **dos clases de aviso pintadas del mismo rojo**: el que frena y el que

@@ -14,6 +14,11 @@ import { notify } from '@/components/toast';
 import { formatStoredDay, todayKey } from '@/lib/today';
 import { ProductionCard } from '@/features/orders/ProductionCard';
 import { AttributionPicker } from '@/features/campaigns/AttributionPicker';
+import {
+  AvisoDeConciliacion,
+  useAvisoDeConciliacion,
+  useBorrarConAvisoDeConciliacion,
+} from '@/features/cash/aviso-de-conciliacion';
 
 const todayIso = () => todayKey();
 
@@ -57,14 +62,23 @@ export function OrderDetailPage() {
     onError: (e) => notify.error(apiErrorMessage(e)),
   });
 
-  const removePayment = useMutation({
-    mutationFn: (paymentId: string) => api.delete(`/orders/${id}/payments/${paymentId}`),
-    onSuccess: () => {
-      invalidate();
-      notify.success('Abono eliminado');
-    },
-    onError: (e) => notify.error(apiErrorMessage(e)),
-  });
+  const borrarConAviso = useBorrarConAvisoDeConciliacion();
+
+  /**
+   * ⚠️ Borrar un abono de un día ya conciliado la deja mintiendo igual que
+   * cargarlo: el 400 del candado se contesta con una SEGUNDA confirmación (ver
+   * `features/cash/aviso-de-conciliacion`), no con un toast sin salida.
+   * ⚠️ La confirmación va en la QUERY: un DELETE no lleva cuerpo.
+   */
+  const borrarAbono = (paymentId: string) =>
+    borrarConAviso({
+      enviar: (confirmoConciliacion) =>
+        api.delete(`/orders/${id}/payments/${paymentId}`, { params: { confirmoConciliacion } }),
+      alGuardar: () => {
+        invalidate();
+        notify.success('Abono eliminado');
+      },
+    });
 
   const settle = useMutation({
     mutationFn: () => api.post(`/orders/${id}/settle`),
@@ -299,7 +313,7 @@ export function OrderDetailPage() {
                     variant="ghost"
                     size="icon"
                     onClick={async () => {
-                      if (await confirm({ title: '¿Eliminar este abono?' })) removePayment.mutate(p.id);
+                      if (await confirm({ title: '¿Eliminar este abono?' })) await borrarAbono(p.id);
                     }}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -457,6 +471,7 @@ function AddPaymentModal({
   const [date, setDate] = useState(todayIso());
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const conciliacion = useAvisoDeConciliacion();
 
   const { data: tasas } = useExchangeRates();
   const monedas = tasas?.rates ?? [];
@@ -486,28 +501,32 @@ function AddPaymentModal({
   const aFavor = saldoAFavorDelAbono(maxSuggested, usd);
   const puedeGuardar = !saving && monto > 0 && (!elegida || tasa > 0);
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      await api.post(
-        `/orders/${orderId}/payments`,
-        elegida
-          ? // ⚠️ Sin `amount`: el schema lo RECHAZA si viaja junto con la moneda.
-            {
-              date,
-              note: note || null,
-              currencyLabel: elegida.label,
-              rate: tasa,
-              amountForeign: monto,
-            }
-          : { date, amount: monto, note: note || null },
-      );
-      onSaved();
-    } catch (e) {
-      notify.error(apiErrorMessage(e));
-      setSaving(false);
-    }
-  };
+  /**
+   * ⚠️ El 400 del candado de conciliación NO sale por toast: el aviso y su
+   * botón «Guardar igual» van DENTRO de este diálogo (ver
+   * `features/cash/aviso-de-conciliacion`). Con el toast, el aviso decía
+   * «vuelve a intentarlo confirmando» y no había con qué: era un callejón sin
+   * salida y el abono no se guardaba nunca.
+   */
+  const save = () =>
+    conciliacion.intentar({
+      enviar: (confirmoConciliacion) =>
+        api.post(`/orders/${orderId}/payments`, {
+          ...(elegida
+            ? // ⚠️ Sin `amount`: el schema lo RECHAZA si viaja junto con la moneda.
+              {
+                date,
+                note: note || null,
+                currencyLabel: elegida.label,
+                rate: tasa,
+                amountForeign: monto,
+              }
+            : { date, amount: monto, note: note || null }),
+          confirmoConciliacion,
+        }),
+      alGuardar: onSaved,
+      alFallar: () => setSaving(false),
+    });
 
   return (
     <Dialog open onOpenChange={(n) => !n && onClose()} title="Registrar abono">
@@ -515,7 +534,9 @@ function AddPaymentModal({
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          if (puedeGuardar) save();
+          if (!puedeGuardar) return;
+          setSaving(true);
+          save();
         }}
       >
         <FieldGrid min="11rem" className="gap-3">
@@ -595,6 +616,12 @@ function AddPaymentModal({
             placeholder="Ej. adelanto por Pago Móvil"
           />
         </Field>
+        <AvisoDeConciliacion
+          aviso={conciliacion.aviso}
+          confirmando={conciliacion.confirmando}
+          onConfirmar={conciliacion.confirmar}
+        />
+
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancelar
